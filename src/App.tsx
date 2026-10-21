@@ -11,7 +11,8 @@ import './App.css'
 type WidgetKind = 'alert' | 'chat' | 'events' | 'goal' | 'latest' | 'socials' | 'countdown' | 'clock' | 'viewer' | 'ticker' | 'music' | 'poll' | 'sponsor' | 'webcam-frame' | 'live-badge' | 'tip-jar' | 'stream-boss' | 'leaderboard'
 type WidgetTheme = 'glass' | 'neon' | 'minimal' | 'solid'
 type SourceType = 'text' | 'shape' | 'camera' | 'image' | 'video' | 'capture' | 'browser' | 'widget'
-type BackgroundConfig = { mode: 'transparent' | 'solid' | 'gradient' | 'image' | 'video' | 'screen'; color: string; color2: string; angle: number; imageSrc?: string; imageFit?: 'cover' | 'contain' | 'stretch'; imagePosition?: string; imageOpacity?: number; videoSrc?: string; videoFit?: 'cover' | 'contain' | 'stretch'; videoPosition?: string; videoOpacity?: number; videoStart?: number; videoEnd?: number; videoTrimEnabled?: boolean; videoLoop?: boolean; videoMuted?: boolean; videoVolume?: number; videoPlaybackRate?: number; overlayColor?: string; overlayOpacity?: number }
+type VideoClip = { id: string; name: string; src: string; start?: number; end?: number; trimEnabled?: boolean }
+type BackgroundConfig = { mode: 'transparent' | 'solid' | 'gradient' | 'image' | 'video' | 'screen'; color: string; color2: string; angle: number; imageSrc?: string; imageFit?: 'cover' | 'contain' | 'stretch'; imagePosition?: string; imageOpacity?: number; videoSrc?: string; videoClips?: VideoClip[]; videoFit?: 'cover' | 'contain' | 'stretch'; videoPosition?: string; videoOpacity?: number; videoStart?: number; videoEnd?: number; videoTrimEnabled?: boolean; videoLoop?: boolean; videoMuted?: boolean; videoVolume?: number; videoPlaybackRate?: number; videoBrightness?: number; videoContrast?: number; videoSaturation?: number; videoHueRotate?: number; overlayColor?: string; overlayOpacity?: number }
 type InspectorTab = 'layers' | 'element' | 'background' | 'canvas'
 type ElementSection = 'content' | 'style' | 'transform'
 type SceneSource = {
@@ -28,6 +29,7 @@ type SceneSource = {
   color?: string
   fontSize?: number
   src?: string
+  videoClips?: VideoClip[]
   objectFit?: 'contain' | 'cover'
   objectPosition?: string
   videoStart?: number
@@ -37,6 +39,10 @@ type SceneSource = {
   videoMuted?: boolean
   videoVolume?: number
   videoPlaybackRate?: number
+  videoBrightness?: number
+  videoContrast?: number
+  videoSaturation?: number
+  videoHueRotate?: number
   textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize'
   textDecoration?: 'none' | 'underline' | 'line-through'
   textShadowEnabled?: boolean
@@ -297,6 +303,7 @@ function isValidProject(value: unknown): value is Project {
     if (scene.background?.imageSrc && !isSafeImageSource(scene.background.imageSrc)) return false
     if (scene.background?.videoSrc !== undefined && typeof scene.background.videoSrc !== 'string') return false
     if (scene.background?.videoSrc && !isSafeVideoSource(scene.background.videoSrc)) return false
+    if (scene.background?.videoClips !== undefined && (!Array.isArray(scene.background.videoClips) || scene.background.videoClips.length < 1 || scene.background.videoClips.length > 40 || scene.background.videoClips.some((clip) => !clip || typeof clip.id !== 'string' || !clip.id || typeof clip.name !== 'string' || typeof clip.src !== 'string' || !isSafeVideoSource(clip.src) || (clip.start !== undefined && (!Number.isFinite(clip.start) || clip.start < 0 || clip.start > 3600)) || (clip.end !== undefined && (!Number.isFinite(clip.end) || clip.end < 0 || clip.end > 3600)) || (clip.trimEnabled !== undefined && typeof clip.trimEnabled !== 'boolean')))) return false
     if (scene.background?.videoStart !== undefined && (!Number.isFinite(scene.background.videoStart) || scene.background.videoStart < 0 || scene.background.videoStart > 3600)) return false
     if (scene.background?.videoEnd !== undefined && (!Number.isFinite(scene.background.videoEnd) || scene.background.videoEnd < 0 || scene.background.videoEnd > 3600)) return false
     if (scene.background?.videoTrimEnabled !== undefined && typeof scene.background.videoTrimEnabled !== 'boolean') return false
@@ -304,6 +311,10 @@ function isValidProject(value: unknown): value is Project {
     if (scene.background?.videoMuted !== undefined && typeof scene.background.videoMuted !== 'boolean') return false
     if (scene.background?.videoVolume !== undefined && (!Number.isFinite(scene.background.videoVolume) || scene.background.videoVolume < 0 || scene.background.videoVolume > 1)) return false
     if (scene.background?.videoPlaybackRate !== undefined && (!Number.isFinite(scene.background.videoPlaybackRate) || scene.background.videoPlaybackRate < 0.25 || scene.background.videoPlaybackRate > 2)) return false
+    if (scene.background?.videoBrightness !== undefined && (!Number.isFinite(scene.background.videoBrightness) || scene.background.videoBrightness < 0 || scene.background.videoBrightness > 2)) return false
+    if (scene.background?.videoContrast !== undefined && (!Number.isFinite(scene.background.videoContrast) || scene.background.videoContrast < 0 || scene.background.videoContrast > 2)) return false
+    if (scene.background?.videoSaturation !== undefined && (!Number.isFinite(scene.background.videoSaturation) || scene.background.videoSaturation < 0 || scene.background.videoSaturation > 2)) return false
+    if (scene.background?.videoHueRotate !== undefined && (!Number.isFinite(scene.background.videoHueRotate) || scene.background.videoHueRotate < 0 || scene.background.videoHueRotate > 360)) return false
 
     const sourceIds = new Set<string>()
     for (const source of scene.sources) {
@@ -319,6 +330,7 @@ function isValidProject(value: unknown): value is Project {
       if (source.h !== undefined && !Number.isFinite(source.h)) return false
       if (source.src !== undefined && typeof source.src !== 'string') return false
       if (source.type === 'video' && source.src && !isSafeVideoSource(source.src)) return false
+      if (source.videoClips !== undefined && (!Array.isArray(source.videoClips) || source.videoClips.length < 1 || source.videoClips.length > 40 || source.videoClips.some((clip) => !clip || typeof clip.id !== 'string' || !clip.id || typeof clip.name !== 'string' || typeof clip.src !== 'string' || !isSafeVideoSource(clip.src) || (clip.start !== undefined && (!Number.isFinite(clip.start) || clip.start < 0 || clip.start > 3600)) || (clip.end !== undefined && (!Number.isFinite(clip.end) || clip.end < 0 || clip.end > 3600)) || (clip.trimEnabled !== undefined && typeof clip.trimEnabled !== 'boolean')))) return false
       if (source.videoStart !== undefined && (!Number.isFinite(source.videoStart) || source.videoStart < 0 || source.videoStart > 3600)) return false
       if (source.videoEnd !== undefined && (!Number.isFinite(source.videoEnd) || source.videoEnd < 0 || source.videoEnd > 3600)) return false
       if (source.videoTrimEnabled !== undefined && typeof source.videoTrimEnabled !== 'boolean') return false
@@ -326,6 +338,10 @@ function isValidProject(value: unknown): value is Project {
       if (source.videoMuted !== undefined && typeof source.videoMuted !== 'boolean') return false
       if (source.videoVolume !== undefined && (!Number.isFinite(source.videoVolume) || source.videoVolume < 0 || source.videoVolume > 1)) return false
       if (source.videoPlaybackRate !== undefined && (!Number.isFinite(source.videoPlaybackRate) || source.videoPlaybackRate < 0.25 || source.videoPlaybackRate > 2)) return false
+      if (source.videoBrightness !== undefined && (!Number.isFinite(source.videoBrightness) || source.videoBrightness < 0 || source.videoBrightness > 2)) return false
+      if (source.videoContrast !== undefined && (!Number.isFinite(source.videoContrast) || source.videoContrast < 0 || source.videoContrast > 2)) return false
+      if (source.videoSaturation !== undefined && (!Number.isFinite(source.videoSaturation) || source.videoSaturation < 0 || source.videoSaturation > 2)) return false
+      if (source.videoHueRotate !== undefined && (!Number.isFinite(source.videoHueRotate) || source.videoHueRotate < 0 || source.videoHueRotate > 360)) return false
       if (source.fontUrl !== undefined && typeof source.fontUrl !== 'string') return false
       if (source.widgetFontUrl !== undefined && typeof source.widgetFontUrl !== 'string') return false
       if (source.widgetBackgroundImage !== undefined && typeof source.widgetBackgroundImage !== 'string') return false
@@ -353,6 +369,7 @@ function normalizeProject(parsed: Project): Project {
         name: source.name.slice(0, 70) || 'Fonte',
         visible: source.visible !== false,
         x, y, w, h,
+        ...(source.videoClips ? { videoClips: source.videoClips.slice(0, 40).map((clip) => ({ ...clip, name: clip.name.slice(0, 140), start: clamp(Number.isFinite(clip.start) ? Number(clip.start) : 0, 0, 3600), end: clamp(Number.isFinite(clip.end) ? Number(clip.end) : 0, 0, 3600), trimEnabled: clip.trimEnabled === true })) } : {}),
         ...(source.type === 'video' ? {
           videoStart: clamp(Number.isFinite(source.videoStart) ? Number(source.videoStart) : 0, 0, 3600),
           videoEnd: clamp(Number.isFinite(source.videoEnd) ? Number(source.videoEnd) : 0, 0, 3600),
@@ -361,6 +378,10 @@ function normalizeProject(parsed: Project): Project {
           videoMuted: source.videoMuted !== false,
           videoVolume: clamp(Number.isFinite(source.videoVolume) ? Number(source.videoVolume) : 0.8, 0, 1),
           videoPlaybackRate: clamp(Number.isFinite(source.videoPlaybackRate) ? Number(source.videoPlaybackRate) : 1, 0.25, 2),
+          videoBrightness: clamp(Number.isFinite(source.videoBrightness) ? Number(source.videoBrightness) : 1, 0, 2),
+          videoContrast: clamp(Number.isFinite(source.videoContrast) ? Number(source.videoContrast) : 1, 0, 2),
+          videoSaturation: clamp(Number.isFinite(source.videoSaturation) ? Number(source.videoSaturation) : 1, 0, 2),
+          videoHueRotate: clamp(Number.isFinite(source.videoHueRotate) ? Number(source.videoHueRotate) : 0, 0, 360),
         } : {}),
         opacity: clamp(Number.isFinite(source.opacity) ? Number(source.opacity) : 1, 0, 1),
         rotation: clamp(Number.isFinite(source.rotation) ? Number(source.rotation) : 0, -180, 180),
@@ -422,6 +443,10 @@ function normalizeProject(parsed: Project): Project {
       videoMuted: rawBackground?.videoMuted !== false,
       videoVolume: clamp(Number.isFinite(rawBackground?.videoVolume) ? Number(rawBackground.videoVolume) : 0.8, 0, 1),
       videoPlaybackRate: clamp(Number.isFinite(rawBackground?.videoPlaybackRate) ? Number(rawBackground.videoPlaybackRate) : 1, 0.25, 2),
+      videoBrightness: clamp(Number.isFinite(rawBackground?.videoBrightness) ? Number(rawBackground.videoBrightness) : 1, 0, 2),
+      videoContrast: clamp(Number.isFinite(rawBackground?.videoContrast) ? Number(rawBackground.videoContrast) : 1, 0, 2),
+      videoSaturation: clamp(Number.isFinite(rawBackground?.videoSaturation) ? Number(rawBackground.videoSaturation) : 1, 0, 2),
+      videoHueRotate: clamp(Number.isFinite(rawBackground?.videoHueRotate) ? Number(rawBackground.videoHueRotate) : 0, 0, 360),
       overlayColor: typeof rawBackground?.overlayColor === 'string' ? rawBackground.overlayColor : '#000000',
       overlayOpacity: clamp(Number.isFinite(rawBackground?.overlayOpacity) ? Number(rawBackground?.overlayOpacity) : 0, 0, 1),
     }
@@ -635,9 +660,18 @@ async function getProjectVideoBytes(project: Project): Promise<number> {
     }
   }
   for (const scene of project.scenes) {
-    await countReference(scene.background?.videoSrc)
+    if (scene.background?.videoClips?.length) {
+      for (const clip of scene.background.videoClips) await countReference(clip.src)
+    } else {
+      await countReference(scene.background?.videoSrc)
+    }
     for (const source of scene.sources) {
-      if (source.type === 'video') await countReference(source.src)
+      if (source.type !== 'video') continue
+      if (source.videoClips?.length) {
+        for (const clip of source.videoClips) await countReference(clip.src)
+      } else {
+        await countReference(source.src)
+      }
     }
   }
   return total
@@ -683,24 +717,39 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 async function storeEmbeddedVideos(project: Project): Promise<Project> {
   const scenes: Scene[] = []
   const createdReferences: string[] = []
+  const storeDataReference = async (reference: string | undefined, label: string): Promise<string | undefined> => {
+    if (!reference?.startsWith('data:video/')) return reference
+    const blob = dataUrlToBlob(reference)
+    if (blob.size > MAX_VIDEO_BYTES) throw new Error(`“${label}” excede o limite de ${Math.round(MAX_VIDEO_BYTES / 1_000_000)} MB por vídeo.`)
+    const stored = await saveVideoBlob(blob, label)
+    createdReferences.push(stored)
+    return stored
+  }
   try {
     for (const scene of project.scenes) {
       const sources: SceneSource[] = []
       let background = scene.background ? { ...scene.background } : undefined
-      if (background?.videoSrc?.startsWith('data:video/')) {
-        const blob = dataUrlToBlob(background.videoSrc)
-        if (blob.size > MAX_VIDEO_BYTES) throw new Error(`O vídeo de fundo da cena “${scene.name}” excede o limite de ${Math.round(MAX_VIDEO_BYTES / 1_000_000)} MB.`)
-        const reference = await saveVideoBlob(blob, `Fundo - ${scene.name}`)
-        createdReferences.push(reference)
-        background = { ...background, videoSrc: reference }
+      if (background?.videoClips?.length) {
+        const clips: VideoClip[] = []
+        for (const clip of background.videoClips) {
+          clips.push({ ...clip, src: (await storeDataReference(clip.src, `Fundo · ${clip.name}`)) ?? clip.src })
+        }
+        background = { ...background, videoClips: clips, videoSrc: clips[0]?.src ?? background.videoSrc }
+      } else if (background?.videoSrc) {
+        const stored = await storeDataReference(background.videoSrc, `Fundo · ${scene.name}`)
+        background = { ...background, videoSrc: stored }
       }
       for (const source of scene.sources) {
-        if (source.type === 'video' && source.src?.startsWith('data:video/')) {
-          const blob = dataUrlToBlob(source.src)
-          if (blob.size > MAX_VIDEO_BYTES) throw new Error(`O vídeo “${source.name}” excede o limite de ${Math.round(MAX_VIDEO_BYTES / 1_000_000)} MB.`)
-          const reference = await saveVideoBlob(blob, source.name || 'Vídeo importado')
-          createdReferences.push(reference)
-          sources.push({ ...source, src: reference })
+        if (source.type !== 'video') { sources.push(source); continue }
+        if (source.videoClips?.length) {
+          const clips: VideoClip[] = []
+          for (const clip of source.videoClips) {
+            clips.push({ ...clip, src: (await storeDataReference(clip.src, `${source.name} · ${clip.name}`)) ?? clip.src })
+          }
+          sources.push({ ...source, src: clips[0]?.src ?? source.src, videoClips: clips })
+        } else if (source.src) {
+          const stored = await storeDataReference(source.src, source.name || 'Vídeo importado')
+          sources.push({ ...source, src: stored })
         } else {
           sources.push(source)
         }
@@ -772,24 +821,32 @@ function safeFileName(name: string) {
 
 async function downloadProject(project: Project) {
   const exportProject: Project = { ...project, scenes: [] }
+  const exportReference = async (reference: string | undefined, label: string): Promise<string | undefined> => {
+    if (!reference?.startsWith('idb-video://')) return reference
+    const blob = await getVideoBlob(reference)
+    if (!blob) throw new Error(`O vídeo “${label}” não foi encontrado no armazenamento local. Importe-o novamente antes de exportar.`)
+    if (blob.size > MAX_VIDEO_BYTES) throw new Error(`O vídeo “${label}” excede o limite portátil por arquivo.`)
+    return blobToDataUrl(blob)
+  }
   for (const scene of project.scenes) {
     const sources: SceneSource[] = []
     let background = scene.background ? { ...scene.background } : undefined
-    if (background?.videoSrc?.startsWith('idb-video://')) {
-      const blob = await getVideoBlob(background.videoSrc)
-      if (!blob) throw new Error(`O vídeo de fundo da cena “${scene.name}” não foi encontrado no armazenamento local. Importe-o novamente antes de exportar.`)
-      if (blob.size > MAX_VIDEO_BYTES) throw new Error(`O vídeo de fundo da cena “${scene.name}” excede o limite portátil de exportação.`)
-      background = { ...background, videoSrc: await blobToDataUrl(blob) }
+    if (background?.videoClips?.length) {
+      const clips: VideoClip[] = []
+      for (const clip of background.videoClips) clips.push({ ...clip, src: (await exportReference(clip.src, clip.name)) ?? clip.src })
+      background = { ...background, videoClips: clips, videoSrc: background.videoSrc }
+    } else if (background?.videoSrc) {
+      background = { ...background, videoSrc: await exportReference(background.videoSrc, `Fundo · ${scene.name}`) }
     }
     for (const source of scene.sources) {
-      if (source.type === 'video' && source.src?.startsWith('idb-video://')) {
-        const blob = await getVideoBlob(source.src)
-        if (!blob) throw new Error(`O vídeo “${source.name}” não foi encontrado no armazenamento local. Importe-o novamente antes de exportar.`)
-        if (blob.size > MAX_VIDEO_BYTES) throw new Error(`O vídeo “${source.name}” excede o limite portátil de exportação.`)
-        sources.push({ ...source, src: await blobToDataUrl(blob) })
-      } else {
-        sources.push(source)
-      }
+      if (source.type !== 'video') { sources.push(source); continue }
+      if (source.videoClips?.length) {
+        const clips: VideoClip[] = []
+        for (const clip of source.videoClips) clips.push({ ...clip, src: (await exportReference(clip.src, `${source.name} · ${clip.name}`)) ?? clip.src })
+        sources.push({ ...source, src: source.src, videoClips: clips })
+      } else if (source.src) {
+        sources.push({ ...source, src: (await exportReference(source.src, source.name)) ?? source.src })
+      } else sources.push(source)
     }
     exportProject.scenes.push({ ...scene, background, sources })
   }
@@ -1281,59 +1338,117 @@ function formatMediaTime(seconds: number) {
   return `${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}.${tenths}`
 }
 
+function useResolvedVideoPlaylistSources(clips: VideoClip[]): Record<string, string> {
+  const signature = clips.map((clip) => `${clip.id}::${clip.src}`).join('||')
+  const [resolvedSources, setResolvedSources] = useState<Record<string, string>>({})
+  useEffect(() => {
+    let cancelled = false
+    const objectUrls: string[] = []
+    const resolveAll = async () => {
+      const result: Record<string, string> = {}
+      for (const clip of clips) {
+        if (!clip.src) continue
+        if (clip.src.startsWith('idb-video://')) {
+          try {
+            const blob = await getVideoBlob(clip.src)
+            if (blob) {
+              const objectUrl = URL.createObjectURL(blob)
+              objectUrls.push(objectUrl)
+              result[clip.id] = objectUrl
+            }
+          } catch { /* O estado vazio é apresentado no inspetor se um clipe estiver ausente. */ }
+        } else {
+          result[clip.id] = clip.src
+        }
+      }
+      if (!cancelled) setResolvedSources(result)
+    }
+    void resolveAll()
+    return () => {
+      cancelled = true
+      objectUrls.forEach((objectUrl) => URL.revokeObjectURL(objectUrl))
+    }
+  // Only id and source changes require resolving the media blobs again.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature])
+  return resolvedSources
+}
+
 function TrimmedVideo({ source, className, fit, position }: { source: SceneSource; className: string; fit?: 'cover' | 'contain' | 'fill'; position?: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
-  const resolvedSrc = useResolvedVideoSrc(source.src)
-  const start = source.videoTrimEnabled ? Math.max(0, source.videoStart ?? 0) : 0
-  const end = source.videoTrimEnabled ? Math.max(0, source.videoEnd ?? 0) : 0
+  const playlistMode = Boolean(source.videoClips?.length)
+  const clips: VideoClip[] = playlistMode
+    ? (source.videoClips ?? [])
+    : source.src ? [{ id: `single-${source.id}`, name: source.name, src: source.src, start: source.videoStart ?? 0, end: source.videoEnd ?? 0, trimEnabled: source.videoTrimEnabled === true }] : []
+  const signature = clips.map((clip) => `${clip.id}::${clip.src}`).join('||')
+  const resolvedSources = useResolvedVideoPlaylistSources(clips)
+  const [clipIndex, setClipIndex] = useState(0)
+  const advancingRef = useRef(false)
+  const index = Math.min(clipIndex, Math.max(0, clips.length - 1))
+  const clip = clips[index]
+  const resolvedSrc = clip ? resolvedSources[clip.id] : undefined
+  const start = clip?.trimEnabled ? Math.max(0, clip.start ?? 0) : (!playlistMode && source.videoTrimEnabled ? Math.max(0, source.videoStart ?? 0) : 0)
+  const end = clip?.trimEnabled ? Math.max(0, clip.end ?? 0) : (!playlistMode && source.videoTrimEnabled ? Math.max(0, source.videoEnd ?? 0) : 0)
   const shouldLoop = source.videoLoop !== false
+
+  useEffect(() => { setClipIndex(0); advancingRef.current = false }, [signature])
 
   useEffect(() => {
     const video = videoRef.current
     if (!video || !resolvedSrc) return
-    const seekToStart = () => {
+    advancingRef.current = false
+    const initialize = () => {
+      if (!videoRef.current || videoRef.current !== video) return
       const safeStart = Number.isFinite(video.duration) ? Math.min(start, Math.max(0, video.duration - 0.05)) : start
       if (Math.abs(video.currentTime - safeStart) > 0.15) {
-        try { video.currentTime = safeStart } catch { /* Metadata may still be loading. */ }
+        try { video.currentTime = safeStart } catch { /* O navegador ainda pode não permitir seek. */ }
       }
       video.playbackRate = clamp(source.videoPlaybackRate ?? 1, 0.25, 2)
       video.volume = clamp(source.videoVolume ?? 0.8, 0, 1)
       video.muted = source.videoMuted !== false
-      void video.play().catch(() => { /* Browsers can block autoplay, especially when sound is enabled. */ })
+      void video.play().catch(() => { /* Reprodução automática com áudio pode ser bloqueada. */ })
     }
-    if (video.readyState >= 1) seekToStart()
-    else video.addEventListener('loadedmetadata', seekToStart, { once: true })
-    return () => video.removeEventListener('loadedmetadata', seekToStart)
-  }, [resolvedSrc, start])
+    if (video.readyState >= 1) initialize()
+    else video.addEventListener('loadedmetadata', initialize, { once: true })
+    return () => video.removeEventListener('loadedmetadata', initialize)
+  }, [resolvedSrc, index, start, source.videoPlaybackRate, source.videoVolume, source.videoMuted])
 
-  useEffect(() => {
-    const video = videoRef.current
-    if (!video || !resolvedSrc) return
-    video.muted = source.videoMuted !== false
-    video.volume = clamp(source.videoVolume ?? 0.8, 0, 1)
-    video.playbackRate = clamp(source.videoPlaybackRate ?? 1, 0.25, 2)
-  }, [resolvedSrc, source.videoMuted, source.videoVolume, source.videoPlaybackRate])
+  function advanceClip(video: HTMLVideoElement) {
+    if (advancingRef.current) return
+    if (index < clips.length - 1) {
+      advancingRef.current = true
+      setClipIndex(index + 1)
+      return
+    }
+    if (shouldLoop) {
+      advancingRef.current = true
+      setClipIndex(0)
+      return
+    }
+    video.pause()
+  }
 
   function handleTimeUpdate(event: SyntheticEvent<HTMLVideoElement>) {
     const video = event.currentTarget
     if (end > start + 0.05 && video.currentTime >= end) {
-      if (shouldLoop) {
+      if (playlistMode && clips.length > 1) advanceClip(video)
+      else if (shouldLoop) {
         video.currentTime = Math.min(start, Math.max(0, (video.duration || start) - 0.05))
         void video.play().catch(() => undefined)
-      } else {
-        video.pause()
-      }
+      } else video.pause()
     }
   }
 
   function handleEnded(event: SyntheticEvent<HTMLVideoElement>) {
     const video = event.currentTarget
-    if (shouldLoop) {
+    if (playlistMode && clips.length > 1) advanceClip(video)
+    else if (shouldLoop) {
       video.currentTime = Math.min(start, Math.max(0, (video.duration || start) - 0.05))
       void video.play().catch(() => undefined)
     }
   }
 
+  if (!clip || !resolvedSrc) return <div className={`${className} video-source-placeholder`} aria-label="Vídeo não disponível" />
   return <video
     ref={videoRef}
     className={className}
@@ -1346,15 +1461,17 @@ function TrimmedVideo({ source, className, fit, position }: { source: SceneSourc
     onLoadedMetadata={(event) => {
       const video = event.currentTarget
       const safeStart = Number.isFinite(video.duration) ? Math.min(start, Math.max(0, video.duration - 0.05)) : start
-      try { video.currentTime = safeStart } catch { /* Ignore unsupported seek until data is ready. */ }
+      try { video.currentTime = safeStart } catch { /* O efeito volta a tentar quando os metadados estiverem prontos. */ }
+      advancingRef.current = false
     }}
     onTimeUpdate={handleTimeUpdate}
     onEnded={handleEnded}
-    style={{ objectFit: fit ?? source.objectFit ?? 'cover', objectPosition: position ?? source.objectPosition ?? 'center center' }}
+    onError={() => { const video = videoRef.current; if (video && playlistMode && clips.length > 1 && index < clips.length - 1) advanceClip(video) }}
+    style={{ objectFit: fit ?? source.objectFit ?? 'cover', objectPosition: position ?? source.objectPosition ?? 'center center', filter: `brightness(${source.videoBrightness ?? 1}) contrast(${source.videoContrast ?? 1}) saturate(${source.videoSaturation ?? 1}) hue-rotate(${source.videoHueRotate ?? 0}deg)` }}
   />
 }
 
-function VideoSourceControls({ source, onChange }: { source: SceneSource; onChange: (changes: Partial<SceneSource>) => void }) {
+function VideoSourceControls({ source, onChange, onAddClips }: { source: SceneSource; onChange: (changes: Partial<SceneSource>) => void; onAddClips: () => void }) {
   const resolvedSrc = useResolvedVideoSrc(source.src)
   const [duration, setDuration] = useState(0)
   const [mediaError, setMediaError] = useState('')
@@ -1382,7 +1499,7 @@ function VideoSourceControls({ source, onChange }: { source: SceneSource; onChan
     try {
       const parsed = new URL(urlDraft.trim())
       if ((parsed.protocol !== 'https:' && parsed.protocol !== 'http:') || parsed.href.length > 2000) throw new Error('URL inválida')
-      onChange({ src: parsed.href, videoStart: 0, videoEnd: 0, videoTrimEnabled: false })
+      onChange({ src: parsed.href, videoClips: undefined, videoStart: 0, videoEnd: 0, videoTrimEnabled: false })
       setUrlError('')
     } catch {
       setUrlError('Digite um link direto de vídeo começando com https:// ou http://. A URL deve apontar para o arquivo de vídeo, não para uma página comum.')
@@ -1402,9 +1519,10 @@ function VideoSourceControls({ source, onChange }: { source: SceneSource; onChan
       onDurationChange={(event) => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)}
       onError={() => setMediaError('O navegador não conseguiu decodificar este vídeo. Tente MP4 com vídeo H.264 ou WebM com VP8/VP9.') }
     />
-    <p className="field-hint">{duration > 0 ? `Duração do arquivo: ${formatMediaTime(duration)}.` : source.src?.startsWith('idb-video://') && !resolvedSrc ? 'O vídeo local não foi encontrado neste navegador. Importe o arquivo novamente.' : 'Aguardando o navegador ler a duração do vídeo.'} A prévia aqui tem controles para você conferir o arquivo.</p>
+    <p className="field-hint">{duration > 0 ? `Duração do arquivo: ${formatMediaTime(duration)}.` : source.src?.startsWith('idb-video://') && !resolvedSrc ? 'O vídeo local não foi encontrado neste navegador. Importe o arquivo novamente.' : 'Aguardando o navegador ler a duração do vídeo.'} {source.videoClips?.length ? 'Esta prévia mostra o primeiro clipe; a sequência completa toca na composição.' : 'A prévia aqui tem controles para você conferir o arquivo.'}</p>
     {mediaError && <p className="error-note">{mediaError}</p>}
 
+    {!source.videoClips?.length && <>
     <label className="field-label" htmlFor="video-trim-start">Início do trecho · {formatMediaTime(start)}</label>
     <input id="video-trim-start" className="video-trim-range" type="range" min="0" max={Math.max(0.1, maxTime - 0.1)} step="0.1" value={start} onChange={(event) => setStart(Number(event.target.value))} />
     <label className="field-label" htmlFor="video-trim-end">Fim do trecho · {formatMediaTime(end)}</label>
@@ -1415,6 +1533,24 @@ function VideoSourceControls({ source, onChange }: { source: SceneSource; onChan
     </div>
     <label className="field-hint video-checkline"><input type="checkbox" checked={Boolean(trimActive)} onChange={(event) => { if (event.target.checked) onChange({ videoTrimEnabled: true, videoStart: 0, videoEnd: duration > 0 ? duration : 10 }); else onChange({ videoTrimEnabled: false, videoStart: 0, videoEnd: 0 }) }} /> Ativar corte de trecho</label>
     <p className="field-hint">Use Início e Fim para reproduzir só uma parte. Desmarcar o corte volta a usar o vídeo inteiro.</p>
+    </>}
+    {source.videoClips && source.videoClips.length > 0 && <div className="video-playlist-manager">
+      <p className="eyebrow">SEQUÊNCIA DE VÍDEOS · {source.videoClips.length} CLIPES</p>
+      <p className="field-hint">Todos os clipes são reproduzidos em sequência dentro de uma única camada. Arraste a camada como um único banner; cada trecho pode ter seu próprio corte.</p>
+      {source.videoClips.map((clip, index, clips) => <div className="video-playlist-row" key={clip.id}>
+        <div className="video-playlist-row-heading"><strong>{index + 1}. {clip.name}</strong><div>
+          <button type="button" disabled={index === 0} aria-label="Mover clipe para cima" onClick={() => { const next = [...clips]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; onChange({ videoClips: next, src: next[0].src }) }}>↑</button>
+          <button type="button" disabled={index === clips.length - 1} aria-label="Mover clipe para baixo" onClick={() => { const next = [...clips]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; onChange({ videoClips: next, src: next[0].src }) }}>↓</button>
+          <button type="button" disabled={clips.length <= 1} aria-label="Remover clipe da sequência" onClick={() => { const next = clips.filter((item) => item.id !== clip.id); if (next.length > 1) onChange({ videoClips: next, src: next[0].src }); else if (next.length === 1) onChange({ videoClips: undefined, src: next[0].src, videoStart: next[0].start ?? 0, videoEnd: next[0].end ?? 0, videoTrimEnabled: next[0].trimEnabled === true }) }}>×</button>
+        </div></div>
+        <div className="video-playlist-trim-grid">
+          <label>Início (s)<input className="text-input" type="number" min="0" max="3600" step="0.1" value={clip.start ?? 0} onChange={(event) => onChange({ videoClips: clips.map((item) => item.id === clip.id ? { ...item, start: Math.max(0, Number(event.target.value) || 0), trimEnabled: true } : item) })} /></label>
+          <label>Fim (s, 0 = final)<input className="text-input" type="number" min="0" max="3600" step="0.1" value={clip.end ?? 0} onChange={(event) => onChange({ videoClips: clips.map((item) => item.id === clip.id ? { ...item, end: Math.max(0, Number(event.target.value) || 0), trimEnabled: true } : item) })} /></label>
+        </div>
+        <label className="checkbox-row"><input type="checkbox" checked={clip.trimEnabled === true} onChange={(event) => onChange({ videoClips: clips.map((item) => item.id === clip.id ? { ...item, trimEnabled: event.target.checked } : item) })} /><span>Cortar este clipe</span></label>
+      </div>)}
+      <button className="wide-action" type="button" onClick={onAddClips}>+ Acrescentar vídeos à sequência</button>
+    </div>}
 
     <div className="field-divider" />
     <label className="lock-toggle"><input type="checkbox" checked={source.videoLoop !== false} onChange={(event) => onChange({ videoLoop: event.target.checked })} /><span>Repetir em loop</span></label>
@@ -1423,6 +1559,16 @@ function VideoSourceControls({ source, onChange }: { source: SceneSource; onChan
     <input id="video-volume" className="video-trim-range" type="range" min="0" max="1" step="0.05" value={source.videoVolume ?? 0.8} disabled={source.videoMuted !== false} onChange={(event) => onChange({ videoVolume: Number(event.target.value) })} />
     <label className="field-label" htmlFor="video-speed">Velocidade de reprodução</label>
     <select id="video-speed" className="text-input" value={source.videoPlaybackRate ?? 1} onChange={(event) => onChange({ videoPlaybackRate: Number(event.target.value) })}><option value="0.25">0,25×</option><option value="0.5">0,5×</option><option value="0.75">0,75×</option><option value="1">Normal · 1×</option><option value="1.25">1,25×</option><option value="1.5">1,5×</option><option value="2">2×</option></select>
+    <div className="field-divider" />
+    <p className="eyebrow section-eyebrow">COR E FILTROS</p>
+    <label className="field-label" htmlFor="video-brightness">Brilho · {Math.round((source.videoBrightness ?? 1) * 100)}%</label>
+    <input id="video-brightness" className="video-trim-range" type="range" min="0" max="2" step="0.05" value={source.videoBrightness ?? 1} onChange={(event) => onChange({ videoBrightness: Number(event.target.value) })} />
+    <label className="field-label" htmlFor="video-contrast">Contraste · {Math.round((source.videoContrast ?? 1) * 100)}%</label>
+    <input id="video-contrast" className="video-trim-range" type="range" min="0" max="2" step="0.05" value={source.videoContrast ?? 1} onChange={(event) => onChange({ videoContrast: Number(event.target.value) })} />
+    <label className="field-label" htmlFor="video-saturation">Saturação · {Math.round((source.videoSaturation ?? 1) * 100)}%</label>
+    <input id="video-saturation" className="video-trim-range" type="range" min="0" max="2" step="0.05" value={source.videoSaturation ?? 1} onChange={(event) => onChange({ videoSaturation: Number(event.target.value) })} />
+    <label className="field-label" htmlFor="video-hue">Matiz · {Math.round(source.videoHueRotate ?? 0)}°</label>
+    <input id="video-hue" className="video-trim-range" type="range" min="0" max="360" step="5" value={source.videoHueRotate ?? 0} onChange={(event) => onChange({ videoHueRotate: Number(event.target.value) })} />
     <label className="field-label" htmlFor="video-direct-url">Ou importar de uma URL direta</label>
     <input id="video-direct-url" className="text-input" type="url" value={urlDraft} onChange={(event) => { setUrlDraft(event.target.value); setUrlError('') }} placeholder="https://site.com/banner.mp4" />
     <button className="wide-action" type="button" onClick={applyVideoUrl}>Aplicar URL do vídeo</button>
@@ -1501,8 +1647,10 @@ function Editor() {
   const stageRef = useRef<HTMLDivElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const videoInputRef = useRef<HTMLInputElement>(null)
+  const videoPlaylistTargetRef = useRef<string | null>(null)
   const backgroundDesignInputRef = useRef<HTMLInputElement>(null)
   const backgroundVideoInputRef = useRef<HTMLInputElement>(null)
+  const backgroundPlaylistAppendTargetRef = useRef<string | null>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
   const widgetStyleInputRef = useRef<HTMLInputElement>(null)
   const widgetBackgroundInputRef = useRef<HTMLInputElement>(null)
@@ -1912,6 +2060,8 @@ function Editor() {
     const input = event.currentTarget as HTMLInputElement
     const files = Array.from(input.files ?? [])
     input.value = ''
+    const requestedPlaylistTarget = videoPlaylistTargetRef.current
+    videoPlaylistTargetRef.current = null
     if (files.length === 0) return
 
     const targetSceneId = activeScene.id
@@ -1922,12 +2072,12 @@ function Editor() {
     })
     const ignoredCount = files.length - supported.length
     if (supported.length === 0) {
-      setMessage('Selecione um arquivo de vídeo comum (MP4, M4V, WebM, MOV, OGV/OGG, 3GP, MKV, AVI ou MPEG). A importação aceita o arquivo, mas sua reprodução depende do suporte do navegador ao contêiner e ao codec.')
+      setMessage('Selecione vídeos como MP4, M4V, WebM, MOV, OGV/OGG, 3GP, MKV, AVI ou MPEG.')
       return
     }
     const tooLarge = supported.find((file) => file.size > MAX_VIDEO_BYTES)
     if (tooLarge) {
-      setMessage(`“${tooLarge.name}” excede o limite de ${Math.round(MAX_VIDEO_BYTES / 1_000_000)} MB por vídeo. Para banners, prefira um clipe curto, com resolução e bitrate adequados.`)
+      setMessage(`“${tooLarge.name}” excede o limite de ${Math.round(MAX_VIDEO_BYTES / 1_000_000)} MB por vídeo.`)
       return
     }
     const totalBytes = supported.reduce((total, file) => total + file.size, 0)
@@ -1940,22 +2090,27 @@ function Editor() {
     try {
       bytesAlreadyUsed = await getProjectVideoBytes(projectRef.current)
     } catch (error) {
-      const detail = error instanceof Error ? error.message : 'o armazenamento local não está disponível'
-      setMessage(`Não consegui verificar o espaço dos vídeos deste projeto: ${detail}`)
+      setMessage(`Não consegui verificar o espaço dos vídeos: ${error instanceof Error ? error.message : 'armazenamento indisponível'}`)
       return
     }
     if (bytesAlreadyUsed + totalBytes > MAX_VIDEO_PROJECT_BYTES) {
-      setMessage(`Este projeto pode conter até ${Math.round(MAX_VIDEO_PROJECT_BYTES / 1_000_000)} MB de vídeos locais no total para manter a exportação JSON portátil. O projeto já utiliza ${(bytesAlreadyUsed / 1_000_000).toFixed(1)} MB. Remova vídeos que não usa ou exporte um projeto separado.`)
+      setMessage(`O projeto aceita até ${Math.round(MAX_VIDEO_PROJECT_BYTES / 1_000_000)} MB de vídeos locais. Atualmente usa ${(bytesAlreadyUsed / 1_000_000).toFixed(1)} MB.`)
       return
     }
+
+    const currentBeforeImport = projectRef.current
+    const destination = currentBeforeImport.scenes.find((scene) => scene.id === targetSceneId)
+    const appendTargetId = requestedPlaylistTarget ?? (
+      selectedSource?.type === 'video' && destination?.sources.some((source) => source.id === selectedSource.id)
+        && window.confirm(`Adicionar ${supported.length} vídeo(s) ao final da fonte “${selectedSource.name}”, formando uma única sequência? Clique em Cancelar para criar uma nova sequência ou importar como camadas separadas.`)
+        ? selectedSource.id : null
+    )
+    const combineAsNewPlaylist = !appendTargetId && supported.length > 1 && window.confirm(`Criar uma única fonte sequencial com estes ${supported.length} vídeos? Eles tocarão um após o outro dentro de uma só camada. Clique em Cancelar para importar cada vídeo como camada separada.`)
 
     setMessage(`Importando ${supported.length} ${supported.length === 1 ? 'vídeo' : 'vídeos'} para o armazenamento local…`)
     const newReferences: string[] = []
     try {
-      for (const file of supported) {
-        const reference = await saveVideoBlob(file, file.name)
-        newReferences.push(reference)
-      }
+      for (const file of supported) newReferences.push(await saveVideoBlob(file, file.name))
       const currentProject = projectRef.current
       const targetScene = currentProject.scenes.find((scene) => scene.id === targetSceneId)
       if (!targetScene) {
@@ -1963,42 +2118,75 @@ function Editor() {
         setMessage('A cena de destino não existe mais. Selecione a cena novamente e importe os arquivos.')
         return
       }
+      const importedClips: VideoClip[] = supported.map((file, index) => ({ id: newId('clip'), name: file.name.replace(/\.[^.]+$/, '').slice(0, 100) || `Clipe ${index + 1}`, src: newReferences[index], start: 0, end: 0, trimEnabled: false }))
+      let additions: SceneSource[] = []
+      let updatedSources: SceneSource[] | null = null
 
-      let placedSources = [...targetScene.sources]
-      const additions = supported.map((file, index) => {
-        const count = placedSources.filter((source) => source.type === 'video').length + 1
-        const candidate: SceneSource = {
-          id: newId('video'), type: 'video', name: file.name.replace(/\.[^.]+$/, '').slice(0, 60) || `Vídeo ${count}`,
-          visible: true, x: 30, y: 30, w: 40, h: 24, src: newReferences[index], objectFit: 'contain', objectPosition: 'center center',
-          radius: 6, rotation: 0, opacity: 1, shadow: false,
-          videoStart: 0, videoEnd: 0, videoTrimEnabled: false, videoLoop: true, videoMuted: true, videoVolume: 0.8, videoPlaybackRate: 1,
+      if (appendTargetId) {
+        const target = targetScene.sources.find((source) => source.id === appendTargetId && source.type === 'video')
+        if (!target) {
+          await Promise.allSettled(newReferences.map(deleteVideoBlob))
+          setMessage('A fonte selecionada não existe mais. Selecione um vídeo e tente novamente.')
+          return
         }
-        const placed = placeWithoutOverlap(placedSources, candidate)
-        placedSources = [...placedSources, placed]
-        return placed
-      })
+        const existingClips: VideoClip[] = target.videoClips?.length ? target.videoClips : target.src ? [{ id: newId('clip'), name: target.name, src: target.src, start: target.videoStart ?? 0, end: target.videoEnd ?? 0, trimEnabled: target.videoTrimEnabled === true }] : []
+        const nextClips = [...existingClips, ...importedClips].slice(0, 40)
+        if (nextClips.length < existingClips.length + importedClips.length) {
+          await Promise.allSettled(newReferences.map(deleteVideoBlob))
+          setMessage('Uma sequência pode ter no máximo 40 clipes. Remova um clipe antes de acrescentar mais vídeos.')
+          return
+        }
+        updatedSources = targetScene.sources.map((source) => source.id === target.id ? { ...source, src: nextClips[0].src, videoClips: nextClips, videoStart: 0, videoEnd: 0, videoTrimEnabled: false } : source)
+      } else if (combineAsNewPlaylist) {
+        const base: SceneSource = {
+          id: newId('video-sequence'), type: 'video', name: `Sequência de vídeos (${importedClips.length} clipes)`, visible: true,
+          x: 30, y: 30, w: 40, h: 24, src: importedClips[0].src, videoClips: importedClips,
+          objectFit: 'contain', objectPosition: 'center center', radius: 6, rotation: 0, opacity: 1, shadow: false,
+          videoStart: 0, videoEnd: 0, videoTrimEnabled: false, videoLoop: scene.background?.videoLoop ?? true, videoMuted: scene.background?.videoMuted ?? true, videoVolume: scene.background?.videoVolume ?? 0.8, videoPlaybackRate: scene.background?.videoPlaybackRate ?? 1,
+        }
+        additions = [placeWithoutOverlap(targetScene.sources, base)]
+      } else {
+        let placedSources = [...targetScene.sources]
+        additions = supported.map((file, index) => {
+          const count = placedSources.filter((source) => source.type === 'video').length + 1
+          const candidate: SceneSource = {
+            id: newId('video'), type: 'video', name: file.name.replace(/\.[^.]+$/, '').slice(0, 60) || `Vídeo ${count}`,
+            visible: true, x: 30, y: 30, w: 40, h: 24, src: newReferences[index], objectFit: 'contain', objectPosition: 'center center',
+            radius: 6, rotation: 0, opacity: 1, shadow: false,
+            videoStart: 0, videoEnd: 0, videoTrimEnabled: false, videoLoop: true, videoMuted: true, videoVolume: 0.8, videoPlaybackRate: 1,
+          }
+          const placed = placeWithoutOverlap(placedSources, candidate)
+          placedSources = [...placedSources, placed]
+          return placed
+        })
+      }
+
       const nextProject: Project = {
         ...currentProject,
-        scenes: currentProject.scenes.map((scene) => scene.id === targetSceneId ? { ...scene, sources: [...scene.sources, ...additions] } : scene),
+        scenes: currentProject.scenes.map((scene) => scene.id === targetSceneId ? {
+          ...scene,
+          sources: updatedSources ?? [...scene.sources, ...additions],
+        } : scene),
       }
       if (JSON.stringify(nextProject).length > MAX_LOCAL_PROJECT_CHARS) {
         await Promise.allSettled(newReferences.map(deleteVideoBlob))
-        setMessage('O projeto tem muitas configurações ou imagens incorporadas para o armazenamento local. Exporte um backup e remova alguns elementos antes de continuar.')
+        setMessage('O projeto excede o limite seguro de armazenamento das configurações. Use clipes menores ou remova outros elementos.')
         return
       }
       setProject(nextProject)
-      if (additions.length) {
-        setSelectedSourceId(additions[additions.length - 1].id)
+      const selectedId = appendTargetId ?? additions[0]?.id
+      if (selectedId) {
+        setSelectedSourceId(selectedId)
         setInspectorTab('element')
         setElementSection('content')
       }
       const ignoredNote = ignoredCount ? ` ${ignoredCount} arquivo(s) sem suporte foram ignorados.` : ''
       const totalMB = (totalBytes / 1_000_000).toFixed(1)
-      setMessage(`${additions.length} ${additions.length === 1 ? 'vídeo importado' : 'vídeos importados'} (${totalMB} MB). Os arquivos foram guardados no IndexedDB deste navegador; exporte o projeto JSON para levar os vídeos a outro computador.${ignoredNote}`)
+      const resultLabel = appendTargetId ? `${supported.length} clipe(s) adicionados à sequência` : combineAsNewPlaylist ? `Uma sequência com ${supported.length} clipes criada` : `${additions.length} vídeo(s) importado(s)`
+      setMessage(`${resultLabel} (${totalMB} MB). Os arquivos ficam no IndexedDB deste navegador; exporte o JSON para transportá-los.${ignoredNote}`)
     } catch (error) {
       await Promise.allSettled(newReferences.map(deleteVideoBlob))
-      const detail = error instanceof Error ? error.message : 'erro de armazenamento'
-      setMessage(`Não foi possível importar os vídeos: ${detail}`)
+      setMessage(`Não foi possível importar os vídeos: ${error instanceof Error ? error.message : 'erro de armazenamento'}`)
     }
   }
 
@@ -2032,44 +2220,59 @@ function Editor() {
 
   async function onBackgroundVideoSelected(event: ChangeEvent<HTMLInputElement>) {
     const input = event.currentTarget as HTMLInputElement
-    const file = input.files?.[0]
+    const files = Array.from(input.files ?? [])
     input.value = ''
-    if (!file) return
-    const extension = file.name.toLowerCase().split('.').pop() ?? ''
-    const knownVideoExtensions = new Set(['mp4', 'm4v', 'webm', 'ogv', 'ogg', 'mov', '3gp', 'mkv', 'avi', 'wmv', 'mpeg', 'mpg', 'ts', 'm2ts'])
-    if (!file.type.startsWith('video/') && !knownVideoExtensions.has(extension)) {
-      setMessage('Escolha um arquivo de vídeo compatível, como MP4, WebM, MOV, OGV ou MKV.')
-      return
-    }
-    if (file.size > MAX_VIDEO_BYTES) {
-      setMessage(`O vídeo de fundo excede o limite de ${Math.round(MAX_VIDEO_BYTES / 1_000_000)} MB por arquivo.`)
-      return
-    }
-    const targetSceneId = activeScene.id
+    const appendBackgroundSceneId = backgroundPlaylistAppendTargetRef.current
+    backgroundPlaylistAppendTargetRef.current = null
+    if (!files.length) return
+    const supportedExtensions = new Set(['mp4', 'm4v', 'webm', 'ogv', 'ogg', 'mov', '3gp', 'mkv', 'avi', 'wmv', 'mpeg', 'mpg', 'ts', 'm2ts'])
+    const supported = files.filter((file) => file.type.startsWith('video/') || supportedExtensions.has(file.name.toLowerCase().split('.').pop() ?? ''))
+    if (!supported.length) { setMessage('Selecione um ou mais arquivos de vídeo compatíveis.'); return }
+    if (supported.length > 40) { setMessage('Uma sequência pode ter no máximo 40 clipes.'); return }
+    const tooLarge = supported.find((file) => file.size > MAX_VIDEO_BYTES)
+    if (tooLarge) { setMessage(`“${tooLarge.name}” excede o limite por arquivo de ${Math.round(MAX_VIDEO_BYTES / 1_000_000)} MB.`); return }
+    const totalBytes = supported.reduce((sum, file) => sum + file.size, 0)
+    if (totalBytes > MAX_VIDEO_BATCH_BYTES) { setMessage(`A seleção excede ${Math.round(MAX_VIDEO_BATCH_BYTES / 1_000_000)} MB. Importe um grupo menor de vídeos.`); return }
+    const targetSceneId = appendBackgroundSceneId ?? activeScene.id
     try {
-      const used = await getProjectVideoBytes(projectRef.current)
-      if (used + file.size > MAX_VIDEO_PROJECT_BYTES) {
-        setMessage(`O projeto aceita até ${Math.round(MAX_VIDEO_PROJECT_BYTES / 1_000_000)} MB de vídeos locais. Atualmente usa ${(used / 1_000_000).toFixed(1)} MB.`)
+      const bytesUsed = await getProjectVideoBytes(projectRef.current)
+      if (bytesUsed + totalBytes > MAX_VIDEO_PROJECT_BYTES) { setMessage(`O projeto aceita até ${Math.round(MAX_VIDEO_PROJECT_BYTES / 1_000_000)} MB de vídeos locais.`); return }
+      setMessage(`Importando ${supported.length} clipe(s) para o fundo…`)
+      const refs: string[] = []
+      for (const file of supported) refs.push(await saveVideoBlob(file, `Fundo · ${file.name}`))
+      const importedClips: VideoClip[] = supported.map((file, index) => ({ id: newId('background-clip'), name: file.name.replace(/\.[^.]+$/, '').slice(0, 100) || `Clipe ${index + 1}`, src: refs[index], start: 0, end: 0, trimEnabled: false }))
+      const current = projectRef.current
+      const existingScene = current.scenes.find((scene) => scene.id === targetSceneId)
+      const existingBackground = existingScene?.background
+      const existingClips: VideoClip[] = appendBackgroundSceneId && existingBackground?.mode === 'video'
+        ? existingBackground.videoClips?.length
+          ? existingBackground.videoClips
+          : existingBackground.videoSrc
+            ? [{ id: newId('background-existing'), name: 'Vídeo de fundo anterior', src: existingBackground.videoSrc, start: existingBackground.videoStart ?? 0, end: existingBackground.videoEnd ?? 0, trimEnabled: existingBackground.videoTrimEnabled === true }]
+            : []
+        : []
+      const clips = [...existingClips, ...importedClips]
+      if (clips.length > 40) {
+        await Promise.allSettled(refs.map(deleteVideoBlob))
+        setMessage('Uma sequência de fundo pode ter no máximo 40 clipes. Remova clipes ou crie uma nova cena antes de acrescentar vídeos.')
         return
       }
-      setMessage(`Importando vídeo de fundo “${file.name}”…`)
-      const videoSrc = await saveVideoBlob(file, `Fundo - ${file.name}`)
-      const current = projectRef.current
       if (!current.scenes.some((scene) => scene.id === targetSceneId)) {
-        await deleteVideoBlob(videoSrc)
+        await Promise.allSettled(refs.map(deleteVideoBlob))
         setMessage('A cena de destino não existe mais. Selecione-a e tente novamente.')
         return
       }
       setProject((prev) => ({ ...prev, scenes: prev.scenes.map((scene) => scene.id === targetSceneId ? {
         ...scene,
         background: {
-          ...(scene.background ?? { mode: 'video', color: '#151823', color2: '#25233a', angle: 135 }),
-          mode: 'video', videoSrc, videoFit: scene.background?.videoFit ?? 'cover', videoPosition: scene.background?.videoPosition ?? 'center center', videoOpacity: scene.background?.videoOpacity ?? 1,
+          ...(scene.background ?? { mode: 'video' as const, color: '#151823', color2: '#25233a', angle: 135 }),
+          mode: 'video', videoSrc: clips[0]?.src ?? refs[0], videoClips: clips.length > 1 ? clips : undefined,
+          videoFit: scene.background?.videoFit ?? 'cover', videoPosition: scene.background?.videoPosition ?? 'center center', videoOpacity: scene.background?.videoOpacity ?? 1,
           videoStart: 0, videoEnd: 0, videoTrimEnabled: false, videoLoop: true, videoMuted: true, videoVolume: 0.8, videoPlaybackRate: 1,
         },
       } : scene) }))
       setInspectorTab('background')
-      setMessage(`“${file.name}” foi definido como vídeo de fundo. O arquivo está salvo no navegador; exporte o projeto JSON para transportá-lo.`)
+      setMessage(appendBackgroundSceneId ? `${supported.length} clipe(s) acrescentado(s) ao fundo. A sequência agora tem ${clips.length} clipes.` : supported.length > 1 ? `Sequência de fundo criada com ${supported.length} clipes. Eles tocarão em ordem dentro do mesmo fundo; exporte o JSON para levar os arquivos.` : `“${supported[0].name}” foi definido como vídeo de fundo.`)
     } catch (error) {
       setMessage(`Não foi possível importar o vídeo de fundo: ${error instanceof Error ? error.message : 'erro de armazenamento'}`)
     }
@@ -2083,7 +2286,7 @@ function Editor() {
     }
     updateScene({ background: {
       ...(activeScene.background ?? { mode: 'video', color: '#151823', color2: '#25233a', angle: 135 }),
-      mode: 'video', videoSrc: candidate, videoFit: activeScene.background?.videoFit ?? 'cover', videoPosition: activeScene.background?.videoPosition ?? 'center center', videoOpacity: activeScene.background?.videoOpacity ?? 1,
+      mode: 'video', videoSrc: candidate, videoClips: undefined, videoFit: activeScene.background?.videoFit ?? 'cover', videoPosition: activeScene.background?.videoPosition ?? 'center center', videoOpacity: activeScene.background?.videoOpacity ?? 1,
       videoTrimEnabled: false, videoLoop: true, videoMuted: true, videoVolume: 0.8, videoPlaybackRate: 1,
     } })
     setInspectorTab('background')
@@ -2518,7 +2721,7 @@ function Editor() {
           <div className="preview-frame">
             <div className="preview-canvas" ref={stageRef} style={{ ...sceneBackgroundStyle(activeScene, true), aspectRatio: `${activeScene.width ?? 1920} / ${activeScene.height ?? 1080}` }} onPointerDown={() => { setSelectedSourceId(null); setInspectorTab('background') }}>
               {activeScene.background?.mode === 'video' && <BackgroundVideoLayer background={activeScene.background} />}
-              {activeScene.background?.mode === 'screen' && <ScreenCaptureView editor variant="background" />}
+              {activeScene.background?.mode === 'screen' && <ScreenCaptureView editor variant="background" captureKey={`background:${activeScene.id}`} />}
               {activeScene.sources.filter((source) => source.visible).map((source, index) => (
                 <div
                   className={`canvas-object object-${source.type} ${source.type === 'shape' ? `shape-${source.shapeKind ?? 'rectangle'}` : ''} ${source.locked ? 'locked' : ''} ${selectedSourceId === source.id ? 'is-selected' : ''}`}
@@ -2538,7 +2741,7 @@ function Editor() {
                   {source.type === 'image' && source.src && <img src={source.src} alt={source.name} draggable={false} style={{ objectFit: source.objectFit ?? 'contain', objectPosition: source.objectPosition ?? 'center center' }} />}
                   {source.type === 'video' && source.src && <TrimmedVideo source={source} className="video-asset" />}
                   {source.type === 'browser' && <iframe className="browser-frame" title={source.name} src={getBrowserUrl(source.url)} sandbox="allow-scripts allow-forms allow-popups" referrerPolicy="no-referrer" loading="lazy" tabIndex={-1} />}
-                  {source.type === 'capture' && <ScreenCaptureView editor variant="source" />}
+                  {source.type === 'capture' && <ScreenCaptureView editor variant="source" captureKey={`source:${activeScene.id}:${source.id}`} />}
                   {source.type === 'camera' && (cameraStream
                     ? <video className="camera-video" autoPlay muted playsInline style={{ transform: source.cameraMirror === false ? 'none' : 'scaleX(-1)' }} ref={(element) => { if (element && element.srcObject !== cameraStream) element.srcObject = cameraStream }} />
                     : <div className="camera-placeholder"><span className="camera-symbol">◉</span><strong>{source.name}</strong><small>Clique em “Ativar webcam” nas propriedades</small></div>)}
@@ -2552,7 +2755,7 @@ function Editor() {
           </div>
           <div className="preview-caption"><span><span className="status-dot" /> Arraste para mover · canto inferior para redimensionar</span><span>Proporção {activeScene.width ?? 1920}:{activeScene.height ?? 1080}</span></div>
         </section>
-        <footer className="studio-footer"><span className="footer-tip"><span className="tip-icon">i</span> As alterações são salvas automaticamente neste navegador.</span><span className="footer-version">WEBCAM_OVERLAY · 2.7.0</span></footer>
+        <footer className="studio-footer"><span className="footer-tip"><span className="tip-icon">i</span> As alterações são salvas automaticamente neste navegador.</span><span className="footer-version">WEBCAM_OVERLAY · 2.9.0</span></footer>
       </main>
 
       <aside className="inspector-panel">
@@ -2621,7 +2824,7 @@ function Editor() {
                 </>}
                 {selectedSource.type === 'video' && <>
                   <div className="feature-note"><span className="note-icon">i</span><p>Vídeos locais são guardados no armazenamento do navegador (IndexedDB), separados das configurações. Cada arquivo pode ter até 50 MB. Exporte o projeto JSON para levar os vídeos a outro computador. MP4/H.264 e WebM costumam oferecer boa compatibilidade.</p></div>
-                  {selectedSource.src ? <VideoSourceControls source={selectedSource} onChange={updateSelected} /> : <p className="field-hint">Este elemento não tem um vídeo carregado. Exclua a camada e adicione uma nova fonte de vídeo para importar um arquivo.</p>}
+                  {selectedSource.src ? <VideoSourceControls source={selectedSource} onChange={updateSelected} onAddClips={() => { videoPlaylistTargetRef.current = selectedSource.id; videoInputRef.current?.click() }} /> : <p className="field-hint">Este elemento não tem um vídeo carregado. Exclua a camada e adicione uma nova fonte de vídeo para importar um arquivo.</p>}
                 </>}
                 {selectedSource.type === 'browser' && <>
                   <label className="field-label" htmlFor="browser-url">URL da página/widget</label>
@@ -2635,8 +2838,8 @@ function Editor() {
                   {cameraError && <p className="error-note">{cameraError}</p>}
                 </>}
                 {selectedSource.type === 'capture' && <>
-                  <div className="feature-note"><span className="note-icon">i</span><p>Compartilhe a tela inteira, uma janela específica ou uma aba. Ao iniciar, o navegador abrirá o seletor de compartilhamento e você escolhe a origem. A captura exige HTTPS ou localhost e autorização explícita; ela não é salva no arquivo do projeto.</p></div>
-                  <p className="field-hint">Use o botão dentro da prévia para iniciar ou encerrar a captura. Para o modo overlay em outra aba, autorize a captura novamente nessa aba.</p>
+                  <div className="feature-note"><span className="note-icon">i</span><p>Compartilhe a tela inteira, uma janela específica ou uma aba. Ao iniciar, o navegador abrirá o seletor de compartilhamento e você escolhe a origem. A captura exige HTTPS ou localhost e autorização explícita; ela não é salva no arquivo do projeto. O modo overlay em outra aba do mesmo navegador pode receber o fluxo via BroadcastChannel. Para uma Browser Source do OBS, use o relay WebSocket local iniciado junto de npm run dev.</p></div>
+                  <p className="field-hint">Inicie a captura no botão da prévia. Mantenha o editor aberto enquanto usar o modo overlay; cada compartilhamento precisa ser iniciado manualmente.</p>
                 </>}
                 {selectedSource.type === 'widget' && <>
                   <div className="widget-inspector-note"><span className="note-icon">i</span><p>Dados de demonstração. Personalize o conteúdo e o visual nas abas deste elemento.</p></div>
@@ -2858,7 +3061,8 @@ function Editor() {
             {activeScene.background.imageSrc && <button className="wide-action danger-action" type="button" onClick={() => updateScene({ background: { ...activeScene.background!, mode: 'transparent', imageSrc: undefined, imageOpacity: 1, overlayOpacity: 0 } })}>Remover imagem de fundo</button>}
           </>}
           {activeScene.background?.mode === 'video' && <>
-            <div className="background-import-card"><strong>{activeScene.background.videoSrc ? 'Vídeo de fundo definido' : 'Nenhum vídeo de fundo'}</strong><small>Importe MP4, WebM, MOV ou outro formato aceito pelo navegador. Os vídeos locais ficam guardados no IndexedDB.</small><button className="wide-action" type="button" onClick={() => backgroundVideoInputRef.current?.click()}>Escolher vídeo do computador</button></div>
+            <div className="background-import-card"><strong>{activeScene.background.videoSrc ? 'Vídeo de fundo definido' : 'Nenhum vídeo de fundo'}</strong><small>Importe MP4, WebM, MOV ou outro formato aceito pelo navegador. Os vídeos locais ficam guardados no IndexedDB.</small><button className="wide-action" type="button" onClick={() => { backgroundPlaylistAppendTargetRef.current = null; backgroundVideoInputRef.current?.click() }}>Escolher vídeo(s) / substituir fundo</button>{activeScene.background.videoSrc && <button className="wide-action secondary-action" type="button" onClick={() => { backgroundPlaylistAppendTargetRef.current = activeScene.id; backgroundVideoInputRef.current?.click() }}>+ Acrescentar clipes ao fundo atual</button>}</div>
+            {activeScene.background.videoClips && activeScene.background.videoClips.length > 1 && <div className="video-playlist-manager background-playlist-manager"><p className="eyebrow">SEQUÊNCIA DO FUNDO · {activeScene.background.videoClips.length} CLIPES</p>{activeScene.background.videoClips.map((clip, index, clips) => <div className="video-playlist-row" key={clip.id}><div className="video-playlist-row-heading"><strong>{index + 1}. {clip.name}</strong><div><button type="button" disabled={index === 0} aria-label="Mover clipe para cima" onClick={() => { const next = [...clips]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; updateScene({ background: { ...activeScene.background!, videoClips: next, videoSrc: next[0].src } }) }}>↑</button><button type="button" disabled={index === clips.length - 1} aria-label="Mover clipe para baixo" onClick={() => { const next = [...clips]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; updateScene({ background: { ...activeScene.background!, videoClips: next, videoSrc: next[0].src } }) }}>↓</button><button type="button" disabled={clips.length <= 1} aria-label="Remover clipe" onClick={() => { const next = clips.filter((item) => item.id !== clip.id); updateScene({ background: { ...activeScene.background!, videoClips: next.length > 1 ? next : undefined, videoSrc: next[0]?.src ?? undefined, videoStart: next[0]?.start ?? 0, videoEnd: next[0]?.end ?? 0, videoTrimEnabled: next[0]?.trimEnabled ?? false } }) }}>×</button></div></div><div className="video-playlist-trim-grid"><label>Início (s)<input className="text-input" type="number" min="0" max="3600" step="0.1" value={clip.start ?? 0} onChange={(event) => updateScene({ background: { ...activeScene.background!, videoClips: clips.map((item) => item.id === clip.id ? { ...item, start: Math.max(0, Number(event.target.value) || 0), trimEnabled: true } : item) } })} /></label><label>Fim (s, 0 = final)<input className="text-input" type="number" min="0" max="3600" step="0.1" value={clip.end ?? 0} onChange={(event) => updateScene({ background: { ...activeScene.background!, videoClips: clips.map((item) => item.id === clip.id ? { ...item, end: Math.max(0, Number(event.target.value) || 0), trimEnabled: true } : item) } })} /></label></div><label className="checkbox-row"><input type="checkbox" checked={clip.trimEnabled === true} onChange={(event) => updateScene({ background: { ...activeScene.background!, videoClips: clips.map((item) => item.id === clip.id ? { ...item, trimEnabled: event.target.checked } : item) } })} /><span>Cortar este clipe</span></label></div>)}<button className="wide-action secondary-action" type="button" onClick={() => { backgroundPlaylistAppendTargetRef.current = activeScene.id; backgroundVideoInputRef.current?.click() }}>+ Acrescentar clipes</button><button className="wide-action" type="button" onClick={() => { backgroundPlaylistAppendTargetRef.current = null; backgroundVideoInputRef.current?.click() }}>Substituir sequência</button><p className="field-hint">Os clipes tocam em ordem no mesmo fundo. Você pode acrescentar arquivos à sequência existente ou substituí-la.</p></div>}
             <label className="field-label" htmlFor="background-video-url">Ou URL direta do vídeo</label>
             <input id="background-video-url" className="text-input" type="url" value={backgroundVideoUrlInput} onChange={(event) => setBackgroundVideoUrlInput(event.target.value)} placeholder="https://site.com/banner.mp4" />
             <button className="wide-action" type="button" onClick={applyBackgroundVideoUrl}>Aplicar link de vídeo</button>
@@ -2873,14 +3077,20 @@ function Editor() {
               <label className="checkbox-row"><input type="checkbox" checked={activeScene.background.videoMuted !== false} onChange={(event) => updateScene({ background: { ...activeScene.background!, videoMuted: event.target.checked } })} /><span>Silenciar áudio (recomendado para autoplay)</span></label>
               <label className="field-label" htmlFor="background-video-volume">Volume · {Math.round((activeScene.background.videoVolume ?? 0.8) * 100)}%</label><div className="range-row"><input id="background-video-volume" type="range" min="0" max="1" step="0.05" value={activeScene.background.videoVolume ?? 0.8} onChange={(event) => updateScene({ background: { ...activeScene.background!, videoVolume: Number(event.target.value), videoMuted: Number(event.target.value) === 0 ? true : activeScene.background!.videoMuted } })} /><span>{Math.round((activeScene.background.videoVolume ?? 0.8) * 100)}%</span></div>
               <label className="field-label" htmlFor="background-video-speed">Velocidade · {activeScene.background.videoPlaybackRate ?? 1}×</label><div className="range-row"><input id="background-video-speed" type="range" min="0.25" max="2" step="0.25" value={activeScene.background.videoPlaybackRate ?? 1} onChange={(event) => updateScene({ background: { ...activeScene.background!, videoPlaybackRate: Number(event.target.value) } })} /><span>{activeScene.background.videoPlaybackRate ?? 1}×</span></div>
+              <div className="field-divider" />
+              <p className="eyebrow section-eyebrow">COR E FILTROS DO VÍDEO</p>
+              <label className="field-label" htmlFor="background-video-brightness">Brilho · {Math.round((activeScene.background.videoBrightness ?? 1) * 100)}%</label><div className="range-row"><input id="background-video-brightness" type="range" min="0" max="2" step="0.05" value={activeScene.background.videoBrightness ?? 1} onChange={(event) => updateScene({ background: { ...activeScene.background!, videoBrightness: Number(event.target.value) } })} /><span>{Math.round((activeScene.background.videoBrightness ?? 1) * 100)}%</span></div>
+              <label className="field-label" htmlFor="background-video-contrast">Contraste · {Math.round((activeScene.background.videoContrast ?? 1) * 100)}%</label><div className="range-row"><input id="background-video-contrast" type="range" min="0" max="2" step="0.05" value={activeScene.background.videoContrast ?? 1} onChange={(event) => updateScene({ background: { ...activeScene.background!, videoContrast: Number(event.target.value) } })} /><span>{Math.round((activeScene.background.videoContrast ?? 1) * 100)}%</span></div>
+              <label className="field-label" htmlFor="background-video-saturation">Saturação · {Math.round((activeScene.background.videoSaturation ?? 1) * 100)}%</label><div className="range-row"><input id="background-video-saturation" type="range" min="0" max="2" step="0.05" value={activeScene.background.videoSaturation ?? 1} onChange={(event) => updateScene({ background: { ...activeScene.background!, videoSaturation: Number(event.target.value) } })} /><span>{Math.round((activeScene.background.videoSaturation ?? 1) * 100)}%</span></div>
+              <label className="field-label" htmlFor="background-video-hue">Matiz · {Math.round(activeScene.background.videoHueRotate ?? 0)}°</label><div className="range-row"><input id="background-video-hue" type="range" min="0" max="360" step="5" value={activeScene.background.videoHueRotate ?? 0} onChange={(event) => updateScene({ background: { ...activeScene.background!, videoHueRotate: Number(event.target.value) } })} /><span>{Math.round(activeScene.background.videoHueRotate ?? 0)}°</span></div>
               <label className="checkbox-row"><input type="checkbox" checked={activeScene.background.videoTrimEnabled === true} onChange={(event) => updateScene({ background: { ...activeScene.background!, videoTrimEnabled: event.target.checked, videoStart: activeScene.background!.videoStart ?? 0, videoEnd: event.target.checked ? Math.max(activeScene.background!.videoEnd ?? 0, (activeScene.background!.videoStart ?? 0) + 60) : activeScene.background!.videoEnd } })} /><span>Reproduzir apenas um trecho</span></label>
               {activeScene.background.videoTrimEnabled && <><label className="field-label" htmlFor="background-video-start">Início · {formatMediaTime(activeScene.background.videoStart ?? 0)}</label><input className="video-trim-range" id="background-video-start" type="range" min="0" max="600" step="0.1" value={activeScene.background.videoStart ?? 0} onChange={(event) => updateScene({ background: { ...activeScene.background!, videoStart: Number(event.target.value), videoEnd: Math.max(Number(event.target.value) + 0.1, activeScene.background!.videoEnd ?? 0) } })} /><label className="field-label" htmlFor="background-video-end">Fim · {formatMediaTime(activeScene.background.videoEnd ?? 0)}</label><input className="video-trim-range" id="background-video-end" type="range" min={Math.max(0.1, (activeScene.background.videoStart ?? 0) + 0.1)} max="600" step="0.1" value={Math.max((activeScene.background.videoStart ?? 0) + 0.1, activeScene.background.videoEnd ?? 60)} onChange={(event) => updateScene({ background: { ...activeScene.background!, videoEnd: Number(event.target.value) } })} /><p className="field-hint">O corte é aplicado na reprodução, sem alterar o arquivo original. O limite dos controles é 10 minutos.</p></>}
               <button className="wide-action danger-action" type="button" onClick={() => updateScene({ background: { ...activeScene.background!, mode: 'transparent', videoSrc: undefined, videoTrimEnabled: false } })}>Remover vídeo de fundo</button>
             </>}
           </>}
           {activeScene.background?.mode === 'screen' && <>
-            <div className="feature-note"><span className="note-icon">i</span><p>Compartilhe a tela inteira, uma janela de aplicativo ou uma aba. Ao clicar no botão da prévia, o navegador abrirá seu seletor e pedirá permissão. Esta captura é temporária e, por segurança do navegador, não pode ser salva dentro do JSON.</p></div>
-            <button className="wide-action" type="button" onClick={() => setMessage('Clique em “Selecionar tela ou janela” dentro da pré-visualização para abrir o seletor seguro do navegador.')}>Como iniciar a captura</button>
+            <div className="feature-note"><span className="note-icon">i</span><p>Compartilhe a tela inteira, uma janela de aplicativo ou uma aba. Clique em “Selecionar tela ou janela” no centro da pré-visualização para abrir o seletor nativo e conceder a permissão. Esta captura é temporária e não pode ser salva no JSON. O modo overlay em outra aba do mesmo navegador usa BroadcastChannel; uma Browser Source do OBS usa o relay local quando você executa npm run dev. O site hospedado estático não inclui esse servidor auxiliar.</p></div>
+            <p className="field-hint">Mantenha esta aba do editor aberta enquanto o modo overlay estiver usando a captura. Para evitar o efeito de espelho, selecione a janela do jogo/aplicativo em vez do monitor que exibe o próprio editor.</p>
           </>}
           <p className="field-hint">O fundo é independente dos widgets. O modo transparente é indicado quando o jogo ou aplicativo já é capturado pelo OBS.</p>
         </div>}
@@ -2900,9 +3110,9 @@ function Editor() {
       </aside>
 
       <input ref={imageInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" multiple onChange={onImageSelected} />
-      <input ref={videoInputRef} className="hidden-input" type="file" accept="video/*,.mp4,.m4v,.webm,.ogv,.ogg,.mov,.3gp,.mkv,.avi,.wmv,.mpeg,.mpg,.ts,.m2ts" multiple onChange={onVideoSelected} />
+      <input ref={videoInputRef} className="hidden-input" type="file" accept="video/*,.mp4,.m4v,.webm,.ogv,.ogg,.mov,.3gp,.mkv,.avi,.wmv,.mpeg,.mpg,.ts,.m2ts" multiple onChange={onVideoSelected} onCancel={() => { videoPlaylistTargetRef.current = null }} />
       <input ref={backgroundDesignInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" onChange={onBackgroundDesignSelected} />
-      <input ref={backgroundVideoInputRef} className="hidden-input" type="file" accept="video/*,.mp4,.m4v,.webm,.ogv,.ogg,.mov,.3gp,.mkv,.avi,.wmv,.mpeg,.mpg,.ts,.m2ts" onChange={onBackgroundVideoSelected} />
+      <input ref={backgroundVideoInputRef} className="hidden-input" type="file" accept="video/*,.mp4,.m4v,.webm,.ogv,.ogg,.mov,.3gp,.mkv,.avi,.wmv,.mpeg,.mpg,.ts,.m2ts" multiple onChange={onBackgroundVideoSelected} onCancel={() => { backgroundPlaylistAppendTargetRef.current = null }} />
       <input ref={widgetBackgroundInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" onChange={onWidgetBackgroundSelected} />
       <input ref={widgetStyleInputRef} className="hidden-input" type="file" accept="application/json,.json" onChange={importWidgetStyle} />
       <input ref={importInputRef} className="hidden-input" type="file" accept="application/json,.json" onChange={importProject} />
@@ -2925,78 +3135,447 @@ function BackgroundVideoLayer({ background }: { background: BackgroundConfig }) 
   }
   const source: SceneSource = {
     id: 'background-video-layer', type: 'video', name: 'Vídeo de fundo', visible: true,
-    x: 0, y: 0, w: 100, h: 100, src: background.videoSrc,
+    x: 0, y: 0, w: 100, h: 100, src: background.videoSrc, videoClips: background.videoClips,
     objectFit: background.videoFit === 'stretch' ? 'contain' : (background.videoFit ?? 'cover'),
     objectPosition: background.videoPosition ?? 'center center',
     videoStart: background.videoStart ?? 0, videoEnd: background.videoEnd ?? 0,
     videoTrimEnabled: background.videoTrimEnabled === true, videoLoop: background.videoLoop !== false,
     videoMuted: background.videoMuted !== false, videoVolume: background.videoVolume ?? 0.8,
     videoPlaybackRate: background.videoPlaybackRate ?? 1,
+    videoBrightness: background.videoBrightness ?? 1, videoContrast: background.videoContrast ?? 1, videoSaturation: background.videoSaturation ?? 1, videoHueRotate: background.videoHueRotate ?? 0,
   }
   return <div className="background-media-layer" style={{ opacity: background.videoOpacity ?? 1 }}>
     <TrimmedVideo source={source} className="background-video-asset" fit={background.videoFit === 'stretch' ? 'fill' : (background.videoFit ?? 'cover')} position={background.videoPosition ?? 'center center'} />
   </div>
 }
 
-function ScreenCaptureView({ editor = false, variant }: { editor?: boolean; variant: 'background' | 'source' }) {
-  const [stream, setStream] = useState<MediaStream | null>(null)
+type ScreenCaptureSignal =
+  | { type: 'request'; captureKey: string; requestId: string; requesterId: string; targetProviderId?: string }
+  | { type: 'available'; captureKey: string; providerId: string }
+  | { type: 'offer'; captureKey: string; requestId: string; fromId: string; toId: string; description: RTCSessionDescriptionInit }
+  | { type: 'answer'; captureKey: string; requestId: string; fromId: string; toId: string; description: RTCSessionDescriptionInit }
+  | { type: 'ice'; captureKey: string; requestId: string; fromId: string; toId: string; candidate: RTCIceCandidateInit }
+  | { type: 'ended'; captureKey: string; providerId: string }
+
+type ScreenCaptureSignalEnvelope = ScreenCaptureSignal & { signalId?: string }
+
+type CapturePeer = {
+  connection: RTCPeerConnection
+  peerId: string
+  role: 'provider' | 'receiver'
+  pendingCandidates: RTCIceCandidateInit[]
+}
+
+function makeCaptureId() {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
+  return `capture-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function ScreenCaptureView({ editor = false, variant, captureKey }: { editor?: boolean; variant: 'background' | 'source'; captureKey: string }) {
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null)
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
   const [error, setError] = useState('')
   const videoRef = useRef<HTMLVideoElement | null>(null)
-  const streamRef = useRef<MediaStream | null>(null)
+  const localStreamRef = useRef<MediaStream | null>(null)
+  const remoteStreamRef = useRef<MediaStream | null>(null)
+  const channelRef = useRef<BroadcastChannel | null>(null)
+  const relaySocketRef = useRef<WebSocket | null>(null)
+  const pendingRelaySignalsRef = useRef<string[]>([])
+  const seenSignalIdsRef = useRef<Set<string>>(new Set())
+  const instanceIdRef = useRef(makeCaptureId())
+  const peersRef = useRef<Map<string, CapturePeer>>(new Map())
+  const orphanCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map())
+  const requestIdsRef = useRef<Set<string>>(new Set())
+  const activeRemoteRequestRef = useRef<string | null>(null)
+
+  const visibleStream = editor ? localStream : (remoteStream ?? localStream)
+
+  function postSignal(signal: ScreenCaptureSignal) {
+    const envelope = { ...signal, signalId: makeCaptureId() } as ScreenCaptureSignalEnvelope
+    try { channelRef.current?.postMessage(envelope) } catch { /* A aba pode estar fechando. */ }
+    const socket = relaySocketRef.current
+    const serialized = JSON.stringify(envelope)
+    if (socket?.readyState === WebSocket.OPEN) {
+      try { socket.send(serialized) } catch { /* A conexão será recuperada pelo cliente de relay. */ }
+    } else if (socket?.readyState === WebSocket.CONNECTING) {
+      const queue = pendingRelaySignalsRef.current
+      queue.push(serialized)
+      if (queue.length > 80) queue.splice(0, queue.length - 80)
+    }
+  }
+
+  function closePeersForProvider(providerId?: string) {
+    for (const [requestId, peer] of peersRef.current.entries()) {
+      if (peer.role === 'provider' && (!providerId || peer.peerId === providerId)) {
+        peer.connection.close()
+        peersRef.current.delete(requestId)
+      }
+    }
+  }
+
+  function closeAllPeers() {
+    for (const peer of peersRef.current.values()) peer.connection.close()
+    peersRef.current.clear()
+    orphanCandidatesRef.current.clear()
+  }
+
+  async function flushIce(peer: CapturePeer) {
+    if (!peer.connection.remoteDescription || peer.pendingCandidates.length === 0) return
+    const pending = peer.pendingCandidates.splice(0)
+    for (const candidate of pending) {
+      try { await peer.connection.addIceCandidate(candidate) } catch { /* Candidato antigo ou incompatível. */ }
+    }
+  }
+
+  function queueCandidate(requestId: string, candidate: RTCIceCandidateInit) {
+    const peer = peersRef.current.get(requestId)
+    if (peer) {
+      if (peer.connection.remoteDescription) {
+        void peer.connection.addIceCandidate(candidate).catch(() => peer.pendingCandidates.push(candidate))
+      } else {
+        peer.pendingCandidates.push(candidate)
+      }
+      return
+    }
+    const list = orphanCandidatesRef.current.get(requestId) ?? []
+    list.push(candidate)
+    orphanCandidatesRef.current.set(requestId, list)
+  }
+
+  function newPeer(requestId: string, peerId: string, role: CapturePeer['role']) {
+    // STUN broadens ICE connectivity; local candidates are also retained for same-device connections.
+    const connection = new RTCPeerConnection({ iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun.cloudflare.com:3478' },
+    ] })
+    const peer: CapturePeer = {
+      connection,
+      peerId,
+      role,
+      pendingCandidates: orphanCandidatesRef.current.get(requestId) ?? [],
+    }
+    orphanCandidatesRef.current.delete(requestId)
+    peersRef.current.set(requestId, peer)
+    const connectionTimeout = window.setTimeout(() => {
+      if (connection.connectionState !== 'connected' && connection.connectionState !== 'closed') {
+        if (role === 'receiver' && activeRemoteRequestRef.current === requestId) {
+          activeRemoteRequestRef.current = null
+          requestIdsRef.current.delete(requestId)
+          setError('A captura ainda não chegou à saída. Para uma Browser Source do OBS, execute o projeto com npm run dev (o relay local usa ws://127.0.0.1:4174) e configure a URL do OBS usando o mesmo endereço/host do editor, por exemplo http://127.0.0.1:5173/?mode=overlay. O site hospedado sozinho não inclui esse relay local.')
+        }
+        connection.close()
+        peersRef.current.delete(requestId)
+      }
+    }, 12000)
+    connection.onicecandidate = (event) => {
+      if (!event.candidate) return
+      postSignal({
+        type: 'ice',
+        captureKey,
+        requestId,
+        fromId: instanceIdRef.current,
+        toId: peerId,
+        candidate: event.candidate.toJSON(),
+      })
+    }
+    connection.onconnectionstatechange = () => {
+      if (connection.connectionState === 'connected' || connection.connectionState === 'failed' || connection.connectionState === 'closed') window.clearTimeout(connectionTimeout)
+      if (connection.connectionState === 'failed' || connection.connectionState === 'closed') {
+        peersRef.current.delete(requestId)
+        if (role === 'receiver' && activeRemoteRequestRef.current === requestId) {
+          activeRemoteRequestRef.current = null
+          remoteStreamRef.current = null
+          setRemoteStream(null)
+          if (!localStreamRef.current && connection.connectionState === 'failed') setError('A conexão de captura falhou. Confirme que o relay local está ativo (inicie o projeto com npm run dev), que o editor e a saída usam o mesmo host e que a porta 4174 não está bloqueada. Se estiver usando o site hospedado, a conexão com outro processo precisa de um relay remoto HTTPS/WSS.')
+        }
+      }
+    }
+    return peer
+  }
+
+  async function createProviderOffer(signal: Extract<ScreenCaptureSignal, { type: 'request' }>) {
+    const stream = localStreamRef.current
+    if (!editor || !stream || signal.captureKey !== captureKey) return
+    if (typeof RTCPeerConnection === 'undefined') {
+      setError('Este navegador não oferece conexão WebRTC para encaminhar a captura entre abas. A captura ainda pode ser usada nesta aba.')
+      return
+    }
+    if (signal.targetProviderId && signal.targetProviderId !== instanceIdRef.current) return
+    const previous = peersRef.current.get(signal.requestId)
+    if (previous) previous.connection.close()
+    const peer = newPeer(signal.requestId, signal.requesterId, 'provider')
+    try {
+      stream.getTracks().forEach((track) => peer.connection.addTrack(track, stream))
+      const offer = await peer.connection.createOffer()
+      await peer.connection.setLocalDescription(offer)
+      if (!peer.connection.localDescription) throw new Error('Não foi possível preparar a captura para a outra aba.')
+      postSignal({
+        type: 'offer', captureKey, requestId: signal.requestId,
+        fromId: instanceIdRef.current, toId: signal.requesterId,
+        description: { type: peer.connection.localDescription.type, sdp: peer.connection.localDescription.sdp },
+      })
+    } catch {
+      peer.connection.close()
+      peersRef.current.delete(signal.requestId)
+      setError('Não foi possível compartilhar a captura com o modo overlay. Reabra o modo overlay e tente novamente.')
+    }
+  }
+
+  async function acceptProviderOffer(signal: Extract<ScreenCaptureSignal, { type: 'offer' }>) {
+    if (editor || signal.toId !== instanceIdRef.current || signal.captureKey !== captureKey) return
+    if (!requestIdsRef.current.has(signal.requestId)) return
+    if (remoteStreamRef.current) return
+    if (activeRemoteRequestRef.current && activeRemoteRequestRef.current !== signal.requestId) return
+    if (typeof RTCPeerConnection === 'undefined') {
+      setError('Este navegador não oferece conexão WebRTC. Inicie a captura diretamente nesta aba.')
+      return
+    }
+    if (activeRemoteRequestRef.current && activeRemoteRequestRef.current !== signal.requestId && remoteStreamRef.current) return
+    activeRemoteRequestRef.current = signal.requestId
+    const peer = newPeer(signal.requestId, signal.fromId, 'receiver')
+    peer.connection.ontrack = (event) => {
+      if (activeRemoteRequestRef.current !== signal.requestId) return
+      const incoming = event.streams?.[0] ?? new MediaStream([event.track])
+      remoteStreamRef.current = incoming
+      requestIdsRef.current.clear()
+      setRemoteStream(incoming)
+      // Se o usuário iniciou uma captura própria na saída antes de o editor conectar,
+      // libere-a e passe a utilizar a captura autorizada no editor.
+      const local = localStreamRef.current
+      if (local) {
+        localStreamRef.current = null
+        local.getTracks().forEach((track) => track.stop())
+        setLocalStream(null)
+      }
+      setError('')
+    }
+    try {
+      await peer.connection.setRemoteDescription(signal.description)
+      await flushIce(peer)
+      const answer = await peer.connection.createAnswer()
+      await peer.connection.setLocalDescription(answer)
+      if (!peer.connection.localDescription) throw new Error('Não foi possível responder à conexão de captura.')
+      postSignal({
+        type: 'answer', captureKey, requestId: signal.requestId,
+        fromId: instanceIdRef.current, toId: signal.fromId,
+        description: { type: peer.connection.localDescription.type, sdp: peer.connection.localDescription.sdp },
+      })
+    } catch {
+      peer.connection.close()
+      peersRef.current.delete(signal.requestId)
+      activeRemoteRequestRef.current = null
+      setError('Não foi possível receber a captura. Confirme que npm run dev está rodando, que a porta 4174 está livre e que a Browser Source usa http://127.0.0.1:5173/?mode=overlay.')
+    }
+  }
+
+  const lastRequestAtRef = useRef(0)
+  function requestProvider(targetProviderId?: string) {
+    if (editor || remoteStreamRef.current || Date.now() - lastRequestAtRef.current < 900) return
+    lastRequestAtRef.current = Date.now()
+    const requestId = `${instanceIdRef.current}-${makeCaptureId()}`
+    requestIdsRef.current.add(requestId)
+    // Requests can arrive while sharing is not yet started. Retire stale request IDs so a later offer is not rejected forever.
+    window.setTimeout(() => requestIdsRef.current.delete(requestId), 12000)
+    postSignal({ type: 'request', captureKey, requestId, requesterId: instanceIdRef.current, targetProviderId })
+  }
 
   useEffect(() => {
-    if (videoRef.current && stream && videoRef.current.srcObject !== stream) videoRef.current.srcObject = stream
-  }, [stream])
+    const channel = typeof BroadcastChannel !== 'undefined'
+      ? new BroadcastChannel(`webcam-overlay-screen-capture-v3:${window.location.origin}${window.location.pathname}`)
+      : null
+    channelRef.current = channel
+    let disposed = false
+    let relaySocket: WebSocket | null = null
+    let reconnectTimer: number | undefined
 
-  useEffect(() => () => {
-    streamRef.current?.getTracks().forEach((track) => track.stop())
-    streamRef.current = null
-  }, [])
+    const onSignal = (rawSignal: unknown) => {
+      if (!rawSignal || typeof rawSignal !== 'object' || !('type' in rawSignal)) return
+      const envelope = rawSignal as ScreenCaptureSignalEnvelope
+      if (envelope.signalId) {
+        if (seenSignalIdsRef.current.has(envelope.signalId)) return
+        seenSignalIdsRef.current.add(envelope.signalId)
+        if (seenSignalIdsRef.current.size > 500) {
+          const oldest = seenSignalIdsRef.current.values().next().value
+          if (oldest) seenSignalIdsRef.current.delete(oldest)
+        }
+      }
+      const signal = envelope as ScreenCaptureSignal
+
+      if (signal.type === 'request' && editor && signal.captureKey === captureKey && signal.requesterId !== instanceIdRef.current) {
+        void createProviderOffer(signal)
+      } else if (signal.type === 'available' && !editor && signal.captureKey === captureKey && signal.providerId !== instanceIdRef.current) {
+        requestProvider(signal.providerId)
+      } else if (signal.type === 'offer') {
+        void acceptProviderOffer(signal)
+      } else if (signal.type === 'answer' && editor && signal.captureKey === captureKey && signal.toId === instanceIdRef.current) {
+        const peer = peersRef.current.get(signal.requestId)
+        if (peer?.role === 'provider') {
+          void peer.connection.setRemoteDescription(signal.description).then(() => flushIce(peer)).catch(() => {
+            peer.connection.close()
+            peersRef.current.delete(signal.requestId)
+          })
+        }
+      } else if (signal.type === 'ice' && signal.captureKey === captureKey && signal.toId === instanceIdRef.current) {
+        queueCandidate(signal.requestId, signal.candidate)
+      } else if (signal.type === 'ended' && !editor && signal.captureKey === captureKey) {
+        for (const [requestId, peer] of peersRef.current.entries()) {
+          if (peer.role === 'receiver' && peer.peerId === signal.providerId) {
+            peer.connection.close()
+            peersRef.current.delete(requestId)
+            requestIdsRef.current.delete(requestId)
+            if (activeRemoteRequestRef.current === requestId) activeRemoteRequestRef.current = null
+          }
+        }
+        if (!activeRemoteRequestRef.current) {
+          remoteStreamRef.current = null
+          setRemoteStream(null)
+          if (!localStreamRef.current) setError('O compartilhamento foi encerrado no editor. Inicie novamente pela prévia.')
+        }
+      }
+    }
+    const onChannelMessage = (event: MessageEvent<ScreenCaptureSignalEnvelope>) => onSignal(event.data)
+    channel?.addEventListener('message', onChannelMessage)
+
+    // BroadcastChannel só conecta documentos do mesmo contexto de armazenamento. O relay local
+    // também permite que uma Browser Source do OBS (outro processo Chromium) troque a sinalização.
+    const isLoopbackHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    const canUseLocalRelay = isLoopbackHost && window.location.protocol === 'http:'
+    const connectRelay = () => {
+      if (disposed || !canUseLocalRelay) return
+      try {
+        const socket = new WebSocket('ws://127.0.0.1:4174')
+        relaySocket = socket
+        relaySocketRef.current = socket
+        socket.onopen = () => {
+          if (disposed) { socket.close(); return }
+          const queued = pendingRelaySignalsRef.current.splice(0)
+          for (const serialized of queued) {
+            if (socket.readyState !== WebSocket.OPEN) break
+            try { socket.send(serialized) } catch { pendingRelaySignalsRef.current.unshift(serialized); break }
+          }
+        }
+        socket.onmessage = (event) => {
+          try { onSignal(JSON.parse(String(event.data))) } catch { /* Ignora mensagens malformadas do relay local. */ }
+        }
+        socket.onerror = () => { /* onclose agenda a reconexão; BroadcastChannel continua como fallback. */ }
+        socket.onclose = () => {
+          if (relaySocketRef.current === socket) relaySocketRef.current = null
+          if (!disposed) reconnectTimer = window.setTimeout(connectRelay, 1800)
+        }
+      } catch {
+        if (!disposed) reconnectTimer = window.setTimeout(connectRelay, 1800)
+      }
+    }
+    if (canUseLocalRelay) connectRelay()
+
+    let discoveryInterval: number | undefined
+    if (!editor) {
+      requestProvider()
+      // The receiver may open before the editor has started sharing. Retry briefly instead of relying on one lost request.
+      discoveryInterval = window.setInterval(() => {
+        if (remoteStreamRef.current) {
+          if (discoveryInterval !== undefined) window.clearInterval(discoveryInterval)
+          return
+        }
+        requestProvider()
+      }, 1500)
+    }
+
+    return () => {
+      if (discoveryInterval !== undefined) window.clearInterval(discoveryInterval)
+      disposed = true
+      channel?.removeEventListener('message', onChannelMessage)
+      if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer)
+      if (editor && localStreamRef.current) {
+        try { postSignal({ type: 'ended', captureKey, providerId: instanceIdRef.current }) } catch { /* Ignorar canal/relay já fechado. */ }
+      }
+      localStreamRef.current?.getTracks().forEach((track) => track.stop())
+      localStreamRef.current = null
+      channel?.close()
+      if (channelRef.current === channel) channelRef.current = null
+      if (relaySocket && relaySocket.readyState < WebSocket.CLOSING) relaySocket.close()
+      if (relaySocketRef.current === relaySocket) relaySocketRef.current = null
+      pendingRelaySignalsRef.current = []
+      seenSignalIdsRef.current.clear()
+      closeAllPeers()
+    }
+    // These keys identify the capture endpoint; streams and peer connections are kept in refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor, captureKey])
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    video.srcObject = visibleStream
+    if (visibleStream) {
+      void video.play().catch(() => {
+        setError('O navegador bloqueou a reprodução da captura. Clique novamente em “Selecionar tela ou janela”.')
+      })
+    }
+    return () => {
+      if (video.srcObject === visibleStream) video.srcObject = null
+    }
+  }, [visibleStream])
+
+  function finishLocalCapture(stream: MediaStream, stoppedByUser: boolean) {
+    if (localStreamRef.current !== stream) return
+    localStreamRef.current = null
+    if (editor) {
+      postSignal({ type: 'ended', captureKey, providerId: instanceIdRef.current })
+      closePeersForProvider()
+    }
+    setLocalStream((current) => current === stream ? null : current)
+    if (!stoppedByUser) setError('O compartilhamento foi encerrado pelo navegador. Selecione a tela novamente para continuar.')
+  }
 
   async function startCapture(event: ReactMouseEvent<HTMLButtonElement>) {
     event.preventDefault()
     event.stopPropagation()
     setError('')
-    if (!navigator.mediaDevices?.getDisplayMedia) {
-      setError('Este navegador não oferece captura de tela. Use uma versão atual do Chrome, Edge ou Firefox em HTTPS ou localhost.')
+    if (!window.isSecureContext || !navigator.mediaDevices?.getDisplayMedia) {
+      setError('A captura exige um navegador compatível em HTTPS ou localhost. Abra o projeto pelo endereço local do Vite ou pelo endereço HTTPS publicado.')
       return
     }
     try {
-      // O seletor nativo do navegador permite ao usuário escolher tela, janela ou aba; a página não pode capturar silenciosamente.
-      const next = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 30, max: 60 } }, audio: false })
-      streamRef.current = next
-      setStream(next)
-      next.getVideoTracks()[0]?.addEventListener('ended', () => {
-        if (streamRef.current === next) streamRef.current = null
-        setStream((current) => current === next ? null : current)
-      }, { once: true })
+      // A chamada fica diretamente no clique do usuário, exigido pela API do navegador.
+      const next = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 30, max: 60 }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
+      localStreamRef.current = next
+      setLocalStream(next)
+      next.getVideoTracks()[0]?.addEventListener('ended', () => finishLocalCapture(next, false), { once: true })
+      if (editor) postSignal({ type: 'available', captureKey, providerId: instanceIdRef.current })
     } catch (reason) {
       const name = reason instanceof DOMException ? reason.name : ''
-      if (name === 'NotAllowedError' || name === 'AbortError') setError('A captura foi cancelada ou a permissão foi negada.')
-      else setError('Não foi possível iniciar a captura. Verifique as permissões do navegador e tente novamente.')
+      if (name === 'NotAllowedError' || name === 'AbortError') setError('Você cancelou a seleção ou negou a permissão. Clique em “Selecionar tela ou janela” e autorize o compartilhamento.')
+      else if (name === 'InvalidStateError') setError('O navegador exige que a seleção seja iniciada diretamente por um clique e que esta aba esteja ativa. Tente novamente nesta aba.')
+      else if (name === 'NotReadableError') setError('O sistema não conseguiu capturar essa origem. Tente escolher outra janela ou a tela inteira.')
+      else setError(`Não foi possível iniciar a captura${name ? ` (${name})` : ''}. Verifique as permissões do navegador e tente novamente.`)
     }
   }
 
   function stopCapture(event: ReactMouseEvent<HTMLButtonElement>) {
     event.preventDefault()
     event.stopPropagation()
-    streamRef.current?.getTracks().forEach((track) => track.stop())
-    streamRef.current = null
-    setStream(null)
+    const current = localStreamRef.current
+    if (current) {
+      finishLocalCapture(current, true)
+      current.getTracks().forEach((track) => track.stop())
+    }
     setError('')
   }
 
-  return <div className={`screen-capture-view screen-capture-${variant} ${stream ? 'is-capturing' : 'is-idle'}`}>
-    {stream ? <>
+  const isCapturing = Boolean(visibleStream)
+  return <div className={`screen-capture-view screen-capture-${variant} ${isCapturing ? 'is-capturing' : 'is-idle'}`}>
+    {visibleStream ? <>
       <video ref={videoRef} className="screen-capture-video" autoPlay muted playsInline />
-      {editor && <div className="screen-capture-toolbar"><span><i /> Capturando tela/janela</span><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={stopCapture}>Parar captura</button></div>}
+      {editor && error && <small className="screen-capture-error" role="status">{error}</small>}
+      {editor && <div className="screen-capture-toolbar"><span><i /> Captura ativa · pronta para o modo overlay</span><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={stopCapture}>Parar captura</button></div>}
     </> : <div className="screen-capture-prompt">
       <span className="screen-capture-symbol">▣</span>
       <strong>Compartilhar tela ou janela</strong>
       <small>Escolha a tela inteira, uma janela de aplicativo ou uma aba no seletor do navegador.</small>
       <button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={startCapture}>Selecionar tela ou janela</button>
       {error && <small className="screen-capture-error" role="status">{error}</small>}
-      {!editor && <small>Autorize a captura nesta aba. A permissão não é transferida automaticamente do editor.</small>}
+      {!editor && <small>Para uma Browser Source do OBS, rode o projeto com npm run dev e use http://127.0.0.1:5173/?mode=overlay. Mantenha o servidor em execução. Em um site hospedado, o relay local não existe: será necessário um relay HTTPS/WSS remoto.</small>}
     </div>}
   </div>
 }
@@ -3056,13 +3635,13 @@ function OverlayView() {
   return <div className="overlay-output" aria-label={`Overlay: ${activeScene.name}`} style={sceneBackgroundStyle(activeScene)}>
     <ExternalFontLoader project={project} />
     {activeScene.background?.mode === 'video' && <BackgroundVideoLayer background={activeScene.background} />}
-    {activeScene.background?.mode === 'screen' && <ScreenCaptureView variant="background" />}
+    {activeScene.background?.mode === 'screen' && <ScreenCaptureView variant="background" captureKey={`background:${activeScene.id}`} />}
     {activeScene.sources.filter((source) => source.visible).map((source, index) => <div key={source.id} className={`overlay-object overlay-${source.type} ${source.type === 'shape' ? `shape-${source.shapeKind ?? 'rectangle'}` : ''}`} style={sourceStyle(source, index)}>
       {source.type === 'text' && <span className="object-text" style={{ textTransform: source.textTransform ?? 'none', textDecoration: source.textDecoration ?? 'none', textShadow: source.textShadowEnabled === false ? 'none' : undefined }}>{source.text || source.name}</span>}
       {source.type === 'shape' && <span className={`shape-inner shape-inner-${source.shapeKind ?? 'rectangle'}`} style={{ background: source.color ?? '#7772f2', borderRadius: source.shapeKind === 'circle' ? '50%' : source.shapeKind === 'pill' ? '999px' : source.shapeKind === 'line' ? '999px' : `${source.radius ?? 4}px` }} />}
       {source.type === 'image' && source.src && <img src={source.src} alt={source.name} draggable={false} style={{ objectFit: source.objectFit ?? 'contain', objectPosition: source.objectPosition ?? 'center center' }} />}
       {source.type === 'video' && source.src && <TrimmedVideo source={source} className="video-asset" />}
-      {source.type === 'capture' && <ScreenCaptureView variant="source" />}
+      {source.type === 'capture' && <ScreenCaptureView variant="source" captureKey={`source:${activeScene.id}:${source.id}`} />}
       {source.type === 'browser' && <iframe className="browser-frame" title={source.name} src={getBrowserUrl(source.url)} sandbox="allow-scripts allow-forms allow-popups" referrerPolicy="no-referrer" loading="lazy" tabIndex={-1} />}
       {source.type === 'camera' && (cameraStream ? <video className="camera-video" autoPlay muted playsInline style={{ transform: source.cameraMirror === false ? 'none' : 'scaleX(-1)' }} ref={(element) => { if (element && element.srcObject !== cameraStream) element.srcObject = cameraStream }} /> : <div className="overlay-camera-placeholder" />)}
       {source.type === 'widget' && <WidgetContent source={source} />}

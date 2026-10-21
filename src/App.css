@@ -883,7 +883,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid #a29aff; outline-offs
   text-shadow: var(--clock-text-shadow, none);
 }
 
-/* Background video and browser screen-share source (2.7.0). */
+/* Background video and browser screen-share source (2.9.0). */
 .background-media-layer {
   position: absolute;
   z-index: 0;
@@ -1061,4 +1061,74 @@ button:focus-visible, a:focus-visible { outline: 2px solid #a29aff; outline-offs
 .overlay-object.overlay-capture .screen-capture-prompt {
   border: 0;
   background: #151723e8;
+}
+
+/* Sequência de clipes: uma única fonte visual com controle de ordem e recorte por clipe. */
+.video-playlist-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 10px 0 4px;
+  padding: 11px;
+  border: 1px solid #34364a;
+  border-radius: 9px;
+  background: #141620;
+}
+.video-playlist-manager > .eyebrow { color: #b9b3ff; }
+.video-playlist-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid #2d3040;
+  border-radius: 7px;
+  background: #191b26;
+}
+.video-playlist-row-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  min-width: 0;
+}
+.video-playlist-row-heading > strong {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #e6e6f4;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+.video-playlist-row-heading > div { display: flex; flex-shrink: 0; gap: 3px; }
+.video-playlist-row-heading button {
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  padding: 0;
+  border: 1px solid #393c4f;
+  border-radius: 5px;
+  background: #222433;
+  color: #d6d4ef;
+  font-size: 12px;
+}
+.video-playlist-row-heading button:hover:not(:disabled) { border-color: #8279e8; background: #2b2841; }
+.video-playlist-row-heading button:disabled { opacity: .3; cursor: not-allowed; }
+.video-playlist-trim-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 7px; }
+.video-playlist-trim-grid label { display: flex; flex-direction: column; gap: 5px; min-width: 0; color: #aeb2c6; font-size: 9px; line-height: 1.4; }
+.video-playlist-trim-grid input { width: 100%; min-width: 0; padding: 7px; }
+.background-playlist-manager { margin-top: 12px; }
+.video-source-placeholder { display: block; min-height: 70px; border: 1px dashed #45475c; border-radius: 7px; background: repeating-conic-gradient(#262936 0% 25%, #1c1f29 0% 50%) 50% / 18px 18px; }
+
+
+/* Ações secundárias: importação adicional sem competir com a ação principal. */
+.secondary-action {
+  border-color: #383b4d !important;
+  background: #191c27 !important;
+  color: #c9cbe0 !important;
+}
+.secondary-action:hover {
+  border-color: #7770c2 !important;
+  background: #25243a !important;
 }
