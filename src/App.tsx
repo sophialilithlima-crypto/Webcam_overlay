@@ -5,13 +5,13 @@ import {
   useRef,
   useState,
 } from 'react'
-import type { ChangeEvent, CSSProperties, PointerEvent as ReactPointerEvent, SyntheticEvent } from 'react'
+import type { ChangeEvent, CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, SyntheticEvent } from 'react'
 import './App.css'
 
 type WidgetKind = 'alert' | 'chat' | 'events' | 'goal' | 'latest' | 'socials' | 'countdown' | 'clock' | 'viewer' | 'ticker' | 'music' | 'poll' | 'sponsor' | 'webcam-frame' | 'live-badge' | 'tip-jar' | 'stream-boss' | 'leaderboard'
 type WidgetTheme = 'glass' | 'neon' | 'minimal' | 'solid'
-type SourceType = 'text' | 'shape' | 'camera' | 'image' | 'video' | 'browser' | 'widget'
-type BackgroundConfig = { mode: 'transparent' | 'solid' | 'gradient' | 'image'; color: string; color2: string; angle: number; imageSrc?: string; imageFit?: 'cover' | 'contain' | 'stretch'; imagePosition?: string; imageOpacity?: number; overlayColor?: string; overlayOpacity?: number }
+type SourceType = 'text' | 'shape' | 'camera' | 'image' | 'video' | 'capture' | 'browser' | 'widget'
+type BackgroundConfig = { mode: 'transparent' | 'solid' | 'gradient' | 'image' | 'video' | 'screen'; color: string; color2: string; angle: number; imageSrc?: string; imageFit?: 'cover' | 'contain' | 'stretch'; imagePosition?: string; imageOpacity?: number; videoSrc?: string; videoFit?: 'cover' | 'contain' | 'stretch'; videoPosition?: string; videoOpacity?: number; videoStart?: number; videoEnd?: number; videoTrimEnabled?: boolean; videoLoop?: boolean; videoMuted?: boolean; videoVolume?: number; videoPlaybackRate?: number; overlayColor?: string; overlayOpacity?: number }
 type InspectorTab = 'layers' | 'element' | 'background' | 'canvas'
 type ElementSection = 'content' | 'style' | 'transform'
 type SceneSource = {
@@ -282,7 +282,7 @@ function makeDefaultProject(): Project {
 function isValidProject(value: unknown): value is Project {
   if (!value || typeof value !== 'object') return false
   const candidate = value as Partial<Project>
-  const allowedTypes: SourceType[] = ['text', 'shape', 'camera', 'image', 'video', 'browser', 'widget']
+  const allowedTypes: SourceType[] = ['text', 'shape', 'camera', 'image', 'video', 'capture', 'browser', 'widget']
   const allowedWidgetKinds = WIDGET_OPTIONS.map((option) => option.kind)
   if (candidate.version !== 1 || !Array.isArray(candidate.scenes) || candidate.scenes.length === 0 || candidate.scenes.length > 100) return false
 
@@ -292,9 +292,18 @@ function isValidProject(value: unknown): value is Project {
     sceneIds.add(scene.id)
     if (scene.width !== undefined && (!Number.isFinite(scene.width) || scene.width < 320 || scene.width > 3840)) return false
     if (scene.height !== undefined && (!Number.isFinite(scene.height) || scene.height < 320 || scene.height > 3840)) return false
-    if (scene.background !== undefined && (!scene.background || !['transparent', 'solid', 'gradient', 'image'].includes(scene.background.mode))) return false
+    if (scene.background !== undefined && (!scene.background || !['transparent', 'solid', 'gradient', 'image', 'video', 'screen'].includes(scene.background.mode))) return false
     if (scene.background?.imageSrc !== undefined && typeof scene.background.imageSrc !== 'string') return false
     if (scene.background?.imageSrc && !isSafeImageSource(scene.background.imageSrc)) return false
+    if (scene.background?.videoSrc !== undefined && typeof scene.background.videoSrc !== 'string') return false
+    if (scene.background?.videoSrc && !isSafeVideoSource(scene.background.videoSrc)) return false
+    if (scene.background?.videoStart !== undefined && (!Number.isFinite(scene.background.videoStart) || scene.background.videoStart < 0 || scene.background.videoStart > 3600)) return false
+    if (scene.background?.videoEnd !== undefined && (!Number.isFinite(scene.background.videoEnd) || scene.background.videoEnd < 0 || scene.background.videoEnd > 3600)) return false
+    if (scene.background?.videoTrimEnabled !== undefined && typeof scene.background.videoTrimEnabled !== 'boolean') return false
+    if (scene.background?.videoLoop !== undefined && typeof scene.background.videoLoop !== 'boolean') return false
+    if (scene.background?.videoMuted !== undefined && typeof scene.background.videoMuted !== 'boolean') return false
+    if (scene.background?.videoVolume !== undefined && (!Number.isFinite(scene.background.videoVolume) || scene.background.videoVolume < 0 || scene.background.videoVolume > 1)) return false
+    if (scene.background?.videoPlaybackRate !== undefined && (!Number.isFinite(scene.background.videoPlaybackRate) || scene.background.videoPlaybackRate < 0.25 || scene.background.videoPlaybackRate > 2)) return false
 
     const sourceIds = new Set<string>()
     for (const source of scene.sources) {
@@ -394,7 +403,7 @@ function normalizeProject(parsed: Project): Project {
     })
     const rawBackground = scene.background
     const background: BackgroundConfig = {
-      mode: rawBackground && ['transparent', 'solid', 'gradient', 'image'].includes(rawBackground.mode) ? rawBackground.mode : 'transparent',
+      mode: rawBackground && ['transparent', 'solid', 'gradient', 'image', 'video', 'screen'].includes(rawBackground.mode) ? rawBackground.mode : 'transparent',
       color: typeof rawBackground?.color === 'string' ? rawBackground.color : '#171923',
       color2: typeof rawBackground?.color2 === 'string' ? rawBackground.color2 : '#28243c',
       angle: clamp(Number.isFinite(rawBackground?.angle) ? Number(rawBackground?.angle) : 135, 0, 360),
@@ -402,6 +411,17 @@ function normalizeProject(parsed: Project): Project {
       imageFit: rawBackground?.imageFit === 'contain' || rawBackground?.imageFit === 'stretch' ? rawBackground.imageFit : 'cover',
       imagePosition: typeof rawBackground?.imagePosition === 'string' ? rawBackground.imagePosition.slice(0, 40) : 'center center',
       imageOpacity: clamp(Number.isFinite(rawBackground?.imageOpacity) ? Number(rawBackground?.imageOpacity) : 1, 0, 1),
+      videoSrc: typeof rawBackground?.videoSrc === 'string' && isSafeVideoSource(rawBackground.videoSrc) ? rawBackground.videoSrc : undefined,
+      videoFit: rawBackground?.videoFit === 'contain' || rawBackground?.videoFit === 'stretch' ? rawBackground.videoFit : 'cover',
+      videoPosition: typeof rawBackground?.videoPosition === 'string' ? rawBackground.videoPosition.slice(0, 40) : 'center center',
+      videoOpacity: clamp(Number.isFinite(rawBackground?.videoOpacity) ? Number(rawBackground.videoOpacity) : 1, 0, 1),
+      videoStart: clamp(Number.isFinite(rawBackground?.videoStart) ? Number(rawBackground.videoStart) : 0, 0, 3600),
+      videoEnd: clamp(Number.isFinite(rawBackground?.videoEnd) ? Number(rawBackground.videoEnd) : 0, 0, 3600),
+      videoTrimEnabled: rawBackground?.videoTrimEnabled === true,
+      videoLoop: rawBackground?.videoLoop !== false,
+      videoMuted: rawBackground?.videoMuted !== false,
+      videoVolume: clamp(Number.isFinite(rawBackground?.videoVolume) ? Number(rawBackground.videoVolume) : 0.8, 0, 1),
+      videoPlaybackRate: clamp(Number.isFinite(rawBackground?.videoPlaybackRate) ? Number(rawBackground.videoPlaybackRate) : 1, 0.25, 2),
       overlayColor: typeof rawBackground?.overlayColor === 'string' ? rawBackground.overlayColor : '#000000',
       overlayOpacity: clamp(Number.isFinite(rawBackground?.overlayOpacity) ? Number(rawBackground?.overlayOpacity) : 0, 0, 1),
     }
@@ -600,20 +620,24 @@ function getVideoBlob(reference: string): Promise<Blob | null> {
 
 async function getProjectVideoBytes(project: Project): Promise<number> {
   let total = 0
-  for (const scene of project.scenes) {
-    for (const source of scene.sources) {
-      if (source.type !== 'video' || !source.src) continue
-      if (source.src.startsWith('idb-video://')) {
-        const blob = await getVideoBlob(source.src)
-        if (blob) total += blob.size
-      } else if (source.src.startsWith('data:video/')) {
-        const comma = source.src.indexOf(',')
-        if (comma >= 0) {
-          const payload = source.src.slice(comma + 1)
-          const padding = payload.endsWith('==') ? 2 : payload.endsWith('=') ? 1 : 0
-          total += Math.max(0, Math.floor(payload.length * 3 / 4) - padding)
-        }
+  const countReference = async (reference?: string) => {
+    if (!reference) return
+    if (reference.startsWith('idb-video://')) {
+      const blob = await getVideoBlob(reference)
+      if (blob) total += blob.size
+    } else if (reference.startsWith('data:video/')) {
+      const comma = reference.indexOf(',')
+      if (comma >= 0) {
+        const payload = reference.slice(comma + 1)
+        const padding = payload.endsWith('==') ? 2 : payload.endsWith('=') ? 1 : 0
+        total += Math.max(0, Math.floor(payload.length * 3 / 4) - padding)
       }
+    }
+  }
+  for (const scene of project.scenes) {
+    await countReference(scene.background?.videoSrc)
+    for (const source of scene.sources) {
+      if (source.type === 'video') await countReference(source.src)
     }
   }
   return total
@@ -662,6 +686,14 @@ async function storeEmbeddedVideos(project: Project): Promise<Project> {
   try {
     for (const scene of project.scenes) {
       const sources: SceneSource[] = []
+      let background = scene.background ? { ...scene.background } : undefined
+      if (background?.videoSrc?.startsWith('data:video/')) {
+        const blob = dataUrlToBlob(background.videoSrc)
+        if (blob.size > MAX_VIDEO_BYTES) throw new Error(`O vídeo de fundo da cena “${scene.name}” excede o limite de ${Math.round(MAX_VIDEO_BYTES / 1_000_000)} MB.`)
+        const reference = await saveVideoBlob(blob, `Fundo - ${scene.name}`)
+        createdReferences.push(reference)
+        background = { ...background, videoSrc: reference }
+      }
       for (const source of scene.sources) {
         if (source.type === 'video' && source.src?.startsWith('data:video/')) {
           const blob = dataUrlToBlob(source.src)
@@ -673,7 +705,7 @@ async function storeEmbeddedVideos(project: Project): Promise<Project> {
           sources.push(source)
         }
       }
-      scenes.push({ ...scene, sources })
+      scenes.push({ ...scene, background, sources })
     }
     return { ...project, scenes }
   } catch (error) {
@@ -722,11 +754,11 @@ function imageDimensions(dataUrl: string): Promise<{ width: number; height: numb
 }
 
 function sourceLabel(type: SourceType) {
-  return ({ text: 'Texto', shape: 'Forma', camera: 'Câmera', image: 'Imagem', video: 'Vídeo', browser: 'Navegador', widget: 'Widget' })[type]
+  return ({ text: 'Texto', shape: 'Forma', camera: 'Câmera', image: 'Imagem', video: 'Vídeo', capture: 'Captura de tela', browser: 'Navegador', widget: 'Widget' })[type]
 }
 
 function sourceGlyph(type: SourceType) {
-  return ({ text: 'T', shape: '◇', camera: '◉', image: '▧', video: '▶', browser: '↗', widget: '✦' })[type]
+  return ({ text: 'T', shape: '◇', camera: '◉', image: '▧', video: '▶', capture: '▣', browser: '↗', widget: '✦' })[type]
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -742,6 +774,13 @@ async function downloadProject(project: Project) {
   const exportProject: Project = { ...project, scenes: [] }
   for (const scene of project.scenes) {
     const sources: SceneSource[] = []
+    let background = scene.background ? { ...scene.background } : undefined
+    if (background?.videoSrc?.startsWith('idb-video://')) {
+      const blob = await getVideoBlob(background.videoSrc)
+      if (!blob) throw new Error(`O vídeo de fundo da cena “${scene.name}” não foi encontrado no armazenamento local. Importe-o novamente antes de exportar.`)
+      if (blob.size > MAX_VIDEO_BYTES) throw new Error(`O vídeo de fundo da cena “${scene.name}” excede o limite portátil de exportação.`)
+      background = { ...background, videoSrc: await blobToDataUrl(blob) }
+    }
     for (const source of scene.sources) {
       if (source.type === 'video' && source.src?.startsWith('idb-video://')) {
         const blob = await getVideoBlob(source.src)
@@ -752,7 +791,7 @@ async function downloadProject(project: Project) {
         sources.push(source)
       }
     }
-    exportProject.scenes.push({ ...scene, sources })
+    exportProject.scenes.push({ ...scene, background, sources })
   }
   const serialized = JSON.stringify(exportProject, null, 2)
   if (serialized.length > MAX_PROJECT_JSON_CHARS) throw new Error('O projeto com mídia incorporada ultrapassa o limite de exportação de 125 MB. Exporte menos vídeos por vez ou reduza os arquivos.')
@@ -801,7 +840,7 @@ function sourceStyle(source: SceneSource, index: number): CSSProperties {
   if (source.type === 'widget') {
     Object.assign(style, { '--widget-accent': source.widgetAccent ?? source.color ?? '#8d85ff' })
   }
-  if (source.type === 'camera' || source.type === 'image' || source.type === 'video' || source.type === 'browser') style.overflow = 'hidden'
+  if (source.type === 'camera' || source.type === 'image' || source.type === 'video' || source.type === 'capture' || source.type === 'browser') style.overflow = 'hidden'
   return style
 }
 
@@ -856,6 +895,7 @@ function sceneBackgroundStyle(scene: Scene, isPreview = false): CSSProperties {
   }
   if (mode === 'solid') return { backgroundColor: background?.color ?? '#171923', backgroundImage: 'none' }
   if (mode === 'gradient') return { backgroundColor: background?.color ?? '#171923', backgroundImage: `linear-gradient(${background?.angle ?? 135}deg, ${background?.color ?? '#25233a'}, ${background?.color2 ?? '#10121a'})` }
+  if (mode === 'video' || mode === 'screen') return { backgroundColor: background?.color ?? '#151823', backgroundImage: isPreview ? 'repeating-conic-gradient(#262936 0% 25%, #1c1f29 0% 50%)' : 'none', backgroundSize: '24px 24px' }
   const imageSrc = background?.imageSrc && isSafeImageSource(background.imageSrc) ? background.imageSrc : ''
   if (!imageSrc) return { backgroundColor: background?.color ?? '#171923', backgroundImage: isPreview ? 'repeating-conic-gradient(#262936 0% 25%, #1c1f29 0% 50%)' : 'none', backgroundSize: '24px 24px' }
   const fadeImage = 1 - clamp(background?.imageOpacity ?? 1, 0, 1)
@@ -1241,7 +1281,7 @@ function formatMediaTime(seconds: number) {
   return `${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}.${tenths}`
 }
 
-function TrimmedVideo({ source, className }: { source: SceneSource; className: string }) {
+function TrimmedVideo({ source, className, fit, position }: { source: SceneSource; className: string; fit?: 'cover' | 'contain' | 'fill'; position?: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const resolvedSrc = useResolvedVideoSrc(source.src)
   const start = source.videoTrimEnabled ? Math.max(0, source.videoStart ?? 0) : 0
@@ -1310,7 +1350,7 @@ function TrimmedVideo({ source, className }: { source: SceneSource; className: s
     }}
     onTimeUpdate={handleTimeUpdate}
     onEnded={handleEnded}
-    style={{ objectFit: source.objectFit ?? 'cover', objectPosition: source.objectPosition ?? 'center center' }}
+    style={{ objectFit: fit ?? source.objectFit ?? 'cover', objectPosition: position ?? source.objectPosition ?? 'center center' }}
   />
 }
 
@@ -1442,6 +1482,7 @@ function Editor() {
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('layers')
   const [elementSection, setElementSection] = useState<ElementSection>('content')
   const [backgroundUrlInput, setBackgroundUrlInput] = useState('')
+  const [backgroundVideoUrlInput, setBackgroundVideoUrlInput] = useState('')
   const [widgetBackgroundUrlDraft, setWidgetBackgroundUrlDraft] = useState('')
   const [widgetSearch, setWidgetSearch] = useState('')
   const [showPackMenu, setShowPackMenu] = useState(false)
@@ -1461,6 +1502,7 @@ function Editor() {
   const imageInputRef = useRef<HTMLInputElement>(null)
   const videoInputRef = useRef<HTMLInputElement>(null)
   const backgroundDesignInputRef = useRef<HTMLInputElement>(null)
+  const backgroundVideoInputRef = useRef<HTMLInputElement>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
   const widgetStyleInputRef = useRef<HTMLInputElement>(null)
   const widgetBackgroundInputRef = useRef<HTMLInputElement>(null)
@@ -1736,6 +1778,7 @@ function Editor() {
       text: { x: 7 + (Math.floor((count - 1) / 5) % 2) * 47, y: 8 + ((count - 1) % 5) * 15, w: 42, h: 10, text: 'Seu texto', color: '#ffffff', fontSize: 34, fontFamily: 'Inter, system-ui, sans-serif', fontWeight: 750, textAlign: 'left', letterSpacing: -0.5, lineHeight: 1.12 },
       shape: { x: 38, y: 30, w: 20, h: 22, color: '#7772f2', radius: 10, shapeKind: 'rectangle' },
       camera: { x: 35, y: 20, w: 30, h: 45, radius: 5, cameraMirror: true },
+      capture: { x: 26, y: 20, w: 48, h: 42, radius: 4 },
       browser: { x: 32, y: 25, w: 36, h: 34, url: 'https://example.com', radius: 4 },
     }
     const source: SceneSource = placeWithoutOverlap(activeScene.sources, {
@@ -1985,6 +2028,66 @@ function Editor() {
     } catch {
       setMessage('Não foi possível importar essa imagem de fundo.')
     }
+  }
+
+  async function onBackgroundVideoSelected(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget as HTMLInputElement
+    const file = input.files?.[0]
+    input.value = ''
+    if (!file) return
+    const extension = file.name.toLowerCase().split('.').pop() ?? ''
+    const knownVideoExtensions = new Set(['mp4', 'm4v', 'webm', 'ogv', 'ogg', 'mov', '3gp', 'mkv', 'avi', 'wmv', 'mpeg', 'mpg', 'ts', 'm2ts'])
+    if (!file.type.startsWith('video/') && !knownVideoExtensions.has(extension)) {
+      setMessage('Escolha um arquivo de vídeo compatível, como MP4, WebM, MOV, OGV ou MKV.')
+      return
+    }
+    if (file.size > MAX_VIDEO_BYTES) {
+      setMessage(`O vídeo de fundo excede o limite de ${Math.round(MAX_VIDEO_BYTES / 1_000_000)} MB por arquivo.`)
+      return
+    }
+    const targetSceneId = activeScene.id
+    try {
+      const used = await getProjectVideoBytes(projectRef.current)
+      if (used + file.size > MAX_VIDEO_PROJECT_BYTES) {
+        setMessage(`O projeto aceita até ${Math.round(MAX_VIDEO_PROJECT_BYTES / 1_000_000)} MB de vídeos locais. Atualmente usa ${(used / 1_000_000).toFixed(1)} MB.`)
+        return
+      }
+      setMessage(`Importando vídeo de fundo “${file.name}”…`)
+      const videoSrc = await saveVideoBlob(file, `Fundo - ${file.name}`)
+      const current = projectRef.current
+      if (!current.scenes.some((scene) => scene.id === targetSceneId)) {
+        await deleteVideoBlob(videoSrc)
+        setMessage('A cena de destino não existe mais. Selecione-a e tente novamente.')
+        return
+      }
+      setProject((prev) => ({ ...prev, scenes: prev.scenes.map((scene) => scene.id === targetSceneId ? {
+        ...scene,
+        background: {
+          ...(scene.background ?? { mode: 'video', color: '#151823', color2: '#25233a', angle: 135 }),
+          mode: 'video', videoSrc, videoFit: scene.background?.videoFit ?? 'cover', videoPosition: scene.background?.videoPosition ?? 'center center', videoOpacity: scene.background?.videoOpacity ?? 1,
+          videoStart: 0, videoEnd: 0, videoTrimEnabled: false, videoLoop: true, videoMuted: true, videoVolume: 0.8, videoPlaybackRate: 1,
+        },
+      } : scene) }))
+      setInspectorTab('background')
+      setMessage(`“${file.name}” foi definido como vídeo de fundo. O arquivo está salvo no navegador; exporte o projeto JSON para transportá-lo.`)
+    } catch (error) {
+      setMessage(`Não foi possível importar o vídeo de fundo: ${error instanceof Error ? error.message : 'erro de armazenamento'}`)
+    }
+  }
+
+  function applyBackgroundVideoUrl() {
+    const candidate = backgroundVideoUrlInput.trim()
+    if (!candidate || !isSafeVideoSource(candidate) || candidate.startsWith('data:') || candidate.startsWith('idb-video://')) {
+      setMessage('Informe um link HTTP ou HTTPS direto para um arquivo de vídeo (por exemplo, MP4 ou WebM).')
+      return
+    }
+    updateScene({ background: {
+      ...(activeScene.background ?? { mode: 'video', color: '#151823', color2: '#25233a', angle: 135 }),
+      mode: 'video', videoSrc: candidate, videoFit: activeScene.background?.videoFit ?? 'cover', videoPosition: activeScene.background?.videoPosition ?? 'center center', videoOpacity: activeScene.background?.videoOpacity ?? 1,
+      videoTrimEnabled: false, videoLoop: true, videoMuted: true, videoVolume: 0.8, videoPlaybackRate: 1,
+    } })
+    setInspectorTab('background')
+    setMessage('Vídeo de fundo vinculado ao endereço informado. O link deve apontar diretamente para um arquivo e permitir reprodução pelo navegador.')
   }
 
   function applyBackgroundUrl() {
@@ -2289,9 +2392,11 @@ function Editor() {
     setInspectorTab('layers')
     setElementSection('content')
     setBackgroundUrlInput('')
+    setBackgroundVideoUrlInput('')
     setSourceMenuOpen(false)
     if (imageInputRef.current) imageInputRef.current.value = ''
     if (backgroundDesignInputRef.current) backgroundDesignInputRef.current.value = ''
+    if (backgroundVideoInputRef.current) backgroundVideoInputRef.current.value = ''
     if (importInputRef.current) importInputRef.current.value = ''
     const initialScene = next.scenes.find((scene) => scene.id === next.activeSceneId) ?? next.scenes[0]
     setSelectedSourceId(initialScene?.sources.find((source) => source.id === 'source-title')?.id ?? initialScene?.sources[0]?.id ?? null)
@@ -2412,6 +2517,8 @@ function Editor() {
           </div>
           <div className="preview-frame">
             <div className="preview-canvas" ref={stageRef} style={{ ...sceneBackgroundStyle(activeScene, true), aspectRatio: `${activeScene.width ?? 1920} / ${activeScene.height ?? 1080}` }} onPointerDown={() => { setSelectedSourceId(null); setInspectorTab('background') }}>
+              {activeScene.background?.mode === 'video' && <BackgroundVideoLayer background={activeScene.background} />}
+              {activeScene.background?.mode === 'screen' && <ScreenCaptureView editor variant="background" />}
               {activeScene.sources.filter((source) => source.visible).map((source, index) => (
                 <div
                   className={`canvas-object object-${source.type} ${source.type === 'shape' ? `shape-${source.shapeKind ?? 'rectangle'}` : ''} ${source.locked ? 'locked' : ''} ${selectedSourceId === source.id ? 'is-selected' : ''}`}
@@ -2431,6 +2538,7 @@ function Editor() {
                   {source.type === 'image' && source.src && <img src={source.src} alt={source.name} draggable={false} style={{ objectFit: source.objectFit ?? 'contain', objectPosition: source.objectPosition ?? 'center center' }} />}
                   {source.type === 'video' && source.src && <TrimmedVideo source={source} className="video-asset" />}
                   {source.type === 'browser' && <iframe className="browser-frame" title={source.name} src={getBrowserUrl(source.url)} sandbox="allow-scripts allow-forms allow-popups" referrerPolicy="no-referrer" loading="lazy" tabIndex={-1} />}
+                  {source.type === 'capture' && <ScreenCaptureView editor variant="source" />}
                   {source.type === 'camera' && (cameraStream
                     ? <video className="camera-video" autoPlay muted playsInline style={{ transform: source.cameraMirror === false ? 'none' : 'scaleX(-1)' }} ref={(element) => { if (element && element.srcObject !== cameraStream) element.srcObject = cameraStream }} />
                     : <div className="camera-placeholder"><span className="camera-symbol">◉</span><strong>{source.name}</strong><small>Clique em “Ativar webcam” nas propriedades</small></div>)}
@@ -2444,7 +2552,7 @@ function Editor() {
           </div>
           <div className="preview-caption"><span><span className="status-dot" /> Arraste para mover · canto inferior para redimensionar</span><span>Proporção {activeScene.width ?? 1920}:{activeScene.height ?? 1080}</span></div>
         </section>
-        <footer className="studio-footer"><span className="footer-tip"><span className="tip-icon">i</span> As alterações são salvas automaticamente neste navegador.</span><span className="footer-version">WEBCAM_OVERLAY · 2.6.0</span></footer>
+        <footer className="studio-footer"><span className="footer-tip"><span className="tip-icon">i</span> As alterações são salvas automaticamente neste navegador.</span><span className="footer-version">WEBCAM_OVERLAY · 2.7.0</span></footer>
       </main>
 
       <aside className="inspector-panel">
@@ -2455,13 +2563,13 @@ function Editor() {
         <nav className="inspector-tabs" aria-label="Painéis do inspetor">
           <button type="button" className={inspectorTab === 'layers' ? 'active' : ''} onClick={() => { setInspectorTab('layers'); setSourceMenuOpen(false) }}>Camadas</button>
           <button type="button" className={inspectorTab === 'element' ? 'active' : ''} disabled={!selectedSource} onClick={() => { setInspectorTab('element'); setElementSection('content') }}>Elemento</button>
-          <button type="button" className={inspectorTab === 'background' ? 'active' : ''} onClick={() => { setInspectorTab('background'); setSourceMenuOpen(false); setBackgroundUrlInput(activeScene.background?.imageSrc?.startsWith('http') ? activeScene.background.imageSrc : '') }}>Fundo</button>
+          <button type="button" className={inspectorTab === 'background' ? 'active' : ''} onClick={() => { setInspectorTab('background'); setSourceMenuOpen(false); setBackgroundUrlInput(activeScene.background?.imageSrc?.startsWith('http') ? activeScene.background.imageSrc : ''); setBackgroundVideoUrlInput(activeScene.background?.videoSrc?.startsWith('http') ? activeScene.background.videoSrc : '') }}>Fundo</button>
           <button type="button" className={inspectorTab === 'canvas' ? 'active' : ''} onClick={() => { setInspectorTab('canvas'); setSourceMenuOpen(false) }}>Tela</button>
         </nav>
 
         {inspectorTab === 'layers' && <>
           {sourceMenuOpen && <div className="source-menu"><p className="eyebrow">ELEMENTOS BÁSICOS</p>
-            {(['text', 'shape', 'camera', 'image', 'video', 'browser'] as Exclude<SourceType, 'widget'>[]).map((type) => <button key={type} type="button" onClick={() => addSource(type)}><span className={`source-icon icon-${type}`}>{sourceGlyph(type)}</span><span><strong>{sourceLabel(type)}</strong><small>{{ text: 'Texto, tipografia e efeitos', shape: 'Retângulo, círculo, linha ou pílula', camera: 'Webcam do dispositivo', image: 'Imagem, GIF animado, PNG, JPG, WebP ou SVG', video: 'MP4, WebM, MOV, MKV e outros; corte, loop e áudio', browser: 'Página ou widget web incorporado' }[type]}</small></span><span className="menu-arrow">›</span></button>)}
+            {(['text', 'shape', 'camera', 'capture', 'image', 'video', 'browser'] as Exclude<SourceType, 'widget'>[]).map((type) => <button key={type} type="button" onClick={() => addSource(type)}><span className={`source-icon icon-${type}`}>{sourceGlyph(type)}</span><span><strong>{sourceLabel(type)}</strong><small>{{ text: 'Texto, tipografia e efeitos', shape: 'Retângulo, círculo, linha ou pílula', camera: 'Webcam do dispositivo', capture: 'Compartilhar tela inteira, janela ou aba do navegador', image: 'Imagem, GIF animado, PNG, JPG, WebP ou SVG', video: 'MP4, WebM, MOV, MKV e outros; corte, loop e áudio', browser: 'Página ou widget web incorporado' }[type]}</small></span><span className="menu-arrow">›</span></button>)}
             <div className="widget-library-title"><p className="eyebrow">WIDGETS PARA STREAM</p><span>{WIDGET_OPTIONS.length}</span></div>
             <input className="text-input widget-search" value={widgetSearch} onChange={(event) => setWidgetSearch(event.target.value)} placeholder="Buscar widget..." aria-label="Buscar widget" />
             {WIDGET_OPTIONS.filter((option) => `${option.label} ${option.description}`.toLocaleLowerCase('pt-BR').includes(widgetSearch.toLocaleLowerCase('pt-BR'))).map((option) => <button key={option.kind} type="button" onClick={() => addWidget(option.kind)}><span className="source-icon icon-widget">{option.glyph}</span><span><strong>{option.label}</strong><small>{option.description}</small></span><span className="menu-arrow">›</span></button>)}
@@ -2525,6 +2633,10 @@ function Editor() {
                   <button className="wide-action" type="button" onClick={enableCamera}>{cameraStream ? 'Reativar webcam' : 'Ativar webcam'}</button>
                   {cameraStream && <button className="wide-action quiet-action" type="button" onClick={() => { cameraStream.getTracks().forEach((track) => track.stop()); setCameraStream(null); setMessage('Webcam desativada.') }}>Desativar webcam</button>}
                   {cameraError && <p className="error-note">{cameraError}</p>}
+                </>}
+                {selectedSource.type === 'capture' && <>
+                  <div className="feature-note"><span className="note-icon">i</span><p>Compartilhe a tela inteira, uma janela específica ou uma aba. Ao iniciar, o navegador abrirá o seletor de compartilhamento e você escolhe a origem. A captura exige HTTPS ou localhost e autorização explícita; ela não é salva no arquivo do projeto.</p></div>
+                  <p className="field-hint">Use o botão dentro da prévia para iniciar ou encerrar a captura. Para o modo overlay em outra aba, autorize a captura novamente nessa aba.</p>
                 </>}
                 {selectedSource.type === 'widget' && <>
                   <div className="widget-inspector-note"><span className="note-icon">i</span><p>Dados de demonstração. Personalize o conteúdo e o visual nas abas deste elemento.</p></div>
@@ -2725,8 +2837,8 @@ function Editor() {
         {inspectorTab === 'background' && <div className="scene-settings-panel background-settings-panel">
           <div className="properties-heading"><div><p className="eyebrow">CENA ATUAL</p><h3>Plano de fundo</h3></div><span className="property-type">{activeScene.name}</span></div>
           <label className="field-label" htmlFor="scene-background-mode">Tipo de fundo</label>
-          <select id="scene-background-mode" className="text-input" value={activeScene.background?.mode ?? 'transparent'} onChange={(event) => updateScene({ background: { ...(activeScene.background ?? { color: '#25233a', color2: '#10121a', angle: 135 }), mode: event.target.value as BackgroundConfig['mode'] } })}><option value="transparent">Transparente (overlay)</option><option value="solid">Cor sólida</option><option value="gradient">Gradiente</option><option value="image">Imagem de fundo</option></select>
-          {(activeScene.background?.mode === 'solid' || activeScene.background?.mode === 'gradient' || activeScene.background?.mode === 'image') && <><label className="field-label" htmlFor="scene-bg-color">Cor base</label><ColorField id="scene-bg-color" value={activeScene.background?.color ?? '#171923'} onChange={(color) => updateScene({ background: { ...(activeScene.background ?? { mode: 'solid', color2: '#10121a', angle: 135 }), color } })} /></>}
+          <select id="scene-background-mode" className="text-input" value={activeScene.background?.mode ?? 'transparent'} onChange={(event) => updateScene({ background: { ...(activeScene.background ?? { color: '#25233a', color2: '#10121a', angle: 135 }), mode: event.target.value as BackgroundConfig['mode'] } })}><option value="transparent">Transparente (overlay)</option><option value="solid">Cor sólida</option><option value="gradient">Gradiente</option><option value="image">Imagem de fundo</option><option value="video">Vídeo de fundo</option><option value="screen">Captura de tela/janela</option></select>
+          {(activeScene.background?.mode === 'solid' || activeScene.background?.mode === 'gradient' || activeScene.background?.mode === 'image' || activeScene.background?.mode === 'video' || activeScene.background?.mode === 'screen') && <><label className="field-label" htmlFor="scene-bg-color">Cor base</label><ColorField id="scene-bg-color" value={activeScene.background?.color ?? '#171923'} onChange={(color) => updateScene({ background: { ...(activeScene.background ?? { mode: 'solid', color2: '#10121a', angle: 135 }), color } })} /></>}
           {activeScene.background?.mode === 'gradient' && <><label className="field-label" htmlFor="scene-bg-color2">Segunda cor</label><ColorField id="scene-bg-color2" value={activeScene.background.color2 ?? '#10121a'} onChange={(color2) => updateScene({ background: { ...activeScene.background!, color2 } })} /><label className="field-label" htmlFor="scene-bg-angle">Ângulo do gradiente</label><div className="range-row"><input id="scene-bg-angle" type="range" min="0" max="360" value={activeScene.background.angle ?? 135} onChange={(event) => updateScene({ background: { ...activeScene.background!, angle: Number(event.target.value) } })} /><span>{activeScene.background.angle ?? 135}°</span></div></>}
           {activeScene.background?.mode === 'image' && <>
             <div className="background-import-card"><strong>{activeScene.background.imageSrc ? 'Imagem definida' : 'Nenhuma imagem selecionada'}</strong><small>Use arquivo local ou URL pública de imagem.</small><button className="wide-action" type="button" onClick={() => backgroundDesignInputRef.current?.click()}>Escolher imagem do computador</button></div>
@@ -2745,7 +2857,32 @@ function Editor() {
             <label className="field-label" htmlFor="background-overlay-opacity">Intensidade da sobreposição</label><div className="range-row"><input id="background-overlay-opacity" type="range" min="0" max="0.9" step="0.05" value={activeScene.background.overlayOpacity ?? 0} onChange={(event) => updateScene({ background: { ...activeScene.background!, overlayOpacity: Number(event.target.value) } })} /><span>{Math.round((activeScene.background.overlayOpacity ?? 0) * 100)}%</span></div>
             {activeScene.background.imageSrc && <button className="wide-action danger-action" type="button" onClick={() => updateScene({ background: { ...activeScene.background!, mode: 'transparent', imageSrc: undefined, imageOpacity: 1, overlayOpacity: 0 } })}>Remover imagem de fundo</button>}
           </>}
-          <p className="field-hint">O fundo é independente dos widgets. Um overlay transparente permite deixar o vídeo do jogo visível atrás da composição.</p>
+          {activeScene.background?.mode === 'video' && <>
+            <div className="background-import-card"><strong>{activeScene.background.videoSrc ? 'Vídeo de fundo definido' : 'Nenhum vídeo de fundo'}</strong><small>Importe MP4, WebM, MOV ou outro formato aceito pelo navegador. Os vídeos locais ficam guardados no IndexedDB.</small><button className="wide-action" type="button" onClick={() => backgroundVideoInputRef.current?.click()}>Escolher vídeo do computador</button></div>
+            <label className="field-label" htmlFor="background-video-url">Ou URL direta do vídeo</label>
+            <input id="background-video-url" className="text-input" type="url" value={backgroundVideoUrlInput} onChange={(event) => setBackgroundVideoUrlInput(event.target.value)} placeholder="https://site.com/banner.mp4" />
+            <button className="wide-action" type="button" onClick={applyBackgroundVideoUrl}>Aplicar link de vídeo</button>
+            {activeScene.background.videoSrc && <>
+              <div className="field-divider" />
+              <label className="field-label" htmlFor="background-video-fit">Enquadramento</label>
+              <select id="background-video-fit" className="text-input" value={activeScene.background.videoFit ?? 'cover'} onChange={(event) => updateScene({ background: { ...activeScene.background!, videoFit: event.target.value as BackgroundConfig['videoFit'] } })}><option value="cover">Preencher a tela (corta bordas)</option><option value="contain">Mostrar vídeo inteiro</option><option value="stretch">Esticar para preencher</option></select>
+              <label className="field-label" htmlFor="background-video-position">Posição do vídeo</label>
+              <select id="background-video-position" className="text-input" value={activeScene.background.videoPosition ?? 'center center'} onChange={(event) => updateScene({ background: { ...activeScene.background!, videoPosition: event.target.value } })}><option value="center center">Centro</option><option value="top center">Topo</option><option value="bottom center">Base</option><option value="left center">Esquerda</option><option value="right center">Direita</option></select>
+              <label className="field-label" htmlFor="background-video-opacity">Opacidade do vídeo</label><div className="range-row"><input id="background-video-opacity" type="range" min="0" max="1" step="0.05" value={activeScene.background.videoOpacity ?? 1} onChange={(event) => updateScene({ background: { ...activeScene.background!, videoOpacity: Number(event.target.value) } })} /><span>{Math.round((activeScene.background.videoOpacity ?? 1) * 100)}%</span></div>
+              <label className="field-label" htmlFor="background-video-loop">Reprodução</label><label className="checkbox-row"><input id="background-video-loop" type="checkbox" checked={activeScene.background.videoLoop !== false} onChange={(event) => updateScene({ background: { ...activeScene.background!, videoLoop: event.target.checked } })} /><span>Repetir em loop</span></label>
+              <label className="checkbox-row"><input type="checkbox" checked={activeScene.background.videoMuted !== false} onChange={(event) => updateScene({ background: { ...activeScene.background!, videoMuted: event.target.checked } })} /><span>Silenciar áudio (recomendado para autoplay)</span></label>
+              <label className="field-label" htmlFor="background-video-volume">Volume · {Math.round((activeScene.background.videoVolume ?? 0.8) * 100)}%</label><div className="range-row"><input id="background-video-volume" type="range" min="0" max="1" step="0.05" value={activeScene.background.videoVolume ?? 0.8} onChange={(event) => updateScene({ background: { ...activeScene.background!, videoVolume: Number(event.target.value), videoMuted: Number(event.target.value) === 0 ? true : activeScene.background!.videoMuted } })} /><span>{Math.round((activeScene.background.videoVolume ?? 0.8) * 100)}%</span></div>
+              <label className="field-label" htmlFor="background-video-speed">Velocidade · {activeScene.background.videoPlaybackRate ?? 1}×</label><div className="range-row"><input id="background-video-speed" type="range" min="0.25" max="2" step="0.25" value={activeScene.background.videoPlaybackRate ?? 1} onChange={(event) => updateScene({ background: { ...activeScene.background!, videoPlaybackRate: Number(event.target.value) } })} /><span>{activeScene.background.videoPlaybackRate ?? 1}×</span></div>
+              <label className="checkbox-row"><input type="checkbox" checked={activeScene.background.videoTrimEnabled === true} onChange={(event) => updateScene({ background: { ...activeScene.background!, videoTrimEnabled: event.target.checked, videoStart: activeScene.background!.videoStart ?? 0, videoEnd: event.target.checked ? Math.max(activeScene.background!.videoEnd ?? 0, (activeScene.background!.videoStart ?? 0) + 60) : activeScene.background!.videoEnd } })} /><span>Reproduzir apenas um trecho</span></label>
+              {activeScene.background.videoTrimEnabled && <><label className="field-label" htmlFor="background-video-start">Início · {formatMediaTime(activeScene.background.videoStart ?? 0)}</label><input className="video-trim-range" id="background-video-start" type="range" min="0" max="600" step="0.1" value={activeScene.background.videoStart ?? 0} onChange={(event) => updateScene({ background: { ...activeScene.background!, videoStart: Number(event.target.value), videoEnd: Math.max(Number(event.target.value) + 0.1, activeScene.background!.videoEnd ?? 0) } })} /><label className="field-label" htmlFor="background-video-end">Fim · {formatMediaTime(activeScene.background.videoEnd ?? 0)}</label><input className="video-trim-range" id="background-video-end" type="range" min={Math.max(0.1, (activeScene.background.videoStart ?? 0) + 0.1)} max="600" step="0.1" value={Math.max((activeScene.background.videoStart ?? 0) + 0.1, activeScene.background.videoEnd ?? 60)} onChange={(event) => updateScene({ background: { ...activeScene.background!, videoEnd: Number(event.target.value) } })} /><p className="field-hint">O corte é aplicado na reprodução, sem alterar o arquivo original. O limite dos controles é 10 minutos.</p></>}
+              <button className="wide-action danger-action" type="button" onClick={() => updateScene({ background: { ...activeScene.background!, mode: 'transparent', videoSrc: undefined, videoTrimEnabled: false } })}>Remover vídeo de fundo</button>
+            </>}
+          </>}
+          {activeScene.background?.mode === 'screen' && <>
+            <div className="feature-note"><span className="note-icon">i</span><p>Compartilhe a tela inteira, uma janela de aplicativo ou uma aba. Ao clicar no botão da prévia, o navegador abrirá seu seletor e pedirá permissão. Esta captura é temporária e, por segurança do navegador, não pode ser salva dentro do JSON.</p></div>
+            <button className="wide-action" type="button" onClick={() => setMessage('Clique em “Selecionar tela ou janela” dentro da pré-visualização para abrir o seletor seguro do navegador.')}>Como iniciar a captura</button>
+          </>}
+          <p className="field-hint">O fundo é independente dos widgets. O modo transparente é indicado quando o jogo ou aplicativo já é capturado pelo OBS.</p>
         </div>}
 
         {inspectorTab === 'canvas' && <div className="scene-settings-panel canvas-settings-panel">
@@ -2765,6 +2902,7 @@ function Editor() {
       <input ref={imageInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" multiple onChange={onImageSelected} />
       <input ref={videoInputRef} className="hidden-input" type="file" accept="video/*,.mp4,.m4v,.webm,.ogv,.ogg,.mov,.3gp,.mkv,.avi,.wmv,.mpeg,.mpg,.ts,.m2ts" multiple onChange={onVideoSelected} />
       <input ref={backgroundDesignInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" onChange={onBackgroundDesignSelected} />
+      <input ref={backgroundVideoInputRef} className="hidden-input" type="file" accept="video/*,.mp4,.m4v,.webm,.ogv,.ogg,.mov,.3gp,.mkv,.avi,.wmv,.mpeg,.mpg,.ts,.m2ts" onChange={onBackgroundVideoSelected} />
       <input ref={widgetBackgroundInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" onChange={onWidgetBackgroundSelected} />
       <input ref={widgetStyleInputRef} className="hidden-input" type="file" accept="application/json,.json" onChange={importWidgetStyle} />
       <input ref={importInputRef} className="hidden-input" type="file" accept="application/json,.json" onChange={importProject} />
@@ -2779,6 +2917,88 @@ function ColorField({ id, value, onChange }: { id: string; value: string; onChan
 
 function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
   return <label className="number-field"><span>{label}</span><div><input type="number" min="0" max="100" step="1" value={Math.round(value * 10) / 10} onChange={(event) => onChange(Number(event.target.value) || 0)} /><small>%</small></div></label>
+}
+
+function BackgroundVideoLayer({ background }: { background: BackgroundConfig }) {
+  if (!background.videoSrc || !isSafeVideoSource(background.videoSrc)) {
+    return <div className="background-media-layer background-video-empty" aria-hidden="true"><span>VÍDEO DE FUNDO</span></div>
+  }
+  const source: SceneSource = {
+    id: 'background-video-layer', type: 'video', name: 'Vídeo de fundo', visible: true,
+    x: 0, y: 0, w: 100, h: 100, src: background.videoSrc,
+    objectFit: background.videoFit === 'stretch' ? 'contain' : (background.videoFit ?? 'cover'),
+    objectPosition: background.videoPosition ?? 'center center',
+    videoStart: background.videoStart ?? 0, videoEnd: background.videoEnd ?? 0,
+    videoTrimEnabled: background.videoTrimEnabled === true, videoLoop: background.videoLoop !== false,
+    videoMuted: background.videoMuted !== false, videoVolume: background.videoVolume ?? 0.8,
+    videoPlaybackRate: background.videoPlaybackRate ?? 1,
+  }
+  return <div className="background-media-layer" style={{ opacity: background.videoOpacity ?? 1 }}>
+    <TrimmedVideo source={source} className="background-video-asset" fit={background.videoFit === 'stretch' ? 'fill' : (background.videoFit ?? 'cover')} position={background.videoPosition ?? 'center center'} />
+  </div>
+}
+
+function ScreenCaptureView({ editor = false, variant }: { editor?: boolean; variant: 'background' | 'source' }) {
+  const [stream, setStream] = useState<MediaStream | null>(null)
+  const [error, setError] = useState('')
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+
+  useEffect(() => {
+    if (videoRef.current && stream && videoRef.current.srcObject !== stream) videoRef.current.srcObject = stream
+  }, [stream])
+
+  useEffect(() => () => {
+    streamRef.current?.getTracks().forEach((track) => track.stop())
+    streamRef.current = null
+  }, [])
+
+  async function startCapture(event: ReactMouseEvent<HTMLButtonElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+    setError('')
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      setError('Este navegador não oferece captura de tela. Use uma versão atual do Chrome, Edge ou Firefox em HTTPS ou localhost.')
+      return
+    }
+    try {
+      // O seletor nativo do navegador permite ao usuário escolher tela, janela ou aba; a página não pode capturar silenciosamente.
+      const next = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 30, max: 60 } }, audio: false })
+      streamRef.current = next
+      setStream(next)
+      next.getVideoTracks()[0]?.addEventListener('ended', () => {
+        if (streamRef.current === next) streamRef.current = null
+        setStream((current) => current === next ? null : current)
+      }, { once: true })
+    } catch (reason) {
+      const name = reason instanceof DOMException ? reason.name : ''
+      if (name === 'NotAllowedError' || name === 'AbortError') setError('A captura foi cancelada ou a permissão foi negada.')
+      else setError('Não foi possível iniciar a captura. Verifique as permissões do navegador e tente novamente.')
+    }
+  }
+
+  function stopCapture(event: ReactMouseEvent<HTMLButtonElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+    streamRef.current?.getTracks().forEach((track) => track.stop())
+    streamRef.current = null
+    setStream(null)
+    setError('')
+  }
+
+  return <div className={`screen-capture-view screen-capture-${variant} ${stream ? 'is-capturing' : 'is-idle'}`}>
+    {stream ? <>
+      <video ref={videoRef} className="screen-capture-video" autoPlay muted playsInline />
+      {editor && <div className="screen-capture-toolbar"><span><i /> Capturando tela/janela</span><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={stopCapture}>Parar captura</button></div>}
+    </> : <div className="screen-capture-prompt">
+      <span className="screen-capture-symbol">▣</span>
+      <strong>Compartilhar tela ou janela</strong>
+      <small>Escolha a tela inteira, uma janela de aplicativo ou uma aba no seletor do navegador.</small>
+      <button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={startCapture}>Selecionar tela ou janela</button>
+      {error && <small className="screen-capture-error" role="status">{error}</small>}
+      {!editor && <small>Autorize a captura nesta aba. A permissão não é transferida automaticamente do editor.</small>}
+    </div>}
+  </div>
 }
 
 function OverlayView() {
@@ -2835,11 +3055,14 @@ function OverlayView() {
   if (!activeScene) return null
   return <div className="overlay-output" aria-label={`Overlay: ${activeScene.name}`} style={sceneBackgroundStyle(activeScene)}>
     <ExternalFontLoader project={project} />
+    {activeScene.background?.mode === 'video' && <BackgroundVideoLayer background={activeScene.background} />}
+    {activeScene.background?.mode === 'screen' && <ScreenCaptureView variant="background" />}
     {activeScene.sources.filter((source) => source.visible).map((source, index) => <div key={source.id} className={`overlay-object overlay-${source.type} ${source.type === 'shape' ? `shape-${source.shapeKind ?? 'rectangle'}` : ''}`} style={sourceStyle(source, index)}>
       {source.type === 'text' && <span className="object-text" style={{ textTransform: source.textTransform ?? 'none', textDecoration: source.textDecoration ?? 'none', textShadow: source.textShadowEnabled === false ? 'none' : undefined }}>{source.text || source.name}</span>}
       {source.type === 'shape' && <span className={`shape-inner shape-inner-${source.shapeKind ?? 'rectangle'}`} style={{ background: source.color ?? '#7772f2', borderRadius: source.shapeKind === 'circle' ? '50%' : source.shapeKind === 'pill' ? '999px' : source.shapeKind === 'line' ? '999px' : `${source.radius ?? 4}px` }} />}
       {source.type === 'image' && source.src && <img src={source.src} alt={source.name} draggable={false} style={{ objectFit: source.objectFit ?? 'contain', objectPosition: source.objectPosition ?? 'center center' }} />}
       {source.type === 'video' && source.src && <TrimmedVideo source={source} className="video-asset" />}
+      {source.type === 'capture' && <ScreenCaptureView variant="source" />}
       {source.type === 'browser' && <iframe className="browser-frame" title={source.name} src={getBrowserUrl(source.url)} sandbox="allow-scripts allow-forms allow-popups" referrerPolicy="no-referrer" loading="lazy" tabIndex={-1} />}
       {source.type === 'camera' && (cameraStream ? <video className="camera-video" autoPlay muted playsInline style={{ transform: source.cameraMirror === false ? 'none' : 'scaleX(-1)' }} ref={(element) => { if (element && element.srcObject !== cameraStream) element.srcObject = cameraStream }} /> : <div className="overlay-camera-placeholder" />)}
       {source.type === 'widget' && <WidgetContent source={source} />}
