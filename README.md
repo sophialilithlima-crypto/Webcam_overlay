@@ -1,4 +1,4 @@
-# Webcam Overlay
+# Webcam_overlay — Studio 2.7.0
 
 **Um editor visual de cenas e overlays para streamers, feito para facilitar a criação de transmissões personalizadas diretamente no navegador.**
 
@@ -134,4 +134,101 @@ Cada widget possui controles específicos de conteúdo e aparência, conforme o 
 - Imagem de fundo do widget.
 - Propriedades específicas de cada tipo de widget.
 
-As configurações aparecem de acordo com o elemento selecion
+As configurações aparecem de acordo com o elemento selecionado, separando o conteúdo, o estilo e o posicionamento para tornar a edição mais organizada.
+
+### Chat personalizável
+
+O widget de chat oferece controles visuais independentes para diferentes partes da mensagem.
+
+- Tornar transparente o fundo geral do chat.
+- Remover o desfoque e a caixa ao redor das mensagens.
+- Personalizar a cor, opacidade, borda, sombra e arredondamento dos balões.
+- Alterar a cor dos nomes dos participantes.
+- Definir cores específicas para nomes e balões.
+- Personalizar a etiqueta que identifica cada participante.
+- Ajustar fontes, tamanhos, pesos e cores do texto.
+- Controlar espaçamento, alinhamento e quantidade de mensagens exibidas.
+- Exibir ou ocultar horários e identificadores disponíveis.
+
+### Relógio personalizável
+
+O relógio pode ser exibido apenas com os números, sem fundo, borda ou sombra.
+
+Entre as opções disponíveis estão:
+- Família tipográfica e fonte externa.
+- Tamanho, cor e peso dos números.
+- Espaçamento entre caracteres.
+- Exibição da data e dos segundos.
+- Formato de 12 ou 24 horas.
+- Sombra e outros ajustes visuais disponíveis.
+
+### Fontes externas
+
+O editor permite utilizar fontes externas informando um link para uma folha CSS do Google Fonts ou para um arquivo de fonte compatível, como `.woff2`, `.woff`, `.ttf` ou `.otf`.
+
+O carregamento depende da disponibilidade do endereço e das permissões do servidor de origem. Algumas fontes podem não funcionar devido a bloqueios CORS, autenticação ou restrições de acesso.
+
+Utilize fontes que você tenha permissão para incorporar.
+
+---
+
+## Importação e gerenciamento de projetos
+
+O Webcam_overlay permite manter os projetos no navegador e transferir configurações entre ambientes.
+
+- Salvamento automático local.
+- Exportação de projetos em JSON.
+- Importação de projetos editáveis em JSON.
+- Importação de imagens como elementos independentes.
+- Importação de uma imagem como fundo.
+- Importação e recuperação de vídeos locais por meio do projeto exportado.
+- Exportação e importação de configurações visuais individuais de widgets.
+- Histórico de desfazer e refazer.
+- Opção **Redefinir tudo**, com confirmação.
+
+A opção de redefinição restaura a estrutura inicial do projeto. Exporte um backup antes de utilizá-la caso queira conservar seu trabalho.
+
+**Importante:** uma imagem achatada, como um PNG ou JPG que reúne todos os elementos de um overlay, continua sendo uma única camada. Para editar cada texto, forma ou mídia separadamente, importe os elementos individuais ou um projeto JSON com suas camadas separadas.
+
+---
+
+## Interface e organização
+
+A interface foi estruturada para separar as áreas de edição:
+
+- **Cenas:** gerenciamento dos diferentes layouts.
+- **Camadas:** organização e seleção dos elementos da composição.
+- **Elemento:** propriedades específicas do item selecionado.
+- **Fundo:** controles do plano de fundo da cena.
+- **Tela:** configurações da área de composição.
+
+A intenção é reduzir a complexidade da edição, permitindo encontrar os controles relevantes sem misturar propriedades de widgets diferentes.
+
+## Tecnologias utilizadas
+
+- React 19
+- TypeScript
+- Vite 8
+- CSS próprio
+- IndexedDB para armazenar vídeos locais
+- LocalStorage para configurações e dados locais do projeto
+- APIs de mídia do navegador para câmera e captura de tela
+
+A estrutura utiliza um conjunto reduzido de dependências para manter a aplicação simples e facilitar sua evolução.
+
+---
+
+## Instalação e execução local
+
+### Requisitos
+
+- Node.js compatível com Vite 8; Node.js 24 é recomendado para este projeto.
+- npm.
+- Navegador atualizado, como Chrome, Edge ou Firefox.
+
+### 1. Instale as dependências
+
+Abra a pasta do projeto no VS Code e execute no terminal:
+
+```bash
+npm install
