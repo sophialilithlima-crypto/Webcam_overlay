@@ -8,8 +8,6 @@ Editor visual de cenas e overlays para streamers, desenvolvido com **React, Type
 
 **Endereço planejado:** https://sophialilithlima-crypto.github.io/Webcam_overlay/
 
-> O link só estará ativo depois que o GitHub Pages estiver habilitado e o workflow de publicação terminar com sucesso. Se aparecer “There isn't a GitHub Pages site here”, consulte a seção [Publicação no GitHub Pages](#publicação-no-github-pages).
-
 ## Recursos
 
 ### Editor de cenas
