@@ -1,4 +1,4 @@
-# Webcam_overlay 
+# Webcam Overlay 
 
 **Um editor visual de cenas e overlays para streamers, feito para facilitar a criação de transmissões personalizadas diretamente no navegador.**
 
