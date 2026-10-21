@@ -5,12 +5,12 @@ import {
   useRef,
   useState,
 } from 'react'
-import type { ChangeEvent, CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
+import type { ChangeEvent, CSSProperties, PointerEvent as ReactPointerEvent, SyntheticEvent } from 'react'
 import './App.css'
 
 type WidgetKind = 'alert' | 'chat' | 'events' | 'goal' | 'latest' | 'socials' | 'countdown' | 'clock' | 'viewer' | 'ticker' | 'music' | 'poll' | 'sponsor' | 'webcam-frame' | 'live-badge' | 'tip-jar' | 'stream-boss' | 'leaderboard'
 type WidgetTheme = 'glass' | 'neon' | 'minimal' | 'solid'
-type SourceType = 'text' | 'shape' | 'camera' | 'image' | 'browser' | 'widget'
+type SourceType = 'text' | 'shape' | 'camera' | 'image' | 'video' | 'browser' | 'widget'
 type BackgroundConfig = { mode: 'transparent' | 'solid' | 'gradient' | 'image'; color: string; color2: string; angle: number; imageSrc?: string; imageFit?: 'cover' | 'contain' | 'stretch'; imagePosition?: string; imageOpacity?: number; overlayColor?: string; overlayOpacity?: number }
 type InspectorTab = 'layers' | 'element' | 'background' | 'canvas'
 type ElementSection = 'content' | 'style' | 'transform'
@@ -30,6 +30,13 @@ type SceneSource = {
   src?: string
   objectFit?: 'contain' | 'cover'
   objectPosition?: string
+  videoStart?: number
+  videoEnd?: number
+  videoTrimEnabled?: boolean
+  videoLoop?: boolean
+  videoMuted?: boolean
+  videoVolume?: number
+  videoPlaybackRate?: number
   textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize'
   textDecoration?: 'none' | 'underline' | 'line-through'
   textShadowEnabled?: boolean
@@ -95,6 +102,8 @@ type Interaction = {
 const STORAGE_KEY = 'webcam-overlay-project-v2'
 const LEGACY_STORAGE_KEY = 'webcam-overlay-project-v1'
 const MAX_IMAGE_BYTES = 1_500_000
+// Vídeos locais ficam embutidos no projeto JSON/localStorage nesta versão; limitar o arquivo protege a persistência no navegador.
+const MAX_VIDEO_BYTES = 1_200_000
 const MAX_IMPORT_BATCH_BYTES = 1_500_000
 const MAX_PROJECT_JSON_CHARS = 2_150_000
 
@@ -203,7 +212,7 @@ function makeDefaultProject(): Project {
 function isValidProject(value: unknown): value is Project {
   if (!value || typeof value !== 'object') return false
   const candidate = value as Partial<Project>
-  const allowedTypes: SourceType[] = ['text', 'shape', 'camera', 'image', 'browser', 'widget']
+  const allowedTypes: SourceType[] = ['text', 'shape', 'camera', 'image', 'video', 'browser', 'widget']
   const allowedWidgetKinds = WIDGET_OPTIONS.map((option) => option.kind)
   if (candidate.version !== 1 || !Array.isArray(candidate.scenes) || candidate.scenes.length === 0 || candidate.scenes.length > 100) return false
 
@@ -230,6 +239,14 @@ function isValidProject(value: unknown): value is Project {
       if (source.w !== undefined && !Number.isFinite(source.w)) return false
       if (source.h !== undefined && !Number.isFinite(source.h)) return false
       if (source.src !== undefined && typeof source.src !== 'string') return false
+      if (source.type === 'video' && source.src && !isSafeVideoSource(source.src)) return false
+      if (source.videoStart !== undefined && (!Number.isFinite(source.videoStart) || source.videoStart < 0 || source.videoStart > 3600)) return false
+      if (source.videoEnd !== undefined && (!Number.isFinite(source.videoEnd) || source.videoEnd < 0 || source.videoEnd > 3600)) return false
+      if (source.videoTrimEnabled !== undefined && typeof source.videoTrimEnabled !== 'boolean') return false
+      if (source.videoLoop !== undefined && typeof source.videoLoop !== 'boolean') return false
+      if (source.videoMuted !== undefined && typeof source.videoMuted !== 'boolean') return false
+      if (source.videoVolume !== undefined && (!Number.isFinite(source.videoVolume) || source.videoVolume < 0 || source.videoVolume > 1)) return false
+      if (source.videoPlaybackRate !== undefined && (!Number.isFinite(source.videoPlaybackRate) || source.videoPlaybackRate < 0.25 || source.videoPlaybackRate > 2)) return false
       if (source.fontUrl !== undefined && typeof source.fontUrl !== 'string') return false
       if (source.widgetFontUrl !== undefined && typeof source.widgetFontUrl !== 'string') return false
       if (source.text !== undefined && typeof source.text !== 'string') return false
@@ -253,6 +270,15 @@ function normalizeProject(parsed: Project): Project {
         name: source.name.slice(0, 70) || 'Fonte',
         visible: source.visible !== false,
         x, y, w, h,
+        ...(source.type === 'video' ? {
+          videoStart: clamp(Number.isFinite(source.videoStart) ? Number(source.videoStart) : 0, 0, 3600),
+          videoEnd: clamp(Number.isFinite(source.videoEnd) ? Number(source.videoEnd) : 0, 0, 3600),
+          videoTrimEnabled: source.videoTrimEnabled === true,
+          videoLoop: source.videoLoop !== false,
+          videoMuted: source.videoMuted !== false,
+          videoVolume: clamp(Number.isFinite(source.videoVolume) ? Number(source.videoVolume) : 0.8, 0, 1),
+          videoPlaybackRate: clamp(Number.isFinite(source.videoPlaybackRate) ? Number(source.videoPlaybackRate) : 1, 0.25, 2),
+        } : {}),
         opacity: clamp(Number.isFinite(source.opacity) ? Number(source.opacity) : 1, 0, 1),
         rotation: clamp(Number.isFinite(source.rotation) ? Number(source.rotation) : 0, -180, 180),
         fontSize: clamp(Number.isFinite(source.fontSize) ? Number(source.fontSize) : 30, 8, 160),
@@ -405,11 +431,11 @@ function imageDimensions(dataUrl: string): Promise<{ width: number; height: numb
 }
 
 function sourceLabel(type: SourceType) {
-  return ({ text: 'Texto', shape: 'Forma', camera: 'Câmera', image: 'Imagem', browser: 'Navegador', widget: 'Widget' })[type]
+  return ({ text: 'Texto', shape: 'Forma', camera: 'Câmera', image: 'Imagem', video: 'Vídeo', browser: 'Navegador', widget: 'Widget' })[type]
 }
 
 function sourceGlyph(type: SourceType) {
-  return ({ text: 'T', shape: '◇', camera: '◉', image: '▧', browser: '↗', widget: '✦' })[type]
+  return ({ text: 'T', shape: '◇', camera: '◉', image: '▧', video: '▶', browser: '↗', widget: '✦' })[type]
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -467,7 +493,7 @@ function sourceStyle(source: SceneSource, index: number): CSSProperties {
   if (source.type === 'widget') {
     Object.assign(style, { '--widget-accent': source.widgetAccent ?? source.color ?? '#8d85ff' })
   }
-  if (source.type === 'camera' || source.type === 'image' || source.type === 'browser') style.overflow = 'hidden'
+  if (source.type === 'camera' || source.type === 'image' || source.type === 'video' || source.type === 'browser') style.overflow = 'hidden'
   return style
 }
 
@@ -483,6 +509,16 @@ function getBrowserUrl(url: string | undefined) {
 
 function isSafeImageSource(source: string): boolean {
   if (/^data:image\/(png|jpeg|webp|gif|svg\+xml);/i.test(source)) return source.length <= MAX_PROJECT_JSON_CHARS
+  try {
+    const parsed = new URL(source)
+    return (parsed.protocol === 'https:' || parsed.protocol === 'http:') && parsed.href.length < 2000
+  } catch {
+    return false
+  }
+}
+
+function isSafeVideoSource(source: string): boolean {
+  if (/^data:video\/(mp4|webm|ogg|quicktime);base64,/i.test(source)) return source.length <= MAX_PROJECT_JSON_CHARS
   try {
     const parsed = new URL(source)
     return (parsed.protocol === 'https:' || parsed.protocol === 'http:') && parsed.href.length < 2000
@@ -801,6 +837,157 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
   </div>
 }
 
+function formatMediaTime(seconds: number) {
+  const safe = Math.max(0, Number.isFinite(seconds) ? seconds : 0)
+  const minutes = Math.floor(safe / 60)
+  const remainder = Math.floor(safe % 60)
+  const tenths = Math.floor((safe % 1) * 10)
+  return `${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}.${tenths}`
+}
+
+function TrimmedVideo({ source, className }: { source: SceneSource; className: string }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const start = source.videoTrimEnabled ? Math.max(0, source.videoStart ?? 0) : 0
+  const end = source.videoTrimEnabled ? Math.max(0, source.videoEnd ?? 0) : 0
+  const shouldLoop = source.videoLoop !== false
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    const seekToStart = () => {
+      const safeStart = Number.isFinite(video.duration) ? Math.min(start, Math.max(0, video.duration - 0.05)) : start
+      if (Math.abs(video.currentTime - safeStart) > 0.15) {
+        try { video.currentTime = safeStart } catch { /* Metadata may still be loading. */ }
+      }
+      video.playbackRate = clamp(source.videoPlaybackRate ?? 1, 0.25, 2)
+      video.volume = clamp(source.videoVolume ?? 0.8, 0, 1)
+      video.muted = source.videoMuted !== false
+      void video.play().catch(() => { /* Browsers can block autoplay, especially when sound is enabled. */ })
+    }
+    if (video.readyState >= 1) seekToStart()
+    else video.addEventListener('loadedmetadata', seekToStart, { once: true })
+    return () => video.removeEventListener('loadedmetadata', seekToStart)
+  }, [source.src, start])
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    video.muted = source.videoMuted !== false
+    video.volume = clamp(source.videoVolume ?? 0.8, 0, 1)
+    video.playbackRate = clamp(source.videoPlaybackRate ?? 1, 0.25, 2)
+  }, [source.videoMuted, source.videoVolume, source.videoPlaybackRate])
+
+  function handleTimeUpdate(event: SyntheticEvent<HTMLVideoElement>) {
+    const video = event.currentTarget
+    if (end > start + 0.05 && video.currentTime >= end) {
+      if (shouldLoop) {
+        video.currentTime = Math.min(start, Math.max(0, (video.duration || start) - 0.05))
+        void video.play().catch(() => undefined)
+      } else {
+        video.pause()
+      }
+    }
+  }
+
+  function handleEnded(event: SyntheticEvent<HTMLVideoElement>) {
+    const video = event.currentTarget
+    if (shouldLoop) {
+      video.currentTime = Math.min(start, Math.max(0, (video.duration || start) - 0.05))
+      void video.play().catch(() => undefined)
+    }
+  }
+
+  return <video
+    ref={videoRef}
+    className={className}
+    src={source.src}
+    autoPlay
+    playsInline
+    preload="auto"
+    muted={source.videoMuted !== false}
+    loop={false}
+    onLoadedMetadata={(event) => {
+      const video = event.currentTarget
+      const safeStart = Number.isFinite(video.duration) ? Math.min(start, Math.max(0, video.duration - 0.05)) : start
+      try { video.currentTime = safeStart } catch { /* Ignore unsupported seek until data is ready. */ }
+    }}
+    onTimeUpdate={handleTimeUpdate}
+    onEnded={handleEnded}
+    style={{ objectFit: source.objectFit ?? 'cover', objectPosition: source.objectPosition ?? 'center center' }}
+  />
+}
+
+function VideoSourceControls({ source, onChange }: { source: SceneSource; onChange: (changes: Partial<SceneSource>) => void }) {
+  const [duration, setDuration] = useState(0)
+  const [urlDraft, setUrlDraft] = useState(source.src?.startsWith('http') ? source.src : '')
+  const [urlError, setUrlError] = useState('')
+  const maxTime = duration > 0 ? duration : 60
+  const start = clamp(source.videoStart ?? 0, 0, maxTime)
+  const end = source.videoEnd && source.videoEnd > 0 ? clamp(source.videoEnd, start + 0.1, Math.max(start + 0.1, maxTime)) : maxTime
+  const trimActive = source.videoTrimEnabled === true
+
+  useEffect(() => {
+    setUrlDraft(source.src?.startsWith('http') ? source.src : '')
+  }, [source.src])
+
+  function setStart(value: number) {
+    const nextStart = clamp(value, 0, Math.max(0, maxTime - 0.1))
+    const nextChanges: Partial<SceneSource> = { videoStart: nextStart, videoTrimEnabled: true }
+    if ((source.videoEnd ?? 0) > 0 && (source.videoEnd ?? 0) <= nextStart) nextChanges.videoEnd = Math.min(maxTime, nextStart + 0.1)
+    onChange(nextChanges)
+  }
+
+  function applyVideoUrl() {
+    try {
+      const parsed = new URL(urlDraft.trim())
+      if ((parsed.protocol !== 'https:' && parsed.protocol !== 'http:') || parsed.href.length > 2000) throw new Error('URL inválida')
+      onChange({ src: parsed.href, videoStart: 0, videoEnd: 0, videoTrimEnabled: false })
+      setUrlError('')
+    } catch {
+      setUrlError('Digite um link direto de vídeo começando com https:// ou http://. A URL deve apontar para o arquivo de vídeo, não para uma página comum.')
+    }
+  }
+
+  return <div className="video-source-controls">
+    <p className="eyebrow section-eyebrow">VÍDEO E REPRODUÇÃO</p>
+    <video
+      className="video-inspector-preview"
+      src={source.src}
+      controls
+      playsInline
+      preload="metadata"
+      muted={source.videoMuted !== false}
+      onLoadedMetadata={(event) => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)}
+      onDurationChange={(event) => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)}
+    />
+    <p className="field-hint">{duration > 0 ? `Duração do arquivo: ${formatMediaTime(duration)}.` : 'Aguardando o navegador ler a duração do vídeo.'} A prévia aqui tem controles para você conferir o arquivo.</p>
+
+    <label className="field-label" htmlFor="video-trim-start">Início do trecho · {formatMediaTime(start)}</label>
+    <input id="video-trim-start" className="video-trim-range" type="range" min="0" max={Math.max(0.1, maxTime - 0.1)} step="0.1" value={start} onChange={(event) => setStart(Number(event.target.value))} />
+    <label className="field-label" htmlFor="video-trim-end">Fim do trecho · {formatMediaTime(end)}</label>
+    <input id="video-trim-end" className="video-trim-range" type="range" min={Math.min(maxTime, start + 0.1)} max={Math.max(maxTime, start + 0.1)} step="0.1" value={end} disabled={!trimActive} onChange={(event) => onChange({ videoTrimEnabled: true, videoEnd: Number(event.target.value) })} />
+    <div className="video-time-inputs">
+      <label><span>Início (segundos)</span><input className="text-input" type="number" min="0" max={Math.max(0, maxTime - 0.1)} step="0.1" value={Math.round(start * 10) / 10} onChange={(event) => setStart(Number(event.target.value) || 0)} /></label>
+      <label><span>Fim (segundos)</span><input className="text-input" type="number" min={Math.min(maxTime, start + 0.1)} max={Math.max(maxTime, start + 0.1)} step="0.1" value={source.videoEnd && source.videoEnd > 0 ? Math.round(source.videoEnd * 10) / 10 : Math.round(maxTime * 10) / 10} onChange={(event) => onChange({ videoTrimEnabled: true, videoEnd: clamp(Number(event.target.value) || maxTime, start + 0.1, Math.max(maxTime, start + 0.1)) })} /></label>
+    </div>
+    <label className="field-hint video-checkline"><input type="checkbox" checked={Boolean(trimActive)} onChange={(event) => { if (event.target.checked) onChange({ videoTrimEnabled: true, videoStart: 0, videoEnd: duration > 0 ? duration : 10 }); else onChange({ videoTrimEnabled: false, videoStart: 0, videoEnd: 0 }) }} /> Ativar corte de trecho</label>
+    <p className="field-hint">Use Início e Fim para reproduzir só uma parte. Desmarcar o corte volta a usar o vídeo inteiro.</p>
+
+    <div className="field-divider" />
+    <label className="lock-toggle"><input type="checkbox" checked={source.videoLoop !== false} onChange={(event) => onChange({ videoLoop: event.target.checked })} /><span>Repetir em loop</span></label>
+    <label className="lock-toggle"><input type="checkbox" checked={source.videoMuted !== false} onChange={(event) => onChange({ videoMuted: event.target.checked })} /><span>Silenciar áudio</span></label>
+    <label className="field-label" htmlFor="video-volume">Volume · {Math.round((source.videoVolume ?? 0.8) * 100)}%</label>
+    <input id="video-volume" className="video-trim-range" type="range" min="0" max="1" step="0.05" value={source.videoVolume ?? 0.8} disabled={source.videoMuted !== false} onChange={(event) => onChange({ videoVolume: Number(event.target.value) })} />
+    <label className="field-label" htmlFor="video-speed">Velocidade de reprodução</label>
+    <select id="video-speed" className="text-input" value={source.videoPlaybackRate ?? 1} onChange={(event) => onChange({ videoPlaybackRate: Number(event.target.value) })}><option value="0.25">0,25×</option><option value="0.5">0,5×</option><option value="0.75">0,75×</option><option value="1">Normal · 1×</option><option value="1.25">1,25×</option><option value="1.5">1,5×</option><option value="2">2×</option></select>
+    <label className="field-label" htmlFor="video-direct-url">Ou importar de uma URL direta</label>
+    <input id="video-direct-url" className="text-input" type="url" value={urlDraft} onChange={(event) => { setUrlDraft(event.target.value); setUrlError('') }} placeholder="https://site.com/banner.mp4" />
+    <button className="wide-action" type="button" onClick={applyVideoUrl}>Aplicar URL do vídeo</button>
+    {urlError && <p className="error-note">{urlError}</p>}
+    <p className="field-hint">Links diretos podem falhar se o servidor bloquear CORS, hotlink ou reprodução por navegador. Os codecs compatíveis também variam.</p>
+  </div>
+}
+
 function App() {
   const overlayMode = new URLSearchParams(window.location.search).get('mode') === 'overlay'
   return overlayMode ? <OverlayView /> : <Editor />
@@ -831,6 +1018,7 @@ function Editor() {
   const historySnapshotRef = useRef<Project>(project)
   const stageRef = useRef<HTMLDivElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const videoInputRef = useRef<HTMLInputElement>(null)
   const backgroundDesignInputRef = useRef<HTMLInputElement>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
 
@@ -1091,8 +1279,13 @@ function Editor() {
       setSourceMenuOpen(false)
       return
     }
+    if (type === 'video') {
+      videoInputRef.current?.click()
+      setSourceMenuOpen(false)
+      return
+    }
     const count = activeScene.sources.filter((source) => source.type === type).length + 1
-    const defaults: Record<Exclude<SourceType, 'image' | 'widget'>, Partial<SceneSource>> = {
+    const defaults: Record<Exclude<SourceType, 'image' | 'video' | 'widget'>, Partial<SceneSource>> = {
       text: { x: 7 + (Math.floor((count - 1) / 5) % 2) * 47, y: 8 + ((count - 1) % 5) * 15, w: 42, h: 10, text: 'Seu texto', color: '#ffffff', fontSize: 34, fontFamily: 'Inter, system-ui, sans-serif', fontWeight: 750, textAlign: 'left', letterSpacing: -0.5, lineHeight: 1.12 },
       shape: { x: 38, y: 30, w: 20, h: 22, color: '#7772f2', radius: 10, shapeKind: 'rectangle' },
       camera: { x: 35, y: 20, w: 30, h: 45, radius: 5, cameraMirror: true },
@@ -1216,6 +1409,56 @@ function Editor() {
       setMessage(`${loaded.length} ${loaded.length === 1 ? 'elemento importado' : 'elementos importados'}. O posicionamento automático evitou sobreposições quando havia espaço.${ignoredNote}`)
     } catch {
       setMessage('Não foi possível ler um dos arquivos de imagem.')
+    }
+  }
+
+  async function onVideoSelected(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget as HTMLInputElement
+    const file = input.files?.[0]
+    input.value = ''
+    if (!file) return
+    const extension = file.name.toLowerCase().split('.').pop() ?? ''
+    const supportedExtension = ['mp4', 'webm', 'ogv', 'ogg', 'mov'].includes(extension)
+    if (!(file.type.startsWith('video/') || supportedExtension)) {
+      setMessage('Escolha um vídeo MP4, WebM, OGV ou MOV. A reprodução depende do codec suportado pelo navegador.')
+      return
+    }
+    if (file.size > MAX_VIDEO_BYTES) {
+      setMessage(`Para manter o projeto leve e salvável no navegador, cada vídeo local pode ter até ${Math.round(MAX_VIDEO_BYTES / 1000)} KB. Comprima ou corte o banner antes de importá-lo.`)
+      return
+    }
+    const targetSceneId = activeScene.id
+    try {
+      const src = await parseLocalImageData(file)
+      const currentProject = projectRef.current
+      const targetScene = currentProject.scenes.find((scene) => scene.id === targetSceneId)
+      if (!targetScene) {
+        setMessage('A cena de destino não existe mais. Selecione a cena novamente e importe o vídeo.')
+        return
+      }
+      const count = targetScene.sources.filter((source) => source.type === 'video').length + 1
+      const candidate: SceneSource = {
+        id: newId('video'), type: 'video', name: file.name.replace(/\.[^.]+$/, '').slice(0, 60) || `Vídeo ${count}`,
+        visible: true, x: 30, y: 30, w: 40, h: 24, src, objectFit: 'cover', objectPosition: 'center center',
+        radius: 6, rotation: 0, opacity: 1, shadow: false,
+        videoStart: 0, videoEnd: 0, videoTrimEnabled: false, videoLoop: true, videoMuted: true, videoVolume: 0.8, videoPlaybackRate: 1,
+      }
+      const placed = placeWithoutOverlap(targetScene.sources, candidate)
+      const nextProject: Project = {
+        ...currentProject,
+        scenes: currentProject.scenes.map((scene) => scene.id === targetSceneId ? { ...scene, sources: [...scene.sources, placed] } : scene),
+      }
+      if (JSON.stringify(nextProject).length > MAX_PROJECT_JSON_CHARS) {
+        setMessage('O vídeo não cabe no limite de armazenamento restante deste projeto. Exporte um backup e remova alguns assets ou use um arquivo menor.')
+        return
+      }
+      setProject(nextProject)
+      setSelectedSourceId(placed.id)
+      setInspectorTab('element')
+      setElementSection('content')
+      setMessage(`Vídeo “${file.name}” importado. Ajuste o início, o fim, o loop e o áudio nas propriedades do vídeo.`)
+    } catch {
+      setMessage('Não foi possível ler o vídeo selecionado.')
     }
   }
 
@@ -1605,6 +1848,7 @@ function Editor() {
                   {source.type === 'text' && <span className="object-text" style={{ textTransform: source.textTransform ?? 'none', textDecoration: source.textDecoration ?? 'none', textShadow: source.textShadowEnabled === false ? 'none' : undefined }}>{source.text || source.name}</span>}
                   {source.type === 'shape' && <span className={`shape-inner shape-inner-${source.shapeKind ?? 'rectangle'}`} />}
                   {source.type === 'image' && source.src && <img src={source.src} alt={source.name} draggable={false} style={{ objectFit: source.objectFit ?? 'contain', objectPosition: source.objectPosition ?? 'center center' }} />}
+                  {source.type === 'video' && source.src && <TrimmedVideo source={source} className="video-asset" />}
                   {source.type === 'browser' && <iframe className="browser-frame" title={source.name} src={getBrowserUrl(source.url)} sandbox="allow-scripts allow-forms allow-popups" referrerPolicy="no-referrer" loading="lazy" tabIndex={-1} />}
                   {source.type === 'camera' && (cameraStream
                     ? <video className="camera-video" autoPlay muted playsInline style={{ transform: source.cameraMirror === false ? 'none' : 'scaleX(-1)' }} ref={(element) => { if (element && element.srcObject !== cameraStream) element.srcObject = cameraStream }} />
@@ -1619,7 +1863,7 @@ function Editor() {
           </div>
           <div className="preview-caption"><span><span className="status-dot" /> Arraste para mover · canto inferior para redimensionar</span><span>Proporção {activeScene.width ?? 1920}:{activeScene.height ?? 1080}</span></div>
         </section>
-        <footer className="studio-footer"><span className="footer-tip"><span className="tip-icon">i</span> As alterações são salvas automaticamente neste navegador.</span><span className="footer-version">WEBCAM_OVERLAY · 2.3.0</span></footer>
+        <footer className="studio-footer"><span className="footer-tip"><span className="tip-icon">i</span> As alterações são salvas automaticamente neste navegador.</span><span className="footer-version">WEBCAM_OVERLAY · 2.4.0</span></footer>
       </main>
 
       <aside className="inspector-panel">
@@ -1636,7 +1880,7 @@ function Editor() {
 
         {inspectorTab === 'layers' && <>
           {sourceMenuOpen && <div className="source-menu"><p className="eyebrow">ELEMENTOS BÁSICOS</p>
-            {(['text', 'shape', 'camera', 'image', 'browser'] as Exclude<SourceType, 'widget'>[]).map((type) => <button key={type} type="button" onClick={() => addSource(type)}><span className={`source-icon icon-${type}`}>{sourceGlyph(type)}</span><span><strong>{sourceLabel(type)}</strong><small>{{ text: 'Texto, tipografia e efeitos', shape: 'Retângulo, círculo, linha ou pílula', camera: 'Webcam do dispositivo', image: 'Arquivo PNG, JPG ou WebP', browser: 'Página ou widget web incorporado' }[type]}</small></span><span className="menu-arrow">›</span></button>)}
+            {(['text', 'shape', 'camera', 'image', 'video', 'browser'] as Exclude<SourceType, 'widget'>[]).map((type) => <button key={type} type="button" onClick={() => addSource(type)}><span className={`source-icon icon-${type}`}>{sourceGlyph(type)}</span><span><strong>{sourceLabel(type)}</strong><small>{{ text: 'Texto, tipografia e efeitos', shape: 'Retângulo, círculo, linha ou pílula', camera: 'Webcam do dispositivo', image: 'Arquivo PNG, JPG ou WebP', video: 'Banner animado com corte, loop e áudio', browser: 'Página ou widget web incorporado' }[type]}</small></span><span className="menu-arrow">›</span></button>)}
             <div className="widget-library-title"><p className="eyebrow">WIDGETS PARA STREAM</p><span>{WIDGET_OPTIONS.length}</span></div>
             <input className="text-input widget-search" value={widgetSearch} onChange={(event) => setWidgetSearch(event.target.value)} placeholder="Buscar widget..." aria-label="Buscar widget" />
             {WIDGET_OPTIONS.filter((option) => `${option.label} ${option.description}`.toLocaleLowerCase('pt-BR').includes(widgetSearch.toLocaleLowerCase('pt-BR'))).map((option) => <button key={option.kind} type="button" onClick={() => addWidget(option.kind)}><span className="source-icon icon-widget">{option.glyph}</span><span><strong>{option.label}</strong><small>{option.description}</small></span><span className="menu-arrow">›</span></button>)}
@@ -1685,6 +1929,10 @@ function Editor() {
                   <p className="field-hint">A imagem foi importada como uma camada independente. Para substituir o arquivo, remova-a e importe outra.</p>
                   <label className="field-label" htmlFor="image-fit">Modo de ajuste</label>
                   <select id="image-fit" className="text-input" value={selectedSource.objectFit ?? 'contain'} onChange={(event) => updateSelected({ objectFit: event.target.value as 'contain' | 'cover' })}><option value="contain">Mostrar imagem inteira</option><option value="cover">Preencher a área</option></select>
+                </>}
+                {selectedSource.type === 'video' && <>
+                  <div className="feature-note"><span className="note-icon">i</span><p>Os vídeos locais são armazenados dentro do projeto. Para esta versão, o arquivo precisa ter até 1,2 MB. MP4 e WebM costumam ser as melhores opções para banners curtos.</p></div>
+                  {selectedSource.src ? <VideoSourceControls source={selectedSource} onChange={updateSelected} /> : <p className="field-hint">Este elemento não tem um vídeo carregado. Exclua a camada e adicione uma nova fonte de vídeo para importar um arquivo.</p>}
                 </>}
                 {selectedSource.type === 'browser' && <>
                   <label className="field-label" htmlFor="browser-url">URL da página/widget</label>
@@ -1764,6 +2012,7 @@ function Editor() {
                   <label className="field-label" htmlFor="shape-radius">Arredondamento</label><div className="range-row"><input id="shape-radius" type="range" min="0" max="100" value={selectedSource.radius ?? 4} onChange={(event) => updateSelected({ radius: Number(event.target.value) })} /><span>{selectedSource.radius ?? 4}px</span></div>
                 </>}
                 {selectedSource.type === 'image' && <><p className="field-hint">Controle o corte, posição interna, borda e transparência desta imagem.</p><label className="field-label" htmlFor="image-fit-style">Ajuste</label><select id="image-fit-style" className="text-input" value={selectedSource.objectFit ?? 'contain'} onChange={(event) => updateSelected({ objectFit: event.target.value as 'contain' | 'cover' })}><option value="contain">Conter</option><option value="cover">Cobrir</option></select><label className="field-label" htmlFor="image-position-style">Posição dentro da moldura</label><select id="image-position-style" className="text-input" value={selectedSource.objectPosition ?? 'center center'} onChange={(event) => updateSelected({ objectPosition: event.target.value })}><option value="center center">Centro</option><option value="top center">Topo</option><option value="bottom center">Base</option><option value="left center">Esquerda</option><option value="right center">Direita</option><option value="top left">Superior esquerda</option><option value="top right">Superior direita</option><option value="bottom left">Inferior esquerda</option><option value="bottom right">Inferior direita</option></select></>}
+                {selectedSource.type === 'video' && <><p className="eyebrow section-eyebrow">APARÊNCIA DO VÍDEO</p><label className="field-label" htmlFor="video-fit-style">Enquadramento</label><select id="video-fit-style" className="text-input" value={selectedSource.objectFit ?? 'cover'} onChange={(event) => updateSelected({ objectFit: event.target.value as 'contain' | 'cover' })}><option value="cover">Preencher / cortar bordas</option><option value="contain">Mostrar vídeo inteiro</option></select><label className="field-label" htmlFor="video-position-style">Posição do vídeo no quadro</label><select id="video-position-style" className="text-input" value={selectedSource.objectPosition ?? 'center center'} onChange={(event) => updateSelected({ objectPosition: event.target.value })}><option value="center center">Centro</option><option value="top center">Topo</option><option value="bottom center">Base</option><option value="left center">Esquerda</option><option value="right center">Direita</option><option value="top left">Superior esquerda</option><option value="top right">Superior direita</option><option value="bottom left">Inferior esquerda</option><option value="bottom right">Inferior direita</option></select></>}
                 {selectedSource.type === 'widget' && <>
                   <p className="eyebrow section-eyebrow">TEMA DO WIDGET</p>
                   <label className="field-label" htmlFor="widget-theme">Estilo base</label>
@@ -1857,6 +2106,7 @@ function Editor() {
       </aside>
 
       <input ref={imageInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" multiple onChange={onImageSelected} />
+      <input ref={videoInputRef} className="hidden-input" type="file" accept="video/mp4,video/webm,video/ogg,.mp4,.webm,.ogv,.ogg,.mov" onChange={onVideoSelected} />
       <input ref={backgroundDesignInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" onChange={onBackgroundDesignSelected} />
       <input ref={importInputRef} className="hidden-input" type="file" accept="application/json,.json" onChange={importProject} />
       {message && <div className="save-toast" role="status"><span>✓</span>{message}<button type="button" onClick={() => setMessage('')} aria-label="Fechar aviso">×</button></div>}
@@ -1930,6 +2180,7 @@ function OverlayView() {
       {source.type === 'text' && <span className="object-text" style={{ textTransform: source.textTransform ?? 'none', textDecoration: source.textDecoration ?? 'none', textShadow: source.textShadowEnabled === false ? 'none' : undefined }}>{source.text || source.name}</span>}
       {source.type === 'shape' && <span className={`shape-inner shape-inner-${source.shapeKind ?? 'rectangle'}`} style={{ background: source.color ?? '#7772f2', borderRadius: source.shapeKind === 'circle' ? '50%' : source.shapeKind === 'pill' ? '999px' : source.shapeKind === 'line' ? '999px' : `${source.radius ?? 4}px` }} />}
       {source.type === 'image' && source.src && <img src={source.src} alt={source.name} draggable={false} style={{ objectFit: source.objectFit ?? 'contain', objectPosition: source.objectPosition ?? 'center center' }} />}
+      {source.type === 'video' && source.src && <TrimmedVideo source={source} className="video-asset" />}
       {source.type === 'browser' && <iframe className="browser-frame" title={source.name} src={getBrowserUrl(source.url)} sandbox="allow-scripts allow-forms allow-popups" referrerPolicy="no-referrer" loading="lazy" tabIndex={-1} />}
       {source.type === 'camera' && (cameraStream ? <video className="camera-video" autoPlay muted playsInline style={{ transform: source.cameraMirror === false ? 'none' : 'scaleX(-1)' }} ref={(element) => { if (element && element.srcObject !== cameraStream) element.srcObject = cameraStream }} /> : <div className="overlay-camera-placeholder" />)}
       {source.type === 'widget' && <WidgetContent source={source} />}
