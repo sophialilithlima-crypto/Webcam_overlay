@@ -8,7 +8,7 @@ import {
 import type { ChangeEvent, CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
 import './App.css'
 
-type WidgetKind = 'alert' | 'chat' | 'events' | 'goal' | 'latest' | 'socials' | 'countdown' | 'clock' | 'viewer' | 'ticker' | 'music' | 'poll' | 'sponsor' | 'webcam-frame' | 'live-badge'
+type WidgetKind = 'alert' | 'chat' | 'events' | 'goal' | 'latest' | 'socials' | 'countdown' | 'clock' | 'viewer' | 'ticker' | 'music' | 'poll' | 'sponsor' | 'webcam-frame' | 'live-badge' | 'tip-jar' | 'stream-boss' | 'leaderboard'
 type WidgetTheme = 'glass' | 'neon' | 'minimal' | 'solid'
 type SourceType = 'text' | 'shape' | 'camera' | 'image' | 'browser' | 'widget'
 type BackgroundConfig = { mode: 'transparent' | 'solid' | 'gradient'; color: string; color2: string; angle: number }
@@ -56,6 +56,7 @@ type SceneSource = {
   widgetTheme?: WidgetTheme
   widgetShowHeader?: boolean
   widgetCompact?: boolean
+  isBackgroundAsset?: boolean
 }
 type Scene = { id: string; name: string; sources: SceneSource[]; background?: BackgroundConfig; width?: number; height?: number }
 type Project = { version: 1; activeSceneId: string; scenes: Scene[] }
@@ -73,6 +74,8 @@ type Interaction = {
 const STORAGE_KEY = 'webcam-overlay-project-v2'
 const LEGACY_STORAGE_KEY = 'webcam-overlay-project-v1'
 const MAX_IMAGE_BYTES = 1_500_000
+const MAX_IMPORT_BATCH_BYTES = 1_500_000
+const MAX_PROJECT_JSON_CHARS = 2_150_000
 
 const WIDGET_OPTIONS: { kind: WidgetKind; label: string; description: string; glyph: string }[] = [
   { kind: 'alert', label: 'Alertas de evento', description: 'Seguidor, inscrição, raid ou doação (demonstração)', glyph: '✦' },
@@ -90,6 +93,9 @@ const WIDGET_OPTIONS: { kind: WidgetKind; label: string; description: string; gl
   { kind: 'sponsor', label: 'Patrocinador / marca', description: 'Logo textual e mensagem de parceria', glyph: '◆' },
   { kind: 'webcam-frame', label: 'Moldura de webcam', description: 'Borda decorativa com rótulo', glyph: '▣' },
   { kind: 'live-badge', label: 'Selo AO VIVO', description: 'Indicador de transmissão e tema personalizável', glyph: '●' },
+  { kind: 'tip-jar', label: 'Jarra de apoio', description: 'Barra visual de contribuições e objetivo', glyph: '♥' },
+  { kind: 'stream-boss', label: 'Chefe da transmissão', description: 'Barra de vida editável para interação da comunidade', glyph: '⚔' },
+  { kind: 'leaderboard', label: 'Ranking de apoiadores', description: 'Lista editável de maiores apoiadores', glyph: '♛' },
 ]
 
 function makeDefaultProject(): Project {
@@ -176,8 +182,80 @@ function makeDefaultProject(): Project {
 function isValidProject(value: unknown): value is Project {
   if (!value || typeof value !== 'object') return false
   const candidate = value as Partial<Project>
-  return candidate.version === 1 && Array.isArray(candidate.scenes) && candidate.scenes.length > 0 &&
-    candidate.scenes.every((scene) => scene && typeof scene.id === 'string' && typeof scene.name === 'string' && Array.isArray(scene.sources))
+  const allowedTypes: SourceType[] = ['text', 'shape', 'camera', 'image', 'browser', 'widget']
+  const allowedWidgetKinds = WIDGET_OPTIONS.map((option) => option.kind)
+  if (candidate.version !== 1 || !Array.isArray(candidate.scenes) || candidate.scenes.length === 0 || candidate.scenes.length > 100) return false
+
+  const sceneIds = new Set<string>()
+  for (const scene of candidate.scenes) {
+    if (!scene || typeof scene.id !== 'string' || !scene.id || sceneIds.has(scene.id) || typeof scene.name !== 'string' || !Array.isArray(scene.sources) || scene.sources.length > 250) return false
+    sceneIds.add(scene.id)
+    if (scene.width !== undefined && (!Number.isFinite(scene.width) || scene.width < 320 || scene.width > 3840)) return false
+    if (scene.height !== undefined && (!Number.isFinite(scene.height) || scene.height < 320 || scene.height > 3840)) return false
+    if (scene.background !== undefined && (!scene.background || !['transparent', 'solid', 'gradient'].includes(scene.background.mode))) return false
+
+    const sourceIds = new Set<string>()
+    for (const source of scene.sources) {
+      if (!source || typeof source !== 'object' || typeof source.id !== 'string' || !source.id || sourceIds.has(source.id) ||
+        typeof source.name !== 'string' || !allowedTypes.includes(source.type)) return false
+      sourceIds.add(source.id)
+      if (source.widgetKind !== undefined && !allowedWidgetKinds.includes(source.widgetKind)) return false
+      if (source.visible !== undefined && typeof source.visible !== 'boolean') return false
+      if (source.locked !== undefined && typeof source.locked !== 'boolean') return false
+      if (source.x !== undefined && !Number.isFinite(source.x)) return false
+      if (source.y !== undefined && !Number.isFinite(source.y)) return false
+      if (source.w !== undefined && !Number.isFinite(source.w)) return false
+      if (source.h !== undefined && !Number.isFinite(source.h)) return false
+      if (source.src !== undefined && typeof source.src !== 'string') return false
+      if (source.text !== undefined && typeof source.text !== 'string') return false
+      if (source.color !== undefined && typeof source.color !== 'string') return false
+      if (source.url !== undefined && typeof source.url !== 'string') return false
+    }
+  }
+  return true
+}
+
+function normalizeProject(parsed: Project): Project {
+  const scenes = parsed.scenes.map((scene) => {
+    const sources = scene.sources.map((source) => {
+      const x = clamp(Number.isFinite(source.x) ? Number(source.x) : 8, 0, 96)
+      const y = clamp(Number.isFinite(source.y) ? Number(source.y) : 8, 0, 96)
+      const w = clamp(Number.isFinite(source.w) ? Number(source.w) : 30, 4, 100 - x)
+      const h = clamp(Number.isFinite(source.h) ? Number(source.h) : 12, 4, 100 - y)
+      const knownWidget = WIDGET_OPTIONS.some((option) => option.kind === source.widgetKind)
+      return {
+        ...source,
+        name: source.name.slice(0, 70) || 'Fonte',
+        visible: source.visible !== false,
+        x, y, w, h,
+        opacity: clamp(Number.isFinite(source.opacity) ? Number(source.opacity) : 1, 0, 1),
+        rotation: clamp(Number.isFinite(source.rotation) ? Number(source.rotation) : 0, -180, 180),
+        fontSize: clamp(Number.isFinite(source.fontSize) ? Number(source.fontSize) : 30, 8, 160),
+        text: typeof source.text === 'string' ? source.text.slice(0, 2000) : undefined,
+        widgetTitle: typeof source.widgetTitle === 'string' ? source.widgetTitle.slice(0, 90) : undefined,
+        widgetText: typeof source.widgetText === 'string' ? source.widgetText.slice(0, 300) : undefined,
+        widgetItems: typeof source.widgetItems === 'string' ? source.widgetItems.slice(0, 1200) : undefined,
+        widgetKind: source.type === 'widget' ? ((knownWidget ? source.widgetKind : undefined) ?? 'goal') : source.widgetKind,
+      }
+    })
+    const rawBackground = scene.background
+    const background: BackgroundConfig = {
+      mode: rawBackground && ['transparent', 'solid', 'gradient'].includes(rawBackground.mode) ? rawBackground.mode : 'transparent',
+      color: typeof rawBackground?.color === 'string' ? rawBackground.color : '#171923',
+      color2: typeof rawBackground?.color2 === 'string' ? rawBackground.color2 : '#28243c',
+      angle: clamp(Number.isFinite(rawBackground?.angle) ? Number(rawBackground?.angle) : 135, 0, 360),
+    }
+    return {
+      ...scene,
+      name: scene.name.trim().slice(0, 40) || 'Cena',
+      width: clamp(Number.isFinite(scene.width) ? Number(scene.width) : 1920, 320, 3840),
+      height: clamp(Number.isFinite(scene.height) ? Number(scene.height) : 1080, 320, 3840),
+      background,
+      sources: separateOverlappingText(sources),
+    }
+  })
+  const activeSceneId = scenes.some((scene) => scene.id === parsed.activeSceneId) ? parsed.activeSceneId : scenes[0].id
+  return { version: 1, activeSceneId, scenes }
 }
 
 function readProject(): Project {
@@ -185,12 +263,7 @@ function readProject(): Project {
     const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY)
     if (raw) {
       const parsed: unknown = JSON.parse(raw)
-      if (isValidProject(parsed)) {
-        const activeSceneId = parsed.scenes.some((scene) => scene.id === parsed.activeSceneId)
-          ? parsed.activeSceneId
-          : parsed.scenes[0].id
-        return { ...parsed, activeSceneId }
-      }
+      if (isValidProject(parsed)) return normalizeProject(parsed)
     }
   } catch {
     // Dados ausentes ou corrompidos: iniciar com um projeto padrão.
@@ -200,6 +273,94 @@ function readProject(): Project {
 
 function newId(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+}
+
+function overlapScore(a: Pick<SceneSource, 'x' | 'y' | 'w' | 'h'>, b: Pick<SceneSource, 'x' | 'y' | 'w' | 'h'>) {
+  const intersectionWidth = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x))
+  const intersectionHeight = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y))
+  const intersection = intersectionWidth * intersectionHeight
+  const smallerArea = Math.max(1, Math.min(a.w * a.h, b.w * b.h))
+  return intersection / smallerArea
+}
+
+function rectanglesOverlap(a: Pick<SceneSource, 'x' | 'y' | 'w' | 'h'>, b: Pick<SceneSource, 'x' | 'y' | 'w' | 'h'>) {
+  // Compare against the smaller object so a small title overlapping a large overlay panel is not missed.
+  return overlapScore(a, b) > 0.08
+}
+
+function placeWithoutOverlap(sources: SceneSource[], candidate: SceneSource): SceneSource {
+  const bounded = {
+    ...candidate,
+    w: clamp(candidate.w, 4, 100),
+    h: clamp(candidate.h, 4, 100),
+    x: clamp(candidate.x, 0, 100 - clamp(candidate.w, 4, 100)),
+    y: clamp(candidate.y, 0, 100 - clamp(candidate.h, 4, 100)),
+  }
+  const obstacles = sources.filter((source) => source.visible && !source.isBackgroundAsset)
+  if (!obstacles.some((source) => rectanglesOverlap(bounded, source))) return bounded
+
+  const stepX = Math.max(3, Math.min(8, Math.round(bounded.w * 0.25)))
+  const stepY = Math.max(3, Math.min(8, Math.round(bounded.h * 0.3)))
+  const positions: { x: number; y: number; distance: number; overlap: number }[] = [{ x: bounded.x, y: bounded.y, distance: 0, overlap: 0 }]
+  for (let y = 2; y <= 100 - bounded.h; y += stepY) {
+    for (let x = 2; x <= 100 - bounded.w; x += stepX) {
+      const rect = { ...bounded, x, y }
+      const overlap = obstacles.reduce((total, source) => total + overlapScore(rect, source), 0)
+      positions.push({ x, y, distance: Math.abs(x - bounded.x) + Math.abs(y - bounded.y) * 1.15, overlap })
+    }
+  }
+  // Prefer any genuinely free slot. If the canvas is full, pick the slot with the least overlap rather
+  // than shifting by a fixed offset and placing the new item directly over another title.
+  const free = positions.filter((position) => !obstacles.some((source) => rectanglesOverlap({ ...bounded, x: position.x, y: position.y }, source)))
+    .sort((a, b) => a.distance - b.distance)[0]
+  if (free) return { ...bounded, x: free.x, y: free.y }
+
+  positions.sort((a, b) => a.overlap - b.overlap || a.distance - b.distance)
+  const best = positions[0]
+  return { ...bounded, x: best?.x ?? bounded.x, y: best?.y ?? bounded.y }
+}
+
+function separateOverlappingText(sources: SceneSource[]): SceneSource[] {
+  const result: SceneSource[] = []
+  for (const source of sources) {
+    if (source.type !== 'text') {
+      result.push(source)
+      continue
+    }
+    const previousText = result.filter((item) => item.type === 'text' && item.visible)
+    const overlapsPreviousText = previousText.some((item) => rectanglesOverlap(source, item))
+    result.push(overlapsPreviousText ? placeWithoutOverlap(previousText, source) : source)
+  }
+  return result
+}
+
+function persistProject(project: Project): boolean {
+  try {
+    const serialized = JSON.stringify(project)
+    if (serialized.length > MAX_PROJECT_JSON_CHARS) return false
+    localStorage.setItem(STORAGE_KEY, serialized)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function parseLocalImageData(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Não foi possível ler a imagem.'))
+    reader.onerror = () => reject(new Error('Não foi possível ler a imagem.'))
+    reader.readAsDataURL(file)
+  })
+}
+
+function imageDimensions(dataUrl: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve) => {
+    const image = new Image()
+    image.onload = () => resolve({ width: image.naturalWidth || 1, height: image.naturalHeight || 1 })
+    image.onerror = () => resolve({ width: 1, height: 1 })
+    image.src = dataUrl
+  })
 }
 
 function sourceLabel(type: SourceType) {
@@ -322,14 +483,15 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
   const currentValue = Number.parseFloat((source.widgetValue ?? '68').replace(/[^\d.]/g, '')) || 0
   const targetValue = Math.max(1, Number.parseFloat((source.widgetTarget ?? '100').replace(/[^\d.]/g, '')) || 100)
   const progress = Math.min(100, Math.max(0, (currentValue / targetValue) * 100))
-  const time = `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`
+  const time = remaining >= 3600
+    ? `${String(Math.floor(remaining / 3600)).padStart(2, '0')}:${String(Math.floor((remaining % 3600) / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`
+    : `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`
 
   if (kind === 'webcam-frame') {
     return <div className={`stream-widget webcam-frame-widget widget-theme-${source.widgetTheme ?? 'neon'}`} style={{ '--widget-accent': accent } as CSSProperties}>
       <div className="webcam-frame-corner corner-tl" /><div className="webcam-frame-corner corner-tr" />
       <div className="webcam-frame-corner corner-bl" /><div className="webcam-frame-corner corner-br" />
       <span className="webcam-frame-label">{source.widgetTitle || 'WEBCAM'}</span>
-      <span className="widget-demo-tag">MOLDURA</span>
     </div>
   }
 
@@ -337,7 +499,6 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
     return <div className={`stream-widget live-badge-widget widget-theme-${source.widgetTheme ?? 'minimal'}`} style={{ '--widget-accent': accent } as CSSProperties}>
       <span className="live-badge-dot" />
       <span className="live-badge-copy"><strong>{source.widgetTitle || 'AO VIVO'}</strong><small>{source.widgetText || 'TRANSMITINDO'}</small></span>
-      <span className="widget-demo-tag">DEMO</span>
     </div>
   }
 
@@ -345,11 +506,10 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
     {kind === 'alert' && <>
       <div className="widget-alert-icon">✦</div>
       <div className="widget-alert-content"><span className="widget-kicker">{alertVisible ? 'NOVO EVENTO!' : (source.widgetTitle || 'ALERTA DE EVENTO')}</span><strong>{alertVisible ? (source.widgetValue || 'pixelrider') : (source.widgetValue || 'Novo seguidor')}</strong><small>{source.widgetText || 'começou a seguir o canal'}</small></div>
-      <span className="widget-demo-tag">DEMO</span>
     </>}
 
     {kind === 'chat' && <>
-      <div className="widget-header"><strong>{source.widgetTitle || 'CHAT AO VIVO'}</strong><span className="widget-header-pill">DEMO</span></div>
+      <div className="widget-header"><strong>{source.widgetTitle || 'CHAT AO VIVO'}</strong></div>
       <div className="chat-messages">{(lines.length ? lines : ['LuaGamer: Oi, chat!', 'PixelRider: Boa live!', 'nina: Qual é o jogo?', 'Gui: Cheguei agora']).map((line, index) => {
         const separator = line.indexOf(':')
         const username = separator >= 0 ? line.slice(0, separator) : `viewer${index + 1}`
@@ -360,7 +520,7 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
     </>}
 
     {kind === 'events' && <>
-      <div className="widget-header"><strong>{source.widgetTitle || 'ATIVIDADE RECENTE'}</strong><span className="widget-header-pill">DEMO</span></div>
+      <div className="widget-header"><strong>{source.widgetTitle || 'ATIVIDADE RECENTE'}</strong></div>
       <div className="event-items">{(lines.length ? lines : ['Novo seguidor · pixelrider', 'Nova inscrição · lua_gamer', 'Apoio · catbits · R$ 10', 'Raid · canal_da_nina · 24']).slice(0, 6).map((line, index) => {
         const parts = line.split('·').map((part) => part.trim())
         return <div className="event-item" key={`${line}-${index}`}><span className={`event-type-icon event-icon-${index % 4}`}>{['↗', '★', '♥', '✦'][index % 4]}</span><span className="event-copy"><strong>{parts[0]}</strong><small>{parts.slice(1).join(' · ') || 'viewer_exemplo'}</small></span></div>
@@ -368,7 +528,7 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
     </>}
 
     {kind === 'goal' && <>
-      <div className="widget-header"><strong>{source.widgetTitle || 'META DA LIVE'}</strong><span className="widget-header-pill">DEMO</span></div>
+      <div className="widget-header"><strong>{source.widgetTitle || 'META DA LIVE'}</strong></div>
       {source.widgetText && <p className="widget-muted-line">{source.widgetText}</p>}
       <div className="goal-numbers"><strong>{source.widgetValue ?? '68'}</strong><span>/ {source.widgetTarget ?? '100'}</span><b>{Math.round(progress)}%</b></div>
       <div className="goal-track"><span style={{ width: `${progress}%` }} /></div>
@@ -376,7 +536,7 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
     </>}
 
     {kind === 'latest' && <>
-      <div className="latest-icon">☆</div><div className="latest-copy"><span className="widget-kicker">{source.widgetTitle || 'ÚLTIMO SEGUIDOR'}</span><strong>{source.widgetText || 'pixelrider'}</strong><small>Dados de demonstração</small></div>
+      <div className="latest-icon">☆</div><div className="latest-copy"><span className="widget-kicker">{source.widgetTitle || 'ÚLTIMO SEGUIDOR'}</span><strong>{source.widgetText || 'pixelrider'}</strong></div>
     </>}
 
     {kind === 'socials' && <>
@@ -393,7 +553,6 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
       <span className="widget-kicker">{source.widgetTitle || 'COMEÇAMOS EM'}</span>
       <strong className="countdown-time">{time}</strong>
       <small className="widget-muted-line">{remaining === 0 ? 'Está na hora!' : (source.widgetText || 'Prepare-se para a transmissão')}</small>
-      <span className="widget-demo-tag">{source.widgetRunning === false ? 'PAUSADO' : 'DEMO'}</span>
     </>}
 
     {kind === 'clock' && <>
@@ -403,7 +562,7 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
     </>}
 
     {kind === 'viewer' && <>
-      <span className="live-badge-dot" /><div className="viewer-copy"><span className="widget-kicker">{source.widgetTitle || 'AO VIVO'}</span><strong>{source.widgetValue || '128'} <small>espectadores</small></strong></div><span className="widget-demo-tag">DEMO</span>
+      <span className="live-badge-dot" /><div className="viewer-copy"><span className="widget-kicker">{source.widgetTitle || 'AO VIVO'}</span><strong>{source.widgetValue || '128'} <small>espectadores</small></strong></div>
     </>}
 
     {kind === 'ticker' && <>
@@ -415,7 +574,7 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
     </>}
 
     {kind === 'poll' && <>
-      <div className="widget-header"><strong>{source.widgetTitle || 'ENQUETE DA LIVE'}</strong><span className="widget-header-pill">DEMO</span></div>
+      <div className="widget-header"><strong>{source.widgetTitle || 'ENQUETE DA LIVE'}</strong></div>
       <div className="poll-options">{(lines.length ? lines : ['Aventura | 42', 'RPG | 28', 'FPS | 30']).slice(0, 4).map((line, index) => {
         const [name, valueText] = line.split('|').map((part) => part.trim())
         const votes = Math.max(0, Number.parseFloat(valueText ?? '0') || 0)
@@ -424,8 +583,31 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
       })}</div>
     </>}
 
+    {kind === 'tip-jar' && <>
+      <div className="widget-header"><strong>{source.widgetTitle || 'JARRA DE APOIO'}</strong></div>
+      <div className="tip-jar-content">
+        <div className="tip-jar-vessel"><div className="tip-jar-liquid" style={{ height: `${progress}%` }} /></div>
+        <div className="tip-jar-stats"><span className="widget-kicker">{source.widgetText || 'ARRECADADO'}</span><strong>R$ {currentValue.toLocaleString('pt-BR')}</strong><div className="goal-track"><span style={{ width: `${progress}%` }} /></div><small>Meta: R$ {targetValue.toLocaleString('pt-BR')}</small></div>
+      </div>
+    </>}
+
+    {kind === 'stream-boss' && <>
+      <div className="widget-header"><strong>{source.widgetTitle || 'CHEFE DA TRANSMISSÃO'}</strong><span className="boss-level">LV. 1</span></div>
+      <div className="boss-health-labels"><span>VIDA DO CHEFE</span><strong>{Math.round(progress)}%</strong></div>
+      <div className="boss-health-track"><span style={{ width: `${progress}%` }} /></div>
+      <small className="widget-muted-line">{source.widgetText || 'A comunidade reduz a barra em eventos reais, quando integrada.'}</small>
+    </>}
+
+    {kind === 'leaderboard' && <>
+      <div className="widget-header"><strong>{source.widgetTitle || 'TOP APOIADORES'}</strong></div>
+      <div className="leaderboard-list">{(lines.length ? lines : ['pixelrider | R$ 150', 'lua_gamer | R$ 80', 'catbits | R$ 45', 'nina | R$ 25']).slice(0, 5).map((line, index) => {
+        const [name, amount] = line.split('|').map((part) => part.trim())
+        return <div className="leaderboard-row" key={`${line}-${index}`}><span className={`leaderboard-rank rank-${index + 1}`}>{index + 1}</span><strong>{name || `Apoiador ${index + 1}`}</strong><small>{amount || '—'}</small></div>
+      })}</div>
+    </>}
+
     {kind === 'sponsor' && <>
-      <div className="sponsor-mark">◆</div><div className="sponsor-copy"><span className="widget-kicker">{source.widgetTitle || 'APOIO'}</span><strong>{source.widgetText || 'SUA MARCA AQUI'}</strong><small>{source.widgetValue || 'Parceiro oficial da live'}</small></div><span className="widget-demo-tag">DEMO</span>
+      <div className="sponsor-mark">◆</div><div className="sponsor-copy"><span className="widget-kicker">{source.widgetTitle || 'APOIO'}</span><strong>{source.widgetText || 'SUA MARCA AQUI'}</strong><small>{source.widgetValue || 'Parceiro oficial da live'}</small></div>
     </>}
   </div>
 }
@@ -437,6 +619,8 @@ function App() {
 
 function Editor() {
   const [project, setProject] = useState<Project>(() => readProject())
+  const projectRef = useRef(project)
+  projectRef.current = project
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>('source-title')
   const [sourceMenuOpen, setSourceMenuOpen] = useState(false)
   const [widgetSearch, setWidgetSearch] = useState('')
@@ -455,6 +639,7 @@ function Editor() {
   const historySnapshotRef = useRef<Project>(project)
   const stageRef = useRef<HTMLDivElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const backgroundDesignInputRef = useRef<HTMLInputElement>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
 
   const activeScene = useMemo(
@@ -466,10 +651,8 @@ function Editor() {
   useEffect(() => {
     // Evita gravar no localStorage a cada movimento do mouse enquanto o usuário arrasta.
     if (interaction) return
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(project))
-    } catch {
-      setMessage('Não foi possível salvar. Exporte o projeto e remova imagens grandes.')
+    if (!persistProject(project)) {
+      setMessage('O projeto excede o limite seguro de armazenamento deste navegador. Exporte o JSON antes de adicionar mais imagens ou remova assets grandes.')
     }
   }, [project, interaction])
 
@@ -560,6 +743,8 @@ function Editor() {
   function selectScene(scene: Scene) {
     setProject((current) => ({ ...current, activeSceneId: scene.id }))
     setSelectedSourceId(scene.sources[0]?.id ?? null)
+    setInteraction(null)
+    setOpenSceneMenuId(null)
     setSourceMenuOpen(false)
     setMessage('')
   }
@@ -568,7 +753,11 @@ function Editor() {
     const scene: Scene = { id: newId('scene'), name: `Cena ${project.scenes.length + 1}`, sources: [], background: { mode: 'transparent', color: '#171923', color2: '#28243c', angle: 135 }, width: activeScene?.width ?? 1920, height: activeScene?.height ?? 1080 }
     setProject((current) => ({ ...current, scenes: [...current.scenes, scene], activeSceneId: scene.id }))
     setSelectedSourceId(null)
-    setMessage('')
+    setInteraction(null)
+    setSourceMenuOpen(false)
+    setShowPackMenu(false)
+    setOpenSceneMenuId(null)
+    setMessage('Cena vazia criada. Novos elementos serão posicionados automaticamente para reduzir sobreposições.')
   }
 
   function applyStarterPack(pack: 'gaming' | 'chatting' | 'minimal' | 'vertical') {
@@ -638,6 +827,22 @@ function Editor() {
       ]
     }
 
+    if (pack === 'vertical') {
+      additions = [...additions, scene('Vertical · encerramento', [
+        text('Mensagem de encerramento', 'OBRIGADO POR ASSISTIR', 8, 30, 84, 12, 46),
+        text('Até a próxima', 'Até a próxima transmissão', 8, 44, 84, 6, 22, '#b9bdd2'),
+        widget('socials', 'Redes sociais', 8, 56, 84, 16, { widgetTitle: 'ME ACOMPANHE', widgetItems: 'Instagram · @seuperfil\nYouTube · @seucanal' }),
+        widget('ticker', 'Mensagem final', 5, 94, 90, 4, { widgetText: 'OBRIGADO PELA COMPANHIA  •  SIGA NAS REDES  •  ' }),
+      ], { mode: 'gradient', color: '#16152b', color2: '#0c1018', angle: 135 })]
+    } else {
+      additions = [...additions, scene(`Encerramento · ${pack === 'gaming' ? 'gamer' : pack === 'chatting' ? 'conversa' : 'minimalista'}`, [
+        text('Mensagem de encerramento', 'OBRIGADO POR ASSISTIR', 10, 31, 76, 12, 46),
+        text('Até a próxima', 'Até a próxima transmissão.', 10, 45, 65, 7, 22, '#b9bdd2'),
+        widget('socials', 'Redes sociais', 10, 57, 68, 13, { widgetTitle: 'ME ACOMPANHE', widgetItems: 'Instagram · @seuperfil\nYouTube · @seucanal' }),
+        widget('ticker', 'Mensagem final', 5, 91, 90, 6, { widgetText: 'OBRIGADO PELA COMPANHIA  •  SIGA NAS REDES  •  ' }),
+      ], { mode: 'gradient', color: pack === 'chatting' ? '#102a2a' : '#17142b', color2: '#0b111d', angle: 135 })]
+    }
+
     setProject((current) => ({ ...current, scenes: [...current.scenes, ...additions], activeSceneId: additions[0].id }))
     setSelectedSourceId(additions[0].sources[0]?.id ?? null)
     setShowPackMenu(false)
@@ -690,15 +895,15 @@ function Editor() {
     }
     const count = activeScene.sources.filter((source) => source.type === type).length + 1
     const defaults: Record<Exclude<SourceType, 'image' | 'widget'>, Partial<SceneSource>> = {
-      text: { x: 34, y: 38, w: 32, h: 12, text: 'Seu texto', color: '#ffffff', fontSize: 34, fontFamily: 'Inter, system-ui, sans-serif', fontWeight: 750, textAlign: 'left', letterSpacing: -0.5, lineHeight: 1.12 },
+      text: { x: 7 + (Math.floor((count - 1) / 5) % 2) * 47, y: 8 + ((count - 1) % 5) * 15, w: 42, h: 10, text: 'Seu texto', color: '#ffffff', fontSize: 34, fontFamily: 'Inter, system-ui, sans-serif', fontWeight: 750, textAlign: 'left', letterSpacing: -0.5, lineHeight: 1.12 },
       shape: { x: 38, y: 30, w: 20, h: 22, color: '#7772f2', radius: 10, shapeKind: 'rectangle' },
       camera: { x: 35, y: 20, w: 30, h: 45, radius: 5, cameraMirror: true },
       browser: { x: 32, y: 25, w: 36, h: 34, url: 'https://example.com', radius: 4 },
     }
-    const source: SceneSource = {
+    const source: SceneSource = placeWithoutOverlap(activeScene.sources, {
       id: newId('source'), type, name: `${sourceLabel(type)} ${count}`, visible: true,
       ...defaults[type],
-    } as SceneSource
+    } as SceneSource)
     updateActiveScene((scene) => ({ ...scene, sources: [...scene.sources, source] }))
     setSelectedSourceId(source.id)
     setSourceMenuOpen(false)
@@ -721,13 +926,16 @@ function Editor() {
       sponsor: { x: 5, y: 5, w: 27, h: 11, title: 'APOIO', text: 'SUA MARCA AQUI', value: 'Parceiro oficial da live', accent: '#f1c778', theme: 'glass' },
       'webcam-frame': { x: 4, y: 8, w: 32, h: 50, title: 'WEBCAM', accent: '#8d85ff', theme: 'neon' },
       'live-badge': { x: 82, y: 4, w: 13, h: 7, title: 'AO VIVO', text: 'TRANSMITINDO', accent: '#ff4e70', theme: 'minimal' },
+      'tip-jar': { x: 68, y: 50, w: 26, h: 29, title: 'JARRA DE APOIO', text: 'ARRECADADO', value: '135', target: '250', accent: '#70d9c0', theme: 'glass' },
+      'stream-boss': { x: 35, y: 8, w: 30, h: 15, title: 'CHEFE DA TRANSMISSÃO', text: 'A comunidade está enfrentando o chefe', value: '65', target: '100', accent: '#ff4e70', theme: 'neon' },
+      leaderboard: { x: 69, y: 48, w: 27, h: 35, title: 'TOP APOIADORES', items: 'pixelrider | R$ 150\nlua_gamer | R$ 80\ncatbits | R$ 45\nnina | R$ 25', accent: '#f1c778', theme: 'glass' },
     }
     const preset = presets[kind]
     const count = activeScene.sources.filter((source) => source.type === 'widget' && source.widgetKind === kind).length + 1
     const labels: Record<WidgetKind, string> = {
-      alert: 'Alertas de evento', chat: 'Caixa de chat', events: 'Atividade recente', goal: 'Barra de meta', latest: 'Último apoiador', socials: 'Redes sociais', countdown: 'Contagem regressiva', clock: 'Relógio', viewer: 'Status e espectadores', ticker: 'Faixa rolante', music: 'Tocando agora', poll: 'Enquete', sponsor: 'Patrocinador', 'webcam-frame': 'Moldura de webcam', 'live-badge': 'Selo AO VIVO',
+      alert: 'Alertas de evento', chat: 'Caixa de chat', events: 'Atividade recente', goal: 'Barra de meta', latest: 'Último apoiador', socials: 'Redes sociais', countdown: 'Contagem regressiva', clock: 'Relógio', viewer: 'Status e espectadores', ticker: 'Faixa rolante', music: 'Tocando agora', poll: 'Enquete', sponsor: 'Patrocinador', 'webcam-frame': 'Moldura de webcam', 'live-badge': 'Selo AO VIVO', 'tip-jar': 'Jarra de apoio', 'stream-boss': 'Chefe da transmissão', leaderboard: 'Ranking de apoiadores',
     }
-    const source: SceneSource = {
+    const source: SceneSource = placeWithoutOverlap(activeScene.sources, {
       id: newId('widget'), type: 'widget', widgetKind: kind, name: `${labels[kind]} ${count}`,
       visible: true, x: preset.x, y: preset.y, w: preset.w, h: preset.h,
       radius: 7, opacity: 1, rotation: 0, shadow: true,
@@ -735,38 +943,121 @@ function Editor() {
       widgetTarget: preset.target, widgetItems: preset.items, widgetSeconds: preset.seconds ?? 600,
       widgetRunning: true, widgetAccent: preset.accent, widgetTheme: preset.theme,
       widgetShowHeader: true, widgetCompact: false,
-    }
+    })
     updateActiveScene((scene) => ({ ...scene, sources: [...scene.sources, source] }))
     setSelectedSourceId(source.id)
     setSourceMenuOpen(false)
     setMessage(`${labels[kind]} adicionado. Os dados são exemplos editáveis.`)
   }
 
-  function onImageSelected(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    event.target.value = ''
+  async function onImageSelected(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget as HTMLInputElement
+    const files: File[] = Array.from(input.files ?? [])
+    input.value = ''
+    if (files.length === 0) return
+    const targetSceneId = activeScene.id
+    const supported = files.filter((file) => {
+      const extension = file.name.toLowerCase().split('.').pop() ?? ''
+      return file.type.startsWith('image/') || extension === 'svg'
+    })
+    const ignoredCount = files.length - supported.length
+    const totalBytes = supported.reduce((total, file) => total + file.size, 0)
+    if (supported.some((file) => file.size > MAX_IMAGE_BYTES)) {
+      setMessage('Cada imagem deve ter até 1,5 MB para manter o projeto leve. Importe arquivos menores.')
+      return
+    }
+    if (totalBytes > MAX_IMPORT_BATCH_BYTES) {
+      setMessage('O total por importação é de 1,5 MB para reduzir erros de armazenamento. Importe o restante em outro lote.')
+      return
+    }
+    if (supported.length === 0) {
+      setMessage('Não encontrei imagens compatíveis nos arquivos selecionados.')
+      return
+    }
+    try {
+      const loaded = await Promise.all(supported.map(async (file) => {
+        const src = await parseLocalImageData(file)
+        const dimensions = await imageDimensions(src)
+        return { file, src, dimensions }
+      }))
+      const currentProject = projectRef.current
+      const targetScene = currentProject.scenes.find((scene) => scene.id === targetSceneId)
+      if (!targetScene) {
+        setMessage('A cena de destino não existe mais. Selecione a cena novamente e importe os arquivos.')
+        return
+      }
+      let placedSources = [...targetScene.sources]
+      const additions = loaded.map(({ file, src, dimensions }) => {
+        const canvasRatio = (targetScene.width ?? 1920) / (targetScene.height ?? 1080)
+        const imageRatio = dimensions.width / Math.max(1, dimensions.height)
+        const w = imageRatio >= 1 ? 28 : clamp(28 * imageRatio, 12, 28)
+        const h = clamp((w * canvasRatio) / Math.max(0.1, imageRatio), 12, 48)
+        const candidate: SceneSource = {
+          id: newId('image'), type: 'image', name: file.name.replace(/\.[^.]+$/, '').slice(0, 60) || 'Design importado',
+          visible: true, x: 36, y: 30, w, h, src, objectFit: 'contain', radius: 4, rotation: 0, opacity: 1,
+        }
+        const placed = placeWithoutOverlap(placedSources, candidate)
+        placedSources = [...placedSources, placed]
+        return placed
+      })
+      const nextProject: Project = {
+        ...currentProject,
+        scenes: currentProject.scenes.map((scene) => scene.id === targetSceneId ? { ...scene, sources: [...scene.sources, ...additions] } : scene),
+      }
+      if (JSON.stringify(nextProject).length > MAX_PROJECT_JSON_CHARS) {
+        setMessage('Esses assets ultrapassariam o limite seguro de armazenamento do navegador. Remova imagens antigas ou importe arquivos menores.')
+        return
+      }
+      setProject(nextProject)
+      if (currentProject.activeSceneId === targetSceneId && additions.length) setSelectedSourceId(additions[additions.length - 1].id)
+      const ignoredNote = ignoredCount ? ` ${ignoredCount} arquivo(s) sem suporte foram ignorados.` : ''
+      setMessage(`${loaded.length} ${loaded.length === 1 ? 'elemento importado' : 'elementos importados'}. O posicionamento automático evitou sobreposições quando havia espaço.${ignoredNote}`)
+    } catch {
+      setMessage('Não foi possível ler um dos arquivos de imagem.')
+    }
+  }
+
+  async function onBackgroundDesignSelected(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget as HTMLInputElement
+    const file = input.files?.[0]
+    input.value = ''
     if (!file) return
-    if (!file.type.startsWith('image/')) {
-      setMessage('Escolha um arquivo de imagem válido.')
+    const extension = file.name.toLowerCase().split('.').pop() ?? ''
+    if (!(file.type.startsWith('image/') || extension === 'svg')) {
+      setMessage('Escolha uma imagem PNG, JPG, WebP, GIF ou SVG para importar como design completo.')
       return
     }
     if (file.size > MAX_IMAGE_BYTES) {
-      setMessage('A imagem deve ter até 1,5 MB para manter o projeto leve.')
+      setMessage('O arquivo deve ter até 1,5 MB para manter o projeto leve.')
       return
     }
-    const reader = new FileReader()
-    reader.onload = () => {
-      if (typeof reader.result !== 'string') return
+    const targetSceneId = activeScene.id
+    try {
+      const src = await parseLocalImageData(file)
       const source: SceneSource = {
-        id: newId('source'), type: 'image', name: file.name.replace(/\.[^.]+$/, '').slice(0, 60) || 'Imagem',
-        visible: true, x: 34, y: 28, w: 28, h: 28, src: reader.result, objectFit: 'contain', radius: 4, rotation: 0, opacity: 1,
+        id: newId('design'), type: 'image', name: `${file.name.replace(/\.[^.]+$/, '').slice(0, 52) || 'Design'} · fundo`,
+        visible: true, x: 0, y: 0, w: 100, h: 100, src, objectFit: 'contain', radius: 0, rotation: 0, opacity: 1, isBackgroundAsset: true,
       }
-      updateActiveScene((scene) => ({ ...scene, sources: [...scene.sources, source] }))
-      setSelectedSourceId(source.id)
-      setMessage('Imagem adicionada.')
+      const currentProject = projectRef.current
+      const targetScene = currentProject.scenes.find((scene) => scene.id === targetSceneId)
+      if (!targetScene) {
+        setMessage('A cena de destino não existe mais. Selecione a cena novamente e importe o design.')
+        return
+      }
+      const nextProject: Project = {
+        ...currentProject,
+        scenes: currentProject.scenes.map((scene) => scene.id === targetSceneId ? { ...scene, sources: [source, ...scene.sources] } : scene),
+      }
+      if (JSON.stringify(nextProject).length > MAX_PROJECT_JSON_CHARS) {
+        setMessage('Esse design ultrapassaria o limite seguro de armazenamento. Remova imagens grandes ou importe um arquivo menor.')
+        return
+      }
+      setProject(nextProject)
+      if (currentProject.activeSceneId === targetSceneId) setSelectedSourceId(source.id)
+      setMessage('Design importado como camada de fundo. O arquivo original fica como uma imagem editável; seus elementos internos só serão separados se forem importados como projeto JSON com camadas.')
+    } catch {
+      setMessage('Não foi possível importar esse design.')
     }
-    reader.onerror = () => setMessage('Não foi possível ler essa imagem.')
-    reader.readAsDataURL(file)
   }
 
   function toggleVisibility(sourceId: string) {
@@ -782,7 +1073,7 @@ function Editor() {
   }
 
   function duplicateSource(source: SceneSource) {
-    const copy: SceneSource = { ...source, id: newId('source'), name: `${source.name} (cópia)`.slice(0, 70), x: clamp(source.x + 2, 0, 100 - source.w), y: clamp(source.y + 2, 0, 100 - source.h) }
+    const copy: SceneSource = placeWithoutOverlap(activeScene.sources, { ...source, id: newId('source'), name: `${source.name} (cópia)`.slice(0, 70), x: clamp(source.x + 3, 0, 100 - source.w), y: clamp(source.y + 3, 0, 100 - source.h) })
     updateActiveScene((scene) => ({ ...scene, sources: [...scene.sources, copy] }))
     setSelectedSourceId(copy.id)
     setMessage('Fonte duplicada.')
@@ -799,12 +1090,8 @@ function Editor() {
       const editingText = Boolean(target && (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target.isContentEditable))
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
         event.preventDefault()
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(project))
-          setMessage('Projeto salvo neste navegador.')
-        } catch {
-          setMessage('Falha ao salvar. Exporte o JSON e reduza o tamanho das imagens.')
-        }
+        if (persistProject(project)) setMessage('Projeto salvo neste navegador.')
+        else setMessage('Não foi possível salvar: o projeto excede o limite seguro de armazenamento. Exporte o JSON ou remova imagens grandes.')
         return
       }
       if (editingText) return
@@ -875,12 +1162,8 @@ function Editor() {
   }
 
   function saveProject() {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(project))
-      setMessage('Projeto salvo neste navegador.')
-    } catch {
-      setMessage('Falha ao salvar. Exporte o JSON e reduza o tamanho das imagens.')
-    }
+    if (persistProject(project)) setMessage('Projeto salvo neste navegador.')
+    else setMessage('Não foi possível salvar: o projeto excede o limite seguro de armazenamento. Exporte o JSON ou remova imagens grandes.')
   }
 
   function undo() {
@@ -913,36 +1196,70 @@ function Editor() {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
+    if (file.size > MAX_PROJECT_JSON_CHARS) {
+      setMessage('O arquivo de projeto é muito grande para importar com segurança neste navegador (limite aproximado de 2,1 MB).')
+      return
+    }
     const reader = new FileReader()
     reader.onload = () => {
       try {
         const parsed: unknown = JSON.parse(String(reader.result))
         if (!isValidProject(parsed)) throw new Error('invalid')
-        const repaired: Project = {
-          ...parsed,
-          activeSceneId: parsed.scenes.some((scene) => scene.id === parsed.activeSceneId) ? parsed.activeSceneId : parsed.scenes[0].id,
-          scenes: parsed.scenes.map((scene) => ({
-            ...scene,
-            sources: scene.sources.map((source) => ({
-              ...source,
-              visible: source.visible ?? true,
-              x: source.x ?? 10,
-              y: source.y ?? 10,
-              w: source.w ?? 30,
-              h: source.h ?? 20,
-            })),
-          })),
+        const repaired = normalizeProject(parsed)
+        if (JSON.stringify(repaired).length > MAX_PROJECT_JSON_CHARS) {
+          setMessage('Esse arquivo excede o limite seguro de armazenamento do navegador. Reduza as imagens incorporadas antes de importar.')
+          return
         }
         setProject(repaired)
         const active = repaired.scenes.find((scene) => scene.id === repaired.activeSceneId)
         setSelectedSourceId(active?.sources[0]?.id ?? null)
-        setMessage('Projeto importado com sucesso.')
+        setInteraction(null)
+        undoStackRef.current = []
+        redoStackRef.current = []
+        historySnapshotRef.current = repaired
+        setCanUndo(false)
+        setCanRedo(false)
+        setMessage('Projeto importado com sucesso. O histórico anterior foi limpo para evitar misturar projetos.')
       } catch {
         setMessage('O arquivo não parece ser um projeto Webcam_overlay válido.')
       }
     }
     reader.onerror = () => setMessage('Não foi possível ler o arquivo selecionado.')
     reader.readAsText(file)
+  }
+
+  function resetEverything() {
+    const confirmed = window.confirm('Redefinir tudo? Isso substituirá suas cenas, fontes, imagens importadas e configurações pelo projeto inicial. Essa ação não pode ser desfeita. Exporte o JSON antes se quiser guardar uma cópia.')
+    if (!confirmed) return
+    const next = makeDefaultProject()
+    cameraStream?.getTracks().forEach((track) => track.stop())
+    setCameraStream(null)
+    setCameraError('')
+    setInteraction(null)
+    setProject(next)
+    if (imageInputRef.current) imageInputRef.current.value = ''
+    if (backgroundDesignInputRef.current) backgroundDesignInputRef.current.value = ''
+    if (importInputRef.current) importInputRef.current.value = ''
+    const initialScene = next.scenes.find((scene) => scene.id === next.activeSceneId) ?? next.scenes[0]
+    setSelectedSourceId(initialScene?.sources.find((source) => source.id === 'source-title')?.id ?? initialScene?.sources[0]?.id ?? null)
+    undoStackRef.current = []
+    redoStackRef.current = []
+    historySnapshotRef.current = next
+    setCanUndo(false)
+    setCanRedo(false)
+    setAlertTestTokens({})
+    setWidgetSearch('')
+    setSourceMenuOpen(false)
+    setShowPackMenu(false)
+    setShowExportMenu(false)
+    setOpenSceneMenuId(null)
+    setMessage('Tudo foi redefinido para o projeto inicial. Você pode começar novamente.')
+    try {
+      localStorage.removeItem(STORAGE_KEY)
+      localStorage.removeItem(LEGACY_STORAGE_KEY)
+    } catch {
+      // O salvamento automático tentará persistir o projeto inicial logo depois.
+    }
   }
 
   function beginInteraction(event: ReactPointerEvent<HTMLElement>, source: SceneSource, mode: Interaction['mode']) {
@@ -989,7 +1306,7 @@ function Editor() {
           {project.scenes.map((scene, index) => (
             <div className={`scene-card-wrap ${scene.id === activeScene.id ? 'active' : ''}`} key={scene.id}>
               <button className={`scene-card ${scene.id === activeScene.id ? 'active' : ''}`} type="button" onClick={() => selectScene(scene)}>
-                <div className="scene-thumbnail"><span className="thumbnail-mark">W.</span><span className="thumbnail-lines"><i /><i /></span><span className="scene-number">{String(index + 1).padStart(2, '0')}</span></div>
+                <div className="scene-thumbnail"><span className="thumbnail-lines"><i /><i /></span><span className="scene-number">{String(index + 1).padStart(2, '0')}</span></div>
                 <span className="scene-info"><strong>{scene.name}</strong><small>{scene.sources.length} {scene.sources.length === 1 ? 'fonte' : 'fontes'}</small></span>
               </button>
               <div className="scene-actions">
@@ -1017,7 +1334,10 @@ function Editor() {
               <button className="secondary-button" type="button" onClick={() => setShowExportMenu((open) => !open)}>Projeto <span>⌄</span></button>
               {showExportMenu && <div className="export-menu">
                 <button type="button" onClick={() => { downloadProject(project); setShowExportMenu(false); setMessage('Arquivo JSON exportado.') }}>Exportar JSON</button>
-                <button type="button" onClick={() => { importInputRef.current?.click(); setShowExportMenu(false) }}>Importar JSON</button>
+                <button type="button" onClick={() => { importInputRef.current?.click(); setShowExportMenu(false) }}>Importar projeto / design editável (JSON)</button>
+                <button type="button" onClick={() => { imageInputRef.current?.click(); setShowExportMenu(false) }}>Importar elementos (PNG, SVG, GIF…)</button>
+                <button type="button" onClick={() => { backgroundDesignInputRef.current?.click(); setShowExportMenu(false) }}>Importar design completo como fundo</button>
+                <button className="menu-danger" type="button" onClick={() => { setShowExportMenu(false); resetEverything() }}>Redefinir tudo…</button>
                 <a href={`${window.location.pathname}?mode=overlay`} target="_blank" rel="noreferrer" onClick={() => setShowExportMenu(false)}>Abrir modo overlay ↗</a>
               </div>}
             </div>
@@ -1032,7 +1352,6 @@ function Editor() {
           </div>
           <div className="preview-frame">
             <div className="preview-canvas" ref={stageRef} style={{ ...sceneBackgroundStyle(activeScene, true), aspectRatio: `${activeScene.width ?? 1920} / ${activeScene.height ?? 1080}` }} onPointerDown={() => setSelectedSourceId(null)}>
-              <div className="canvas-background-mark">W.</div>
               {activeScene.sources.filter((source) => source.visible).map((source, index) => (
                 <div
                   className={`canvas-object object-${source.type} ${source.type === 'shape' ? `shape-${source.shapeKind ?? 'rectangle'}` : ''} ${source.locked ? 'locked' : ''} ${selectedSourceId === source.id ? 'is-selected' : ''}`}
@@ -1064,14 +1383,14 @@ function Editor() {
           </div>
           <div className="preview-caption"><span><span className="status-dot" /> Arraste para mover · canto inferior para redimensionar</span><span>Proporção {activeScene.width ?? 1920}:{activeScene.height ?? 1080}</span></div>
         </section>
-        <footer className="studio-footer"><span className="footer-tip"><span className="tip-icon">i</span> As alterações são salvas automaticamente neste navegador.</span><span className="footer-version">WEBCAM_OVERLAY · 2.0</span></footer>
+        <footer className="studio-footer"><span className="footer-tip"><span className="tip-icon">i</span> As alterações são salvas automaticamente neste navegador.</span><span className="footer-version">WEBCAM_OVERLAY · 2.2</span></footer>
       </main>
 
       <aside className="inspector-panel">
         <div className="inspector-heading"><div><p className="eyebrow">ORGANIZAÇÃO</p><h2>Fontes</h2></div><button className="icon-button add-button" type="button" onClick={() => setSourceMenuOpen((open) => !open)} title="Adicionar fonte" aria-label="Adicionar fonte">+</button></div>
         {sourceMenuOpen && <div className="source-menu"><p className="eyebrow">ELEMENTOS BÁSICOS</p>
           {(['text', 'shape', 'camera', 'image', 'browser'] as Exclude<SourceType, 'widget'>[]).map((type) => <button key={type} type="button" onClick={() => addSource(type)}><span className={`source-icon icon-${type}`}>{sourceGlyph(type)}</span><span><strong>{sourceLabel(type)}</strong><small>{{ text: 'Texto com tipografia e efeitos', shape: 'Retângulo, círculo, linha ou pílula', camera: 'Webcam do dispositivo', image: 'Arquivo PNG, JPG ou WebP', browser: 'Página ou widget web incorporado' }[type]}</small></span><span className="menu-arrow">›</span></button>)}
-          <div className="widget-library-title"><p className="eyebrow">WIDGETS PARA STREAM</p><span>15</span></div>
+          <div className="widget-library-title"><p className="eyebrow">WIDGETS PARA STREAM</p><span>{WIDGET_OPTIONS.length}</span></div>
           <input className="text-input widget-search" value={widgetSearch} onChange={(event) => setWidgetSearch(event.target.value)} placeholder="Buscar widget..." aria-label="Buscar widget" />
           {WIDGET_OPTIONS.filter((option) => `${option.label} ${option.description}`.toLocaleLowerCase('pt-BR').includes(widgetSearch.toLocaleLowerCase('pt-BR'))).map((option) => <button key={option.kind} type="button" onClick={() => addWidget(option.kind)}><span className="source-icon icon-widget">{option.glyph}</span><span><strong>{option.label}</strong><small>{option.description}</small></span><span className="menu-arrow">›</span></button>)}
           {WIDGET_OPTIONS.filter((option) => `${option.label} ${option.description}`.toLocaleLowerCase('pt-BR').includes(widgetSearch.toLocaleLowerCase('pt-BR'))).length === 0 && <p className="widget-no-results">Nenhum widget encontrado.</p>}
@@ -1153,22 +1472,22 @@ function Editor() {
                 <label className="field-label" htmlFor="widget-text">Mensagem / descrição</label>
                 <textarea id="widget-text" className="text-input textarea-input" rows={2} maxLength={300} value={selectedSource.widgetText ?? ''} onChange={(event) => updateSelected({ widgetText: event.target.value })} placeholder="Texto complementar" />
               </>}
-              {['chat', 'events', 'socials', 'poll'].includes(selectedSource.widgetKind ?? '') && <>
+              {['chat', 'events', 'socials', 'poll', 'leaderboard'].includes(selectedSource.widgetKind ?? '') && <>
                 <label className="field-label" htmlFor="widget-items">Conteúdo (uma linha por item)</label>
-                <textarea id="widget-items" className="text-input textarea-input widget-items-input" rows={5} maxLength={1200} value={selectedSource.widgetItems ?? ''} onChange={(event) => updateSelected({ widgetItems: event.target.value })} placeholder={selectedSource.widgetKind === 'chat' ? 'Nome: mensagem' : selectedSource.widgetKind === 'poll' ? 'Opção | votos' : 'Tipo · nome · valor'} />
+                <textarea id="widget-items" className="text-input textarea-input widget-items-input" rows={5} maxLength={1200} value={selectedSource.widgetItems ?? ''} onChange={(event) => updateSelected({ widgetItems: event.target.value })} placeholder={selectedSource.widgetKind === 'chat' ? 'Nome: mensagem' : selectedSource.widgetKind === 'poll' ? 'Opção | votos' : selectedSource.widgetKind === 'leaderboard' ? 'Nome | valor (uma linha por apoiador)' : 'Tipo · nome · valor'} />
                 <p className="field-hint">Chat: “Nome: mensagem”. Enquete: “Opção | votos”. Eventos e redes: uma entrada por linha.</p>
               </>}
-              {['goal', 'viewer', 'alert'].includes(selectedSource.widgetKind ?? '') && <>
-                <label className="field-label" htmlFor="widget-value">{selectedSource.widgetKind === 'goal' ? 'Valor atual' : selectedSource.widgetKind === 'viewer' ? 'Espectadores (demo)' : 'Nome de demonstração'}</label>
-                <input id="widget-value" className="text-input" value={selectedSource.widgetValue ?? ''} onChange={(event) => updateSelected({ widgetValue: event.target.value })} placeholder={selectedSource.widgetKind === 'goal' ? '68' : 'Exemplo'} />
+              {['goal', 'viewer', 'alert', 'tip-jar', 'stream-boss'].includes(selectedSource.widgetKind ?? '') && <>
+                <label className="field-label" htmlFor="widget-value">{selectedSource.widgetKind === 'goal' ? 'Valor atual' : selectedSource.widgetKind === 'tip-jar' ? 'Total arrecadado (R$)' : selectedSource.widgetKind === 'stream-boss' ? 'Vida atual do chefe (%)' : selectedSource.widgetKind === 'viewer' ? 'Espectadores (valor ilustrativo)' : 'Nome ilustrativo'}</label>
+                <input id="widget-value" className="text-input" value={selectedSource.widgetValue ?? ''} onChange={(event) => updateSelected({ widgetValue: event.target.value })} placeholder={['goal', 'tip-jar', 'stream-boss'].includes(selectedSource.widgetKind ?? '') ? '68' : 'Exemplo'} />
               </>}
-              {selectedSource.widgetKind === 'goal' && <>
-                <label className="field-label" htmlFor="widget-target">Valor da meta</label>
+              {['goal', 'tip-jar', 'stream-boss'].includes(selectedSource.widgetKind ?? '') && <>
+                <label className="field-label" htmlFor="widget-target">{selectedSource.widgetKind === 'stream-boss' ? 'Vida total do chefe' : selectedSource.widgetKind === 'tip-jar' ? 'Meta de apoio (R$)' : 'Valor da meta'}</label>
                 <input id="widget-target" className="text-input" type="number" min="1" value={selectedSource.widgetTarget ?? '100'} onChange={(event) => updateSelected({ widgetTarget: event.target.value })} />
               </>}
               {selectedSource.widgetKind === 'countdown' && <>
                 <label className="field-label" htmlFor="widget-seconds">Duração inicial (segundos)</label>
-                <input id="widget-seconds" className="text-input" type="number" min="0" max="86400" value={selectedSource.widgetSeconds ?? 600} onChange={(event) => updateSelected({ widgetSeconds: clamp(Number(event.target.value) || 0, 0, 86400) })} />
+                <input id="widget-seconds" className="text-input" type="number" min="0" max="604800" value={selectedSource.widgetSeconds ?? 600} onChange={(event) => updateSelected({ widgetSeconds: clamp(Number(event.target.value) || 0, 0, 604800) })} />
                 <label className="lock-toggle"><input type="checkbox" checked={selectedSource.widgetRunning !== false} onChange={(event) => updateSelected({ widgetRunning: event.target.checked })} /><span>Executar contagem</span></label>
               </>}
               {selectedSource.widgetKind === 'alert' && <button className="wide-action test-alert-button" type="button" onClick={() => setAlertTestTokens((current) => ({ ...current, [selectedSource.id]: (current[selectedSource.id] ?? 0) + 1 }))}>✦ Testar animação do alerta</button>}
@@ -1224,7 +1543,8 @@ function Editor() {
         <div className="inspector-footer"><span className="status-dot" /> Modo de edição local</div>
       </aside>
 
-      <input ref={imageInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={onImageSelected} />
+      <input ref={imageInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" multiple onChange={onImageSelected} />
+      <input ref={backgroundDesignInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" onChange={onBackgroundDesignSelected} />
       <input ref={importInputRef} className="hidden-input" type="file" accept="application/json,.json" onChange={importProject} />
       {message && <div className="save-toast" role="status"><span>✓</span>{message}<button type="button" onClick={() => setMessage('')} aria-label="Fechar aviso">×</button></div>}
     </div>
