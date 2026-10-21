@@ -4,10 +4,6 @@ Editor visual de cenas e overlays para streamers, desenvolvido com **React, Type
 
 > **Status:** protótipo em desenvolvimento. A edição visual funciona localmente; integrações com plataformas e transmissão do sinal de vídeo não fazem parte desta versão.
 
-## Aplicação online
-
-**Endereço planejado:** https://sophialilithlima-crypto.github.io/Webcam_overlay/
-
 ## Recursos
 
 ### Editor de cenas
