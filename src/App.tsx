@@ -64,6 +64,7 @@ type SceneSource = {
   widgetValue?: string
   widgetTarget?: string
   widgetItems?: string
+  widgetMaxItems?: number
   widgetAccent?: string
   widgetSeconds?: number
   widgetRunning?: boolean
@@ -84,6 +85,69 @@ type SceneSource = {
   widgetShowIcon?: boolean
   widgetAnimation?: 'none' | 'subtle' | 'energetic'
   widgetCustomCss?: string
+  widgetShowBackground?: boolean
+  widgetShowBorder?: boolean
+  widgetShowShadow?: boolean
+  widgetBackdropBlur?: number
+  widgetFontSize?: number
+  widgetFontWeight?: number
+  widgetLineHeight?: number
+  widgetLetterSpacing?: number
+  widgetTitleSize?: number
+  widgetTitleLetterSpacing?: number
+  widgetTextAlign?: 'left' | 'center' | 'right'
+  widgetBackgroundImage?: string
+  widgetBackgroundImageFit?: 'cover' | 'contain' | 'stretch'
+  widgetBackgroundImageOpacity?: number
+  widgetBackgroundImagePosition?: string
+  widgetSubtitleColor?: string
+  widgetValueColor?: string
+  widgetTrackColor?: string
+  widgetFillColor?: string
+  widgetItemBackgroundColor?: string
+  widgetItemBorderColor?: string
+  chatBubbleEnabled?: boolean
+  chatBubbleColor?: string
+  chatBubbleOpacity?: number
+  chatBubbleRadius?: number
+  chatBubblePaddingX?: number
+  chatBubblePaddingY?: number
+  chatBubbleBorderColor?: string
+  chatBubbleBorderWidth?: number
+  chatUsernameColorMode?: 'palette' | 'uniform'
+  chatUsernameColor?: string
+  chatNameColors?: string
+  chatBubbleColors?: string
+  chatLayout?: 'stacked' | 'inline'
+  chatUsernamePill?: boolean
+  chatUsernamePillColor?: string
+  chatUsernamePillOpacity?: number
+  chatUsernamePillRadius?: number
+  chatUsernamePillPaddingX?: number
+  chatUsernamePillPaddingY?: number
+  chatUsernamePillBorderColor?: string
+  chatUsernamePillBorderWidth?: number
+  chatBubbleShadow?: boolean
+  chatUsernameFontFamily?: string
+  chatMessageFontFamily?: string
+  chatUsernameFontWeight?: number
+  chatMessageLineHeight?: number
+  chatMessageColor?: string
+  chatTimestampColor?: string
+  chatUsernameFontSize?: number
+  chatMessageFontSize?: number
+  chatLineGap?: number
+  chatShowInput?: boolean
+  chatShowTimestamp?: boolean
+  chatTextShadow?: boolean
+  chatShowBadges?: boolean
+  clockShowDate?: boolean
+  clockShowSeconds?: boolean
+  clock24h?: boolean
+  clockDateFormat?: 'short' | 'long' | 'time'
+  clockColor?: string
+  clockDateColor?: string
+  clockTextShadow?: boolean
   isBackgroundAsset?: boolean
 }
 type Scene = { id: string; name: string; sources: SceneSource[]; background?: BackgroundConfig; width?: number; height?: number }
@@ -101,11 +165,17 @@ type Interaction = {
 
 const STORAGE_KEY = 'webcam-overlay-project-v2'
 const LEGACY_STORAGE_KEY = 'webcam-overlay-project-v1'
+const VIDEO_DB_NAME = 'webcam-overlay-media-v1'
+const VIDEO_STORE_NAME = 'videos'
 const MAX_IMAGE_BYTES = 1_500_000
-// Vídeos locais ficam embutidos no projeto JSON/localStorage nesta versão; limitar o arquivo protege a persistência no navegador.
-const MAX_VIDEO_BYTES = 1_200_000
+// Vídeos são armazenados como Blob no IndexedDB; não ficam limitados pela quota pequena do localStorage.
+const MAX_VIDEO_BYTES = 50_000_000
+const MAX_VIDEO_BATCH_BYTES = 75_000_000
+const MAX_VIDEO_PROJECT_BYTES = 75_000_000
 const MAX_IMPORT_BATCH_BYTES = 1_500_000
-const MAX_PROJECT_JSON_CHARS = 2_150_000
+const MAX_LOCAL_PROJECT_CHARS = 2_150_000
+// O JSON exportado pode incluir vídeos em base64 para ser portátil entre computadores.
+const MAX_PROJECT_JSON_CHARS = 125_000_000
 
 const WIDGET_OPTIONS: { kind: WidgetKind; label: string; description: string; glyph: string }[] = [
   { kind: 'alert', label: 'Alertas de evento', description: 'Seguidor, inscrição, raid ou doação (demonstração)', glyph: '✦' },
@@ -249,6 +319,10 @@ function isValidProject(value: unknown): value is Project {
       if (source.videoPlaybackRate !== undefined && (!Number.isFinite(source.videoPlaybackRate) || source.videoPlaybackRate < 0.25 || source.videoPlaybackRate > 2)) return false
       if (source.fontUrl !== undefined && typeof source.fontUrl !== 'string') return false
       if (source.widgetFontUrl !== undefined && typeof source.widgetFontUrl !== 'string') return false
+      if (source.widgetBackgroundImage !== undefined && typeof source.widgetBackgroundImage !== 'string') return false
+      if (source.widgetBackgroundImage && !isSafeImageSource(source.widgetBackgroundImage)) return false
+      if (source.chatNameColors !== undefined && typeof source.chatNameColors !== 'string') return false
+      if (source.chatBubbleColors !== undefined && typeof source.chatBubbleColors !== 'string') return false
       if (source.text !== undefined && typeof source.text !== 'string') return false
       if (source.color !== undefined && typeof source.color !== 'string') return false
       if (source.url !== undefined && typeof source.url !== 'string') return false
@@ -296,6 +370,25 @@ function normalizeProject(parsed: Project): Project {
         widgetTitle: typeof source.widgetTitle === 'string' ? source.widgetTitle.slice(0, 90) : undefined,
         widgetText: typeof source.widgetText === 'string' ? source.widgetText.slice(0, 300) : undefined,
         widgetItems: typeof source.widgetItems === 'string' ? source.widgetItems.slice(0, 1200) : undefined,
+        ...(source.type === 'widget' ? {
+          widgetShowBackground: source.widgetShowBackground ?? !['chat', 'clock'].includes(source.widgetKind ?? ''),
+          widgetShowBorder: source.widgetShowBorder ?? !['chat', 'clock'].includes(source.widgetKind ?? ''),
+          widgetShowShadow: source.widgetShowShadow ?? !['chat', 'clock'].includes(source.widgetKind ?? ''),
+          widgetBackdropBlur: clamp(Number.isFinite(source.widgetBackdropBlur) ? Number(source.widgetBackdropBlur) : (source.widgetTheme === 'glass' && !['chat', 'clock'].includes(source.widgetKind ?? '') ? 8 : 0), 0, 30),
+          widgetShowHeader: source.widgetShowHeader ?? !['chat', 'clock'].includes(source.widgetKind ?? ''),
+          ...(source.widgetKind === 'chat' ? {
+            chatBubbleEnabled: source.chatBubbleEnabled ?? true,
+            chatBubbleColor: source.chatBubbleColor ?? '#e979b2',
+            chatBubbleOpacity: clamp(Number.isFinite(source.chatBubbleOpacity) ? Number(source.chatBubbleOpacity) : 0.88, 0, 1),
+            chatShowInput: source.chatShowInput ?? false,
+          } : {}),
+          ...(source.widgetKind === 'clock' ? {
+            clockShowDate: source.clockShowDate ?? false,
+            clockShowSeconds: source.clockShowSeconds ?? true,
+            clock24h: source.clock24h ?? true,
+            clockTextShadow: source.clockTextShadow ?? false,
+          } : {}),
+        } : {}),
         widgetKind: source.type === 'widget' ? ((knownWidget ? source.widgetKind : undefined) ?? 'goal') : source.widgetKind,
       }
     })
@@ -404,7 +497,7 @@ function separateOverlappingText(sources: SceneSource[]): SceneSource[] {
 function persistProject(project: Project): boolean {
   try {
     const serialized = JSON.stringify(project)
-    if (serialized.length > MAX_PROJECT_JSON_CHARS) return false
+    if (serialized.length > MAX_LOCAL_PROJECT_CHARS) return false
     localStorage.setItem(STORAGE_KEY, serialized)
     return true
   } catch {
@@ -419,6 +512,204 @@ function parseLocalImageData(file: File): Promise<string> {
     reader.onerror = () => reject(new Error('Não foi possível ler a imagem.'))
     reader.readAsDataURL(file)
   })
+}
+
+type StoredVideoAsset = { id: string; name: string; mimeType: string; blob: Blob; savedAt: number }
+
+function openVideoDatabase(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') {
+      reject(new Error('Este navegador não oferece armazenamento IndexedDB.'))
+      return
+    }
+    const request = indexedDB.open(VIDEO_DB_NAME, 1)
+    request.onupgradeneeded = () => {
+      const db = request.result
+      if (!db.objectStoreNames.contains(VIDEO_STORE_NAME)) db.createObjectStore(VIDEO_STORE_NAME, { keyPath: 'id' })
+    }
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error ?? new Error('Não foi possível abrir o armazenamento de mídia.'))
+    request.onblocked = () => reject(new Error('O armazenamento de mídia está bloqueado por outra aba. Feche outras abas do Webcam_overlay e tente novamente.'))
+  })
+}
+
+function saveVideoBlob(blob: Blob, name: string): Promise<string> {
+  return new Promise(async (resolve, reject) => {
+    let db: IDBDatabase | undefined
+    try {
+      const extension = name.toLowerCase().split('.').pop() ?? ''
+      const guessedMime: Record<string, string> = {
+        mp4: 'video/mp4', m4v: 'video/mp4', webm: 'video/webm', ogv: 'video/ogg', ogg: 'video/ogg',
+        mov: 'video/quicktime', '3gp': 'video/3gpp', mkv: 'video/x-matroska', avi: 'video/x-msvideo',
+        wmv: 'video/x-ms-wmv', mpeg: 'video/mpeg', mpg: 'video/mpeg', ts: 'video/mp2t', m2ts: 'video/mp2t',
+      }
+      const mediaBlob = blob.type.startsWith('video/') ? blob : new Blob([blob], { type: guessedMime[extension] ?? 'video/mp4' })
+      db = await openVideoDatabase()
+      const id = newId('asset')
+      const transaction = db.transaction(VIDEO_STORE_NAME, 'readwrite')
+      transaction.objectStore(VIDEO_STORE_NAME).put({ id, name: name.slice(0, 160), mimeType: mediaBlob.type || guessedMime[extension] || 'video/mp4', blob: mediaBlob, savedAt: Date.now() } satisfies StoredVideoAsset)
+      transaction.oncomplete = () => { db?.close(); resolve(`idb-video://${id}`) }
+      transaction.onerror = () => { db?.close(); reject(transaction.error ?? new Error('Não foi possível salvar o arquivo de vídeo.')) }
+      transaction.onabort = () => { db?.close(); reject(transaction.error ?? new Error('O salvamento do vídeo foi cancelado.')) }
+    } catch (error) {
+      db?.close()
+      reject(error)
+    }
+  })
+}
+
+function clearStoredVideoAssets(): Promise<void> {
+  return new Promise(async (resolve, reject) => {
+    let db: IDBDatabase | undefined
+    try {
+      db = await openVideoDatabase()
+      const transaction = db.transaction(VIDEO_STORE_NAME, 'readwrite')
+      transaction.objectStore(VIDEO_STORE_NAME).clear()
+      transaction.oncomplete = () => { db?.close(); resolve() }
+      transaction.onerror = () => { db?.close(); reject(transaction.error ?? new Error('Não foi possível limpar os vídeos locais.')) }
+      transaction.onabort = () => { db?.close(); reject(transaction.error ?? new Error('A limpeza de vídeos foi cancelada.')) }
+    } catch (error) {
+      db?.close()
+      reject(error)
+    }
+  })
+}
+
+function getVideoBlob(reference: string): Promise<Blob | null> {
+  return new Promise(async (resolve, reject) => {
+    let db: IDBDatabase | undefined
+    try {
+      const match = reference.match(/^idb-video:\/\/(.+)$/i)
+      if (!match) { resolve(null); return }
+      db = await openVideoDatabase()
+      const transaction = db.transaction(VIDEO_STORE_NAME, 'readonly')
+      const request = transaction.objectStore(VIDEO_STORE_NAME).get(match[1])
+      request.onsuccess = () => {
+        const record = request.result as StoredVideoAsset | undefined
+        resolve(record?.blob instanceof Blob ? record.blob : null)
+      }
+      request.onerror = () => reject(request.error ?? new Error('Não foi possível recuperar o vídeo salvo.'))
+      transaction.oncomplete = () => db?.close()
+      transaction.onerror = () => { db?.close(); reject(transaction.error ?? new Error('Erro ao ler o vídeo salvo.')) }
+    } catch (error) {
+      db?.close()
+      reject(error)
+    }
+  })
+}
+
+async function getProjectVideoBytes(project: Project): Promise<number> {
+  let total = 0
+  for (const scene of project.scenes) {
+    for (const source of scene.sources) {
+      if (source.type !== 'video' || !source.src) continue
+      if (source.src.startsWith('idb-video://')) {
+        const blob = await getVideoBlob(source.src)
+        if (blob) total += blob.size
+      } else if (source.src.startsWith('data:video/')) {
+        const comma = source.src.indexOf(',')
+        if (comma >= 0) {
+          const payload = source.src.slice(comma + 1)
+          const padding = payload.endsWith('==') ? 2 : payload.endsWith('=') ? 1 : 0
+          total += Math.max(0, Math.floor(payload.length * 3 / 4) - padding)
+        }
+      }
+    }
+  }
+  return total
+}
+
+function deleteVideoBlob(reference: string): Promise<void> {
+  return new Promise(async (resolve, reject) => {
+    let db: IDBDatabase | undefined
+    try {
+      const match = reference.match(/^idb-video:\/\/(.+)$/i)
+      if (!match) { resolve(); return }
+      db = await openVideoDatabase()
+      const transaction = db.transaction(VIDEO_STORE_NAME, 'readwrite')
+      transaction.objectStore(VIDEO_STORE_NAME).delete(match[1])
+      transaction.oncomplete = () => { db?.close(); resolve() }
+      transaction.onerror = () => { db?.close(); reject(transaction.error ?? new Error('Não foi possível remover o vídeo local.')) }
+      transaction.onabort = () => { db?.close(); reject(transaction.error ?? new Error('A remoção do vídeo foi cancelada.')) }
+    } catch (error) {
+      db?.close()
+      reject(error)
+    }
+  })
+}
+
+function dataUrlToBlob(dataUrl: string): Blob {
+  const match = dataUrl.match(/^data:(video\/[a-z0-9.+-]+);base64,([\s\S]*)$/i)
+  if (!match) throw new Error('O vídeo incorporado não tem um formato de dados válido.')
+  const binary = atob(match[2])
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
+  return new Blob([bytes], { type: match[1] })
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Não foi possível incluir o vídeo no arquivo exportado.'))
+    reader.onerror = () => reject(new Error('Não foi possível incluir o vídeo no arquivo exportado.'))
+    reader.readAsDataURL(blob)
+  })
+}
+
+async function storeEmbeddedVideos(project: Project): Promise<Project> {
+  const scenes: Scene[] = []
+  const createdReferences: string[] = []
+  try {
+    for (const scene of project.scenes) {
+      const sources: SceneSource[] = []
+      for (const source of scene.sources) {
+        if (source.type === 'video' && source.src?.startsWith('data:video/')) {
+          const blob = dataUrlToBlob(source.src)
+          if (blob.size > MAX_VIDEO_BYTES) throw new Error(`O vídeo “${source.name}” excede o limite de ${Math.round(MAX_VIDEO_BYTES / 1_000_000)} MB.`)
+          const reference = await saveVideoBlob(blob, source.name || 'Vídeo importado')
+          createdReferences.push(reference)
+          sources.push({ ...source, src: reference })
+        } else {
+          sources.push(source)
+        }
+      }
+      scenes.push({ ...scene, sources })
+    }
+    return { ...project, scenes }
+  } catch (error) {
+    await Promise.allSettled(createdReferences.map(deleteVideoBlob))
+    throw error
+  }
+}
+
+function useResolvedVideoSrc(src: string | undefined): string | undefined {
+  const [resolvedSrc, setResolvedSrc] = useState<string | undefined>(() => src && !src.startsWith('idb-video://') ? src : undefined)
+  useEffect(() => {
+    let cancelled = false
+    let objectUrl: string | undefined
+    if (!src) {
+      setResolvedSrc(undefined)
+      return () => { cancelled = true }
+    }
+    if (!src.startsWith('idb-video://')) {
+      setResolvedSrc(src)
+      return () => { cancelled = true }
+    }
+    setResolvedSrc(undefined)
+    getVideoBlob(src).then((blob) => {
+      if (!blob) throw new Error('O arquivo de vídeo não foi encontrado no armazenamento local.')
+      if (cancelled) return
+      objectUrl = URL.createObjectURL(blob)
+      setResolvedSrc(objectUrl)
+    }).catch(() => {
+      if (!cancelled) setResolvedSrc(undefined)
+    })
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [src])
+  return resolvedSrc
 }
 
 function imageDimensions(dataUrl: string): Promise<{ width: number; height: number }> {
@@ -447,8 +738,25 @@ function safeFileName(name: string) {
   return normalized.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'webcam-overlay'
 }
 
-function downloadProject(project: Project) {
-  const data = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' })
+async function downloadProject(project: Project) {
+  const exportProject: Project = { ...project, scenes: [] }
+  for (const scene of project.scenes) {
+    const sources: SceneSource[] = []
+    for (const source of scene.sources) {
+      if (source.type === 'video' && source.src?.startsWith('idb-video://')) {
+        const blob = await getVideoBlob(source.src)
+        if (!blob) throw new Error(`O vídeo “${source.name}” não foi encontrado no armazenamento local. Importe-o novamente antes de exportar.`)
+        if (blob.size > MAX_VIDEO_BYTES) throw new Error(`O vídeo “${source.name}” excede o limite portátil de exportação.`)
+        sources.push({ ...source, src: await blobToDataUrl(blob) })
+      } else {
+        sources.push(source)
+      }
+    }
+    exportProject.scenes.push({ ...scene, sources })
+  }
+  const serialized = JSON.stringify(exportProject, null, 2)
+  if (serialized.length > MAX_PROJECT_JSON_CHARS) throw new Error('O projeto com mídia incorporada ultrapassa o limite de exportação de 125 MB. Exporte menos vídeos por vez ou reduza os arquivos.')
+  const data = new Blob([serialized], { type: 'application/json' })
   const url = URL.createObjectURL(data)
   const anchor = document.createElement('a')
   anchor.href = url
@@ -456,7 +764,7 @@ function downloadProject(project: Project) {
   document.body.appendChild(anchor)
   anchor.click()
   anchor.remove()
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  window.setTimeout(() => URL.revokeObjectURL(url), 1500)
 }
 
 function sourceStyle(source: SceneSource, index: number): CSSProperties {
@@ -508,7 +816,7 @@ function getBrowserUrl(url: string | undefined) {
 }
 
 function isSafeImageSource(source: string): boolean {
-  if (/^data:image\/(png|jpeg|webp|gif|svg\+xml);/i.test(source)) return source.length <= MAX_PROJECT_JSON_CHARS
+  if (/^data:image\/(png|jpeg|webp|gif|svg\+xml);/i.test(source)) return source.length <= MAX_LOCAL_PROJECT_CHARS
   try {
     const parsed = new URL(source)
     return (parsed.protocol === 'https:' || parsed.protocol === 'http:') && parsed.href.length < 2000
@@ -518,7 +826,8 @@ function isSafeImageSource(source: string): boolean {
 }
 
 function isSafeVideoSource(source: string): boolean {
-  if (/^data:video\/(mp4|webm|ogg|quicktime);base64,/i.test(source)) return source.length <= MAX_PROJECT_JSON_CHARS
+  if (/^idb-video:\/\/[a-z0-9-]{5,100}$/i.test(source)) return true
+  if (/^data:video\/[a-z0-9.+-]+;base64,/i.test(source)) return source.length <= MAX_PROJECT_JSON_CHARS
   try {
     const parsed = new URL(source)
     return (parsed.protocol === 'https:' || parsed.protocol === 'http:') && parsed.href.length < 2000
@@ -662,17 +971,66 @@ function ExternalFontLoader({ project }: { project: Project }) {
 function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testToken?: number }) {
   const kind = source.widgetKind ?? 'goal'
   const accent = source.widgetAccent ?? source.color ?? '#8d85ff'
+  const transparentRoot = source.widgetShowBackground === false || ((kind === 'chat' || kind === 'clock') && source.widgetShowBackground === undefined)
+  const widgetBgColor = source.widgetBackgroundColor ?? '#141722'
+  const imageSrc = source.widgetBackgroundImage && isSafeImageSource(source.widgetBackgroundImage) ? source.widgetBackgroundImage : ''
+  const imageAlpha = clamp(source.widgetBackgroundImageOpacity ?? 1, 0, 1)
+  const widgetBgImage = imageSrc
+    ? `linear-gradient(${hexToRgba(widgetBgColor, 1 - imageAlpha)}, ${hexToRgba(widgetBgColor, 1 - imageAlpha)}), url(${JSON.stringify(imageSrc)})`
+    : undefined
+  const defaultBlur = (source.widgetTheme ?? 'glass') === 'glass' ? 8 : 0
+  const showBorder = source.widgetShowBorder ?? !(kind === 'chat' || kind === 'clock')
+  const showShadow = source.widgetShowShadow ?? !(kind === 'chat' || kind === 'clock')
   const widgetAppearance = {
     '--widget-accent': accent,
     '--widget-text-color': source.widgetTextColor ?? '#f2f3fb',
     '--widget-title-color': source.widgetTitleColor ?? '#ffffff',
+    '--widget-subtitle-color': source.widgetSubtitleColor ?? source.widgetTextColor ?? '#a7acbe',
+    '--widget-value-color': source.widgetValueColor ?? source.widgetTitleColor ?? '#ffffff',
+    '--widget-track-color': source.widgetTrackColor ?? '#080a14a8',
+    '--widget-fill-color': source.widgetFillColor ?? accent,
+    '--widget-item-background': source.widgetItemBackgroundColor ? hexToRgba(source.widgetItemBackgroundColor, source.widgetBackgroundOpacity ?? 0.2) : 'transparent',
+    '--widget-item-border': source.widgetItemBorderColor ?? 'transparent',
     '--widget-border-color': source.widgetBorderColor ?? 'color-mix(in srgb, var(--widget-accent) 42%, #424456)',
-    '--widget-border-width': `${source.widgetBorderWidth ?? 1}px`,
+    '--widget-border-width': `${showBorder ? source.widgetBorderWidth ?? 1 : 0}px`,
     '--widget-radius': `${source.widgetRadius ?? 12}px`,
     '--widget-padding': `${source.widgetCompact ? Math.min(source.widgetPadding ?? 12, 6) : source.widgetPadding ?? 12}px`,
     '--widget-gap': `${source.widgetCompact ? Math.min(source.widgetGap ?? 8, 4) : source.widgetGap ?? 8}px`,
-    '--widget-background': source.widgetBackgroundColor ? hexToRgba(source.widgetBackgroundColor, source.widgetBackgroundOpacity ?? 0.92) : 'var(--widget-theme-background)',
+    '--widget-background': transparentRoot ? 'transparent' : (source.widgetBackgroundColor ? hexToRgba(source.widgetBackgroundColor, source.widgetBackgroundOpacity ?? 0.92) : 'var(--widget-theme-background)'),
     '--widget-font-family': source.widgetFontFamily?.trim() || 'inherit',
+    '--widget-font-size': source.widgetFontSize !== undefined ? `${clamp(source.widgetFontSize, 6, 100)}px` : '16px',
+    '--widget-font-weight': clamp(source.widgetFontWeight ?? 500, 100, 900),
+    '--widget-line-height': clamp(source.widgetLineHeight ?? 1.25, 0.7, 3),
+    '--widget-letter-spacing': `${clamp(source.widgetLetterSpacing ?? 0, -5, 20)}px`,
+    '--widget-title-size': source.widgetTitleSize !== undefined ? `${clamp(source.widgetTitleSize, 6, 80)}px` : '12px',
+    '--widget-title-letter-spacing': `${clamp(source.widgetTitleLetterSpacing ?? 0.8, -2, 15)}px`,
+    '--widget-backdrop-blur': `${transparentRoot ? 0 : clamp(source.widgetBackdropBlur ?? defaultBlur, 0, 30)}px`,
+    '--widget-shadow': showShadow ? undefined : 'none',
+    '--chat-bubble-background': source.chatBubbleEnabled === false ? 'transparent' : hexToRgba(source.chatBubbleColor ?? '#d85f9b', clamp(source.chatBubbleOpacity ?? 0.78, 0, 1)),
+    '--chat-message-color': source.chatMessageColor ?? source.widgetTextColor ?? '#ffffff',
+    '--chat-timestamp-color': source.chatTimestampColor ?? '#f7d6e7',
+    '--chat-username-size': `${clamp(source.chatUsernameFontSize ?? 12, 6, 60)}px`,
+    '--chat-message-size': `${clamp(source.chatMessageFontSize ?? 13, 6, 60)}px`,
+    '--chat-line-gap': `${clamp(source.chatLineGap ?? 8, 0, 40)}px`,
+    '--chat-bubble-radius': `${clamp(source.chatBubbleRadius ?? 18, 0, 100)}px`,
+    '--chat-bubble-padding-x': `${clamp(source.chatBubblePaddingX ?? 10, 0, 60)}px`,
+    '--chat-bubble-padding-y': `${clamp(source.chatBubblePaddingY ?? 6, 0, 40)}px`,
+    '--chat-bubble-border-color': source.chatBubbleBorderColor ?? 'transparent',
+    '--chat-bubble-border-width': `${source.chatBubbleEnabled === false ? 0 : clamp(source.chatBubbleBorderWidth ?? 0, 0, 8)}px`,
+    '--clock-color': source.clockColor ?? source.widgetTitleColor ?? '#ffffff',
+    '--clock-date-color': source.clockDateColor ?? source.widgetTextColor ?? '#c6c8d5',
+    '--clock-font-size': `${clamp(source.widgetFontSize ?? 48, 8, 200)}px`,
+    '--clock-font-weight': clamp(source.widgetFontWeight ?? 800, 100, 900),
+    '--clock-letter-spacing': `${clamp(source.widgetLetterSpacing ?? -1, -10, 25)}px`,
+    '--clock-text-shadow': source.clockTextShadow ? '0 2px 16px #0008' : 'none',
+    backgroundImage: transparentRoot ? 'none' : widgetBgImage,
+    backgroundSize: imageSrc ? `100% 100%, ${source.widgetBackgroundImageFit === 'stretch' ? '100% 100%' : (source.widgetBackgroundImageFit ?? 'cover')}` : undefined,
+    backgroundPosition: imageSrc ? `center center, ${source.widgetBackgroundImagePosition ?? 'center center'}` : undefined,
+    backgroundRepeat: imageSrc ? 'no-repeat, no-repeat' : undefined,
+    backdropFilter: `blur(${transparentRoot ? 0 : clamp(source.widgetBackdropBlur ?? defaultBlur, 0, 30)}px)`,
+    boxShadow: showShadow ? undefined : 'none',
+    borderWidth: showBorder ? undefined : 0,
+    textAlign: source.widgetTextAlign ?? 'left',
   } as CSSProperties
   const widgetRootStyle = { ...widgetAppearance, ...customWidgetDeclarations(source) } as CSSProperties
   const widgetMotion = `widget-motion-${source.widgetAnimation ?? 'subtle'}`
@@ -727,7 +1085,7 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
     </div>
   }
 
-  return <div className={`stream-widget widget-${kind} widget-theme-${source.widgetTheme ?? 'glass'} ${widgetMotion} ${source.widgetCompact ? 'widget-compact' : ''} ${source.widgetShowIcon === false ? 'widget-no-icon' : ''} ${alertVisible ? 'alert-triggered' : ''}`} style={widgetRootStyle}>
+  return <div className={`stream-widget widget-${kind} widget-theme-${source.widgetTheme ?? 'glass'} ${widgetMotion} ${source.widgetCompact ? 'widget-compact' : ''} ${source.widgetShowIcon === false ? 'widget-no-icon' : ''} ${transparentRoot ? 'widget-no-background' : ''} ${!showBorder ? 'widget-no-border' : ''} ${!showShadow ? 'widget-no-shadow' : ''} ${alertVisible ? 'alert-triggered' : ''}`} style={widgetRootStyle}>
     {kind === 'alert' && <>
       <div className="widget-alert-icon">✦</div>
       <div className="widget-alert-content"><span className="widget-kicker">{alertVisible ? 'NOVO EVENTO!' : (source.widgetTitle || 'ALERTA DE EVENTO')}</span><strong>{alertVisible ? (source.widgetValue || 'pixelrider') : (source.widgetValue || 'Novo seguidor')}</strong><small>{source.widgetText || 'começou a seguir o canal'}</small></div>
@@ -735,13 +1093,51 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
 
     {kind === 'chat' && <>
       {showHeader && <div className="widget-header"><strong>{source.widgetTitle || 'CHAT AO VIVO'}</strong></div>}
-      <div className="chat-messages">{(lines.length ? lines : ['LuaGamer: Oi, chat!', 'PixelRider: Boa live!', 'nina: Qual é o jogo?', 'Gui: Cheguei agora']).map((line, index) => {
+      <div className="chat-messages">{(lines.length ? lines : ['LuaGamer: Oi, chat!', 'PixelRider: Boa live!', 'nina: Qual é o jogo?', 'Gui: Cheguei agora']).slice(-Math.max(1, Math.min(30, Number(source.widgetMaxItems ?? 8)))).map((line, index) => {
         const separator = line.indexOf(':')
-        const username = separator >= 0 ? line.slice(0, separator) : `viewer${index + 1}`
+        const username = separator >= 0 ? line.slice(0, separator).trim() : `viewer${index + 1}`
         const message = separator >= 0 ? line.slice(separator + 1).trim() : line
-        return <div className="chat-message" key={`${line}-${index}`}><strong style={{ color: ['#b8a8ff', '#74dfc5', '#ffbd83', '#85c8ff'][index % 4] }}>{username}</strong><span>{message}</span></div>
+        const mappedColor = (source.chatNameColors ?? '').split(/\r?\n/).map((entry) => entry.match(/^\s*([^=:#]+)\s*=\s*(#[0-9a-fA-F]{3,8})\s*$/)).find((match) => match && match[1].trim().toLowerCase() === username.toLowerCase())?.[2]
+        const mappedBubbleColor = (source.chatBubbleColors ?? '').split(/\r?\n/).map((entry) => entry.match(/^\s*([^=:#]+)\s*=\s*(#[0-9a-fA-F]{3,8})\s*$/)).find((match) => match && match[1].trim().toLowerCase() === username.toLowerCase())?.[2]
+        const palette = ['#b8a8ff', '#74dfc5', '#ffbd83', '#85c8ff', '#f68dc2', '#a8db77']
+        const nameColor = mappedColor ?? (source.chatUsernameColorMode === 'uniform' ? source.chatUsernameColor ?? '#ffffff' : palette[index % palette.length])
+        const messageStyle: CSSProperties = {
+          backgroundColor: source.chatBubbleEnabled === false ? 'transparent' : hexToRgba(mappedBubbleColor ?? source.chatBubbleColor ?? '#d85f9b', clamp(source.chatBubbleOpacity ?? 0.78, 0, 1)),
+          borderColor: source.chatBubbleBorderColor ?? 'transparent',
+          borderWidth: source.chatBubbleEnabled === false ? 0 : clamp(source.chatBubbleBorderWidth ?? 0, 0, 8),
+          borderStyle: 'solid',
+          borderRadius: source.chatBubbleEnabled === false ? 0 : clamp(source.chatBubbleRadius ?? 18, 0, 100),
+          padding: source.chatBubbleEnabled === false ? 0 : `${clamp(source.chatBubblePaddingY ?? 6, 0, 40)}px ${clamp(source.chatBubblePaddingX ?? 10, 0, 60)}px`,
+          boxShadow: source.chatBubbleEnabled !== false && source.chatBubbleShadow ? '0 2px 10px #0003' : 'none',
+          color: source.chatMessageColor ?? source.widgetTextColor ?? '#ffffff',
+          fontFamily: source.chatMessageFontFamily?.trim() || source.widgetFontFamily || 'inherit',
+          fontSize: `${clamp(source.chatMessageFontSize ?? 13, 6, 60)}px`,
+          lineHeight: clamp(source.chatMessageLineHeight ?? 1.35, 0.8, 3),
+          textShadow: source.chatTextShadow ? '0 1px 3px #0008' : 'none',
+          alignSelf: source.widgetTextAlign === 'right' ? 'flex-end' : source.widgetTextAlign === 'center' ? 'center' : 'flex-start',
+        }
+        const usernamePillStyle: CSSProperties = {
+          color: nameColor,
+          fontSize: `${clamp(source.chatUsernameFontSize ?? 12, 6, 60)}px`,
+          fontFamily: source.chatUsernameFontFamily?.trim() || source.widgetFontFamily || 'inherit',
+          fontWeight: clamp(source.chatUsernameFontWeight ?? 800, 100, 900),
+          background: source.chatUsernamePill === false ? 'transparent' : hexToRgba(source.chatUsernamePillColor ?? '#b94780', clamp(source.chatUsernamePillOpacity ?? 0.95, 0, 1)),
+          border: `${source.chatUsernamePill === false ? 0 : clamp(source.chatUsernamePillBorderWidth ?? 0, 0, 8)}px solid ${source.chatUsernamePillBorderColor ?? 'transparent'}`,
+          borderRadius: source.chatUsernamePill === false ? 0 : clamp(source.chatUsernamePillRadius ?? 999, 0, 100),
+          padding: source.chatUsernamePill === false ? 0 : `${clamp(source.chatUsernamePillPaddingY ?? 3, 0, 30)}px ${clamp(source.chatUsernamePillPaddingX ?? 8, 0, 40)}px`,
+        }
+        return <div className={`chat-message ${source.chatLayout === 'inline' ? 'chat-layout-inline' : 'chat-layout-stacked'}`} key={`${line}-${index}`} style={{ alignSelf: source.widgetTextAlign === 'right' ? 'flex-end' : source.widgetTextAlign === 'center' ? 'center' : 'flex-start', alignItems: source.widgetTextAlign === 'right' ? 'flex-end' : source.widgetTextAlign === 'center' ? 'center' : 'flex-start' }}>
+          <div className="chat-username-row">
+            {source.chatShowBadges && <span className="chat-demo-badge" aria-hidden="true">✦</span>}
+            <strong className="chat-username-pill" style={usernamePillStyle}>{username}</strong>
+          </div>
+          <div className={`chat-message-bubble ${source.chatBubbleEnabled === false ? 'chat-message-plain' : ''}`} style={messageStyle}>
+            <span>{message}</span>
+            {source.chatShowTimestamp && <time style={{ color: source.chatTimestampColor ?? '#f7d6e7' }}>12:{String((index * 7 + 14) % 60).padStart(2, '0')}</time>}
+          </div>
+        </div>
       })}</div>
-      <div className="chat-input-sample"><span>Enviar mensagem…</span><b>↗</b></div>
+      {source.chatShowInput === true && <div className="chat-input-sample"><span>Enviar mensagem…</span><b>↗</b></div>}
     </>}
 
     {kind === 'events' && <>
@@ -775,15 +1171,15 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
     </>}
 
     {kind === 'countdown' && <>
-      <span className="widget-kicker">{source.widgetTitle || 'COMEÇAMOS EM'}</span>
+      {showHeader && <span className="widget-kicker">{source.widgetTitle || 'COMEÇAMOS EM'}</span>}
       <strong className="countdown-time">{time}</strong>
-      <small className="widget-muted-line">{remaining === 0 ? 'Está na hora!' : (source.widgetText || 'Prepare-se para a transmissão')}</small>
+      {source.widgetShowHeader !== false && <small className="widget-muted-line">{remaining === 0 ? 'Está na hora!' : (source.widgetText || 'Prepare-se para a transmissão')}</small>}
     </>}
 
     {kind === 'clock' && <>
-      <span className="widget-kicker">{source.widgetTitle || 'HORA LOCAL'}</span>
-      <strong className="clock-time">{now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</strong>
-      <small className="widget-muted-line">{now.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}</small>
+      {showHeader && <span className="widget-kicker">{source.widgetTitle || 'HORA LOCAL'}</span>}
+      <strong className="clock-time">{now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', ...(source.clock24h === false ? { hour12: true } : { hour12: false }), ...(source.clockShowSeconds === false ? {} : { second: '2-digit' }) })}</strong>
+      {source.clockShowDate !== false && <small className="widget-muted-line clock-date">{now.toLocaleDateString('pt-BR', source.clockDateFormat === 'long' ? { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' } : source.clockDateFormat === 'time' ? { weekday: 'short', day: '2-digit', month: 'short' } : { day: '2-digit', month: '2-digit', year: 'numeric' })}</small>}
     </>}
 
     {kind === 'viewer' && <>
@@ -847,13 +1243,14 @@ function formatMediaTime(seconds: number) {
 
 function TrimmedVideo({ source, className }: { source: SceneSource; className: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const resolvedSrc = useResolvedVideoSrc(source.src)
   const start = source.videoTrimEnabled ? Math.max(0, source.videoStart ?? 0) : 0
   const end = source.videoTrimEnabled ? Math.max(0, source.videoEnd ?? 0) : 0
   const shouldLoop = source.videoLoop !== false
 
   useEffect(() => {
     const video = videoRef.current
-    if (!video) return
+    if (!video || !resolvedSrc) return
     const seekToStart = () => {
       const safeStart = Number.isFinite(video.duration) ? Math.min(start, Math.max(0, video.duration - 0.05)) : start
       if (Math.abs(video.currentTime - safeStart) > 0.15) {
@@ -867,15 +1264,15 @@ function TrimmedVideo({ source, className }: { source: SceneSource; className: s
     if (video.readyState >= 1) seekToStart()
     else video.addEventListener('loadedmetadata', seekToStart, { once: true })
     return () => video.removeEventListener('loadedmetadata', seekToStart)
-  }, [source.src, start])
+  }, [resolvedSrc, start])
 
   useEffect(() => {
     const video = videoRef.current
-    if (!video) return
+    if (!video || !resolvedSrc) return
     video.muted = source.videoMuted !== false
     video.volume = clamp(source.videoVolume ?? 0.8, 0, 1)
     video.playbackRate = clamp(source.videoPlaybackRate ?? 1, 0.25, 2)
-  }, [source.videoMuted, source.videoVolume, source.videoPlaybackRate])
+  }, [resolvedSrc, source.videoMuted, source.videoVolume, source.videoPlaybackRate])
 
   function handleTimeUpdate(event: SyntheticEvent<HTMLVideoElement>) {
     const video = event.currentTarget
@@ -900,7 +1297,7 @@ function TrimmedVideo({ source, className }: { source: SceneSource; className: s
   return <video
     ref={videoRef}
     className={className}
-    src={source.src}
+    src={resolvedSrc}
     autoPlay
     playsInline
     preload="auto"
@@ -918,7 +1315,9 @@ function TrimmedVideo({ source, className }: { source: SceneSource; className: s
 }
 
 function VideoSourceControls({ source, onChange }: { source: SceneSource; onChange: (changes: Partial<SceneSource>) => void }) {
+  const resolvedSrc = useResolvedVideoSrc(source.src)
   const [duration, setDuration] = useState(0)
+  const [mediaError, setMediaError] = useState('')
   const [urlDraft, setUrlDraft] = useState(source.src?.startsWith('http') ? source.src : '')
   const [urlError, setUrlError] = useState('')
   const maxTime = duration > 0 ? duration : 60
@@ -928,6 +1327,8 @@ function VideoSourceControls({ source, onChange }: { source: SceneSource; onChan
 
   useEffect(() => {
     setUrlDraft(source.src?.startsWith('http') ? source.src : '')
+    setMediaError('')
+    setDuration(0)
   }, [source.src])
 
   function setStart(value: number) {
@@ -949,18 +1350,20 @@ function VideoSourceControls({ source, onChange }: { source: SceneSource; onChan
   }
 
   return <div className="video-source-controls">
-    <p className="eyebrow section-eyebrow">VÍDEO E REPRODUÇÃO</p>
+    <p className="eyebrow section-eyebrow">VÍDEO · MP4, WEBM E OUTROS</p>
     <video
       className="video-inspector-preview"
-      src={source.src}
+      src={resolvedSrc}
       controls
       playsInline
       preload="metadata"
       muted={source.videoMuted !== false}
       onLoadedMetadata={(event) => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)}
       onDurationChange={(event) => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)}
+      onError={() => setMediaError('O navegador não conseguiu decodificar este vídeo. Tente MP4 com vídeo H.264 ou WebM com VP8/VP9.') }
     />
-    <p className="field-hint">{duration > 0 ? `Duração do arquivo: ${formatMediaTime(duration)}.` : 'Aguardando o navegador ler a duração do vídeo.'} A prévia aqui tem controles para você conferir o arquivo.</p>
+    <p className="field-hint">{duration > 0 ? `Duração do arquivo: ${formatMediaTime(duration)}.` : source.src?.startsWith('idb-video://') && !resolvedSrc ? 'O vídeo local não foi encontrado neste navegador. Importe o arquivo novamente.' : 'Aguardando o navegador ler a duração do vídeo.'} A prévia aqui tem controles para você conferir o arquivo.</p>
+    {mediaError && <p className="error-note">{mediaError}</p>}
 
     <label className="field-label" htmlFor="video-trim-start">Início do trecho · {formatMediaTime(start)}</label>
     <input id="video-trim-start" className="video-trim-range" type="range" min="0" max={Math.max(0.1, maxTime - 0.1)} step="0.1" value={start} onChange={(event) => setStart(Number(event.target.value))} />
@@ -984,8 +1387,45 @@ function VideoSourceControls({ source, onChange }: { source: SceneSource; onChan
     <input id="video-direct-url" className="text-input" type="url" value={urlDraft} onChange={(event) => { setUrlDraft(event.target.value); setUrlError('') }} placeholder="https://site.com/banner.mp4" />
     <button className="wide-action" type="button" onClick={applyVideoUrl}>Aplicar URL do vídeo</button>
     {urlError && <p className="error-note">{urlError}</p>}
-    <p className="field-hint">Links diretos podem falhar se o servidor bloquear CORS, hotlink ou reprodução por navegador. Os codecs compatíveis também variam.</p>
+    {source.src?.startsWith('idb-video://') && !resolvedSrc && <p className="error-note">Este vídeo não foi localizado no armazenamento deste navegador. Importe o arquivo novamente ou recupere o projeto JSON que contém a mídia.</p>}
+    <p className="field-hint">Formatos aceitos na importação: MP4/M4V, WebM, OGV/OGG, MOV, 3GP, MKV, AVI e MPEG. A reprodução depende do navegador e do codec interno; MP4/H.264 é geralmente a opção mais compatível. Links diretos podem falhar se o servidor bloquear a reprodução.</p>
   </div>
+}
+
+
+const WIDGET_STYLE_KEYS = [
+  'widgetTheme', 'widgetAccent', 'widgetShowHeader', 'widgetCompact', 'widgetBackgroundColor',
+  'widgetBackgroundOpacity', 'widgetTextColor', 'widgetTitleColor', 'widgetBorderColor',
+  'widgetBorderWidth', 'widgetRadius', 'widgetPadding', 'widgetGap', 'widgetFontFamily',
+  'widgetFontUrl', 'widgetShowIcon', 'widgetAnimation', 'widgetCustomCss', 'widgetShowBackground',
+  'widgetShowBorder', 'widgetShowShadow', 'widgetBackdropBlur', 'widgetFontSize', 'widgetFontWeight',
+  'widgetLineHeight', 'widgetLetterSpacing', 'widgetTitleSize', 'widgetTitleLetterSpacing', 'widgetTextAlign',
+  'widgetBackgroundImage', 'widgetBackgroundImageFit', 'widgetBackgroundImageOpacity', 'widgetBackgroundImagePosition',
+  'widgetSubtitleColor', 'widgetValueColor', 'widgetTrackColor', 'widgetFillColor', 'widgetItemBackgroundColor',
+  'widgetItemBorderColor', 'chatBubbleEnabled', 'chatBubbleColor', 'chatBubbleOpacity', 'chatBubbleRadius',
+  'chatBubblePaddingX', 'chatBubblePaddingY', 'chatBubbleBorderColor', 'chatBubbleBorderWidth',
+  'chatUsernameColorMode', 'chatUsernameColor', 'chatNameColors', 'chatBubbleColors', 'chatLayout', 'chatUsernamePill',
+  'chatUsernamePillColor', 'chatUsernamePillOpacity', 'chatUsernamePillRadius', 'chatUsernamePillPaddingX', 'chatUsernamePillPaddingY', 'chatUsernamePillBorderColor', 'chatUsernamePillBorderWidth', 'chatBubbleShadow', 'chatUsernameFontFamily', 'chatMessageFontFamily', 'chatUsernameFontWeight', 'chatMessageLineHeight', 'chatMessageColor', 'chatTimestampColor',
+  'chatUsernameFontSize', 'chatMessageFontSize', 'chatLineGap', 'chatShowInput', 'chatShowTimestamp',
+  'chatTextShadow', 'chatShowBadges', 'clockShowDate', 'clockShowSeconds', 'clock24h', 'clockDateFormat',
+  'clockColor', 'clockDateColor', 'clockTextShadow', 'widgetTitle', 'widgetText', 'widgetValue', 'widgetTarget', 'widgetItems', 'widgetMaxItems',
+] as const
+
+function downloadWidgetStyle(source: SceneSource) {
+  const settings: Record<string, unknown> = {}
+  for (const key of WIDGET_STYLE_KEYS) {
+    const value = source[key]
+    if (value !== undefined) settings[key] = value
+  }
+  const blob = new Blob([JSON.stringify({ format: 'webcam-overlay-widget-style', version: 1, widgetKind: source.widgetKind ?? 'custom', settings }, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = `${safeFileName(source.name)}-estilo-widget.json`
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 function App() {
@@ -1002,6 +1442,7 @@ function Editor() {
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('layers')
   const [elementSection, setElementSection] = useState<ElementSection>('content')
   const [backgroundUrlInput, setBackgroundUrlInput] = useState('')
+  const [widgetBackgroundUrlDraft, setWidgetBackgroundUrlDraft] = useState('')
   const [widgetSearch, setWidgetSearch] = useState('')
   const [showPackMenu, setShowPackMenu] = useState(false)
   const [alertTestTokens, setAlertTestTokens] = useState<Record<string, number>>({})
@@ -1021,12 +1462,18 @@ function Editor() {
   const videoInputRef = useRef<HTMLInputElement>(null)
   const backgroundDesignInputRef = useRef<HTMLInputElement>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
+  const widgetStyleInputRef = useRef<HTMLInputElement>(null)
+  const widgetBackgroundInputRef = useRef<HTMLInputElement>(null)
 
   const activeScene = useMemo(
     () => project.scenes.find((scene) => scene.id === project.activeSceneId) ?? project.scenes[0],
     [project],
   )
   const selectedSource = activeScene?.sources.find((source) => source.id === selectedSourceId) ?? null
+
+  useEffect(() => {
+    setWidgetBackgroundUrlDraft(selectedSource?.type === 'widget' && selectedSource.widgetBackgroundImage?.startsWith('http') ? selectedSource.widgetBackgroundImage : '')
+  }, [selectedSource?.id, selectedSource?.widgetBackgroundImage])
 
   useEffect(() => {
     // Evita gravar no localStorage a cada movimento do mouse enquanto o usuário arrasta.
@@ -1335,7 +1782,13 @@ function Editor() {
       widgetTitle: preset.title, widgetText: preset.text, widgetValue: preset.value,
       widgetTarget: preset.target, widgetItems: preset.items, widgetSeconds: preset.seconds ?? 600,
       widgetRunning: true, widgetAccent: preset.accent, widgetTheme: preset.theme,
-      widgetShowHeader: true, widgetCompact: false,
+      widgetShowHeader: kind === 'chat' || kind === 'clock' ? false : true, widgetCompact: false,
+      widgetShowBackground: kind === 'chat' || kind === 'clock' ? false : true,
+      widgetShowBorder: kind === 'chat' || kind === 'clock' ? false : true,
+      widgetShowShadow: kind === 'chat' || kind === 'clock' ? false : true,
+      widgetBackdropBlur: kind === 'chat' || kind === 'clock' ? 0 : (preset.theme === 'glass' ? 8 : 0),
+      ...(kind === 'chat' ? { chatBubbleEnabled: true, chatBubbleColor: '#e979b2', chatBubbleOpacity: 0.88, chatBubbleRadius: 18, chatBubblePaddingX: 10, chatBubblePaddingY: 6, chatBubbleBorderWidth: 0, chatUsernameColorMode: 'palette' as const, chatMessageColor: '#ffffff', chatShowInput: false, chatLineGap: 8 } : {}),
+      ...(kind === 'clock' ? { clockShowDate: false, clockShowSeconds: true, clock24h: true, clockColor: '#ffffff', clockTextShadow: false, widgetFontSize: 48, widgetFontWeight: 800 } : {}),
     })
     updateActiveScene((scene) => ({ ...scene, sources: [...scene.sources, source] }))
     setSelectedSourceId(source.id)
@@ -1399,7 +1852,7 @@ function Editor() {
         ...currentProject,
         scenes: currentProject.scenes.map((scene) => scene.id === targetSceneId ? { ...scene, sources: [...scene.sources, ...additions] } : scene),
       }
-      if (JSON.stringify(nextProject).length > MAX_PROJECT_JSON_CHARS) {
+      if (JSON.stringify(nextProject).length > MAX_LOCAL_PROJECT_CHARS) {
         setMessage('Esses assets ultrapassariam o limite seguro de armazenamento do navegador. Remova imagens antigas ou importe arquivos menores.')
         return
       }
@@ -1414,51 +1867,95 @@ function Editor() {
 
   async function onVideoSelected(event: ChangeEvent<HTMLInputElement>) {
     const input = event.currentTarget as HTMLInputElement
-    const file = input.files?.[0]
+    const files = Array.from(input.files ?? [])
     input.value = ''
-    if (!file) return
-    const extension = file.name.toLowerCase().split('.').pop() ?? ''
-    const supportedExtension = ['mp4', 'webm', 'ogv', 'ogg', 'mov'].includes(extension)
-    if (!(file.type.startsWith('video/') || supportedExtension)) {
-      setMessage('Escolha um vídeo MP4, WebM, OGV ou MOV. A reprodução depende do codec suportado pelo navegador.')
-      return
-    }
-    if (file.size > MAX_VIDEO_BYTES) {
-      setMessage(`Para manter o projeto leve e salvável no navegador, cada vídeo local pode ter até ${Math.round(MAX_VIDEO_BYTES / 1000)} KB. Comprima ou corte o banner antes de importá-lo.`)
-      return
-    }
+    if (files.length === 0) return
+
     const targetSceneId = activeScene.id
+    const supportedExtensions = new Set(['mp4', 'm4v', 'webm', 'ogv', 'ogg', 'mov', '3gp', 'mkv', 'avi', 'wmv', 'mpeg', 'mpg', 'ts', 'm2ts'])
+    const supported = files.filter((file) => {
+      const extension = file.name.toLowerCase().split('.').pop() ?? ''
+      return file.type.startsWith('video/') || supportedExtensions.has(extension)
+    })
+    const ignoredCount = files.length - supported.length
+    if (supported.length === 0) {
+      setMessage('Selecione um arquivo de vídeo comum (MP4, M4V, WebM, MOV, OGV/OGG, 3GP, MKV, AVI ou MPEG). A importação aceita o arquivo, mas sua reprodução depende do suporte do navegador ao contêiner e ao codec.')
+      return
+    }
+    const tooLarge = supported.find((file) => file.size > MAX_VIDEO_BYTES)
+    if (tooLarge) {
+      setMessage(`“${tooLarge.name}” excede o limite de ${Math.round(MAX_VIDEO_BYTES / 1_000_000)} MB por vídeo. Para banners, prefira um clipe curto, com resolução e bitrate adequados.`)
+      return
+    }
+    const totalBytes = supported.reduce((total, file) => total + file.size, 0)
+    if (totalBytes > MAX_VIDEO_BATCH_BYTES) {
+      setMessage(`A seleção excede o limite de ${Math.round(MAX_VIDEO_BATCH_BYTES / 1_000_000)} MB por lote. Importe os vídeos em grupos menores.`)
+      return
+    }
+
+    let bytesAlreadyUsed = 0
     try {
-      const src = await parseLocalImageData(file)
+      bytesAlreadyUsed = await getProjectVideoBytes(projectRef.current)
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'o armazenamento local não está disponível'
+      setMessage(`Não consegui verificar o espaço dos vídeos deste projeto: ${detail}`)
+      return
+    }
+    if (bytesAlreadyUsed + totalBytes > MAX_VIDEO_PROJECT_BYTES) {
+      setMessage(`Este projeto pode conter até ${Math.round(MAX_VIDEO_PROJECT_BYTES / 1_000_000)} MB de vídeos locais no total para manter a exportação JSON portátil. O projeto já utiliza ${(bytesAlreadyUsed / 1_000_000).toFixed(1)} MB. Remova vídeos que não usa ou exporte um projeto separado.`)
+      return
+    }
+
+    setMessage(`Importando ${supported.length} ${supported.length === 1 ? 'vídeo' : 'vídeos'} para o armazenamento local…`)
+    const newReferences: string[] = []
+    try {
+      for (const file of supported) {
+        const reference = await saveVideoBlob(file, file.name)
+        newReferences.push(reference)
+      }
       const currentProject = projectRef.current
       const targetScene = currentProject.scenes.find((scene) => scene.id === targetSceneId)
       if (!targetScene) {
-        setMessage('A cena de destino não existe mais. Selecione a cena novamente e importe o vídeo.')
+        await Promise.allSettled(newReferences.map(deleteVideoBlob))
+        setMessage('A cena de destino não existe mais. Selecione a cena novamente e importe os arquivos.')
         return
       }
-      const count = targetScene.sources.filter((source) => source.type === 'video').length + 1
-      const candidate: SceneSource = {
-        id: newId('video'), type: 'video', name: file.name.replace(/\.[^.]+$/, '').slice(0, 60) || `Vídeo ${count}`,
-        visible: true, x: 30, y: 30, w: 40, h: 24, src, objectFit: 'cover', objectPosition: 'center center',
-        radius: 6, rotation: 0, opacity: 1, shadow: false,
-        videoStart: 0, videoEnd: 0, videoTrimEnabled: false, videoLoop: true, videoMuted: true, videoVolume: 0.8, videoPlaybackRate: 1,
-      }
-      const placed = placeWithoutOverlap(targetScene.sources, candidate)
+
+      let placedSources = [...targetScene.sources]
+      const additions = supported.map((file, index) => {
+        const count = placedSources.filter((source) => source.type === 'video').length + 1
+        const candidate: SceneSource = {
+          id: newId('video'), type: 'video', name: file.name.replace(/\.[^.]+$/, '').slice(0, 60) || `Vídeo ${count}`,
+          visible: true, x: 30, y: 30, w: 40, h: 24, src: newReferences[index], objectFit: 'contain', objectPosition: 'center center',
+          radius: 6, rotation: 0, opacity: 1, shadow: false,
+          videoStart: 0, videoEnd: 0, videoTrimEnabled: false, videoLoop: true, videoMuted: true, videoVolume: 0.8, videoPlaybackRate: 1,
+        }
+        const placed = placeWithoutOverlap(placedSources, candidate)
+        placedSources = [...placedSources, placed]
+        return placed
+      })
       const nextProject: Project = {
         ...currentProject,
-        scenes: currentProject.scenes.map((scene) => scene.id === targetSceneId ? { ...scene, sources: [...scene.sources, placed] } : scene),
+        scenes: currentProject.scenes.map((scene) => scene.id === targetSceneId ? { ...scene, sources: [...scene.sources, ...additions] } : scene),
       }
-      if (JSON.stringify(nextProject).length > MAX_PROJECT_JSON_CHARS) {
-        setMessage('O vídeo não cabe no limite de armazenamento restante deste projeto. Exporte um backup e remova alguns assets ou use um arquivo menor.')
+      if (JSON.stringify(nextProject).length > MAX_LOCAL_PROJECT_CHARS) {
+        await Promise.allSettled(newReferences.map(deleteVideoBlob))
+        setMessage('O projeto tem muitas configurações ou imagens incorporadas para o armazenamento local. Exporte um backup e remova alguns elementos antes de continuar.')
         return
       }
       setProject(nextProject)
-      setSelectedSourceId(placed.id)
-      setInspectorTab('element')
-      setElementSection('content')
-      setMessage(`Vídeo “${file.name}” importado. Ajuste o início, o fim, o loop e o áudio nas propriedades do vídeo.`)
-    } catch {
-      setMessage('Não foi possível ler o vídeo selecionado.')
+      if (additions.length) {
+        setSelectedSourceId(additions[additions.length - 1].id)
+        setInspectorTab('element')
+        setElementSection('content')
+      }
+      const ignoredNote = ignoredCount ? ` ${ignoredCount} arquivo(s) sem suporte foram ignorados.` : ''
+      const totalMB = (totalBytes / 1_000_000).toFixed(1)
+      setMessage(`${additions.length} ${additions.length === 1 ? 'vídeo importado' : 'vídeos importados'} (${totalMB} MB). Os arquivos foram guardados no IndexedDB deste navegador; exporte o projeto JSON para levar os vídeos a outro computador.${ignoredNote}`)
+    } catch (error) {
+      await Promise.allSettled(newReferences.map(deleteVideoBlob))
+      const detail = error instanceof Error ? error.message : 'erro de armazenamento'
+      setMessage(`Não foi possível importar os vídeos: ${detail}`)
     }
   }
 
@@ -1528,6 +2025,83 @@ function Editor() {
     if (info.family) updateSelected({ widgetFontFamily: info.family })
     else updateSelected({ widgetFontFamily: selectedSource.widgetFontFamily || info.family })
     setMessage('Fonte aplicada ao widget. O carregamento depende da disponibilidade da URL e das permissões do servidor.')
+  }
+
+
+  function applyWidgetBackgroundUrl() {
+    if (!selectedSource || selectedSource.type !== 'widget') return
+    const candidate = widgetBackgroundUrlDraft.trim()
+    if (candidate && (!isSafeImageSource(candidate) || candidate.startsWith('data:'))) {
+      setMessage('Informe um link de imagem HTTP ou HTTPS válido para o fundo do widget.')
+      return
+    }
+    updateSelected({ widgetBackgroundImage: candidate || undefined })
+    setMessage(candidate ? 'Imagem de fundo vinculada a este widget.' : 'Imagem de fundo do widget removida.')
+  }
+
+  async function onWidgetBackgroundSelected(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget
+    const file = input.files?.[0]
+    input.value = ''
+    if (!file || !selectedSource || selectedSource.type !== 'widget') return
+    if (!(file.type.startsWith('image/') || file.name.toLowerCase().endsWith('.svg'))) {
+      setMessage('Escolha uma imagem PNG, JPG, WebP, GIF ou SVG.')
+      return
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setMessage('A imagem de fundo do widget deve ter até 1,5 MB para manter o projeto estável.')
+      return
+    }
+    try {
+      const src = await parseLocalImageData(file)
+      if (!isSafeImageSource(src)) throw new Error('unsafe image')
+      updateSelected({ widgetBackgroundImage: src })
+      setWidgetBackgroundUrlDraft('')
+      setMessage(`Imagem “${file.name}” definida como fundo do widget selecionado.`)
+    } catch {
+      setMessage('Não foi possível importar a imagem para este widget.')
+    }
+  }
+
+  function importWidgetStyle(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0]
+    event.currentTarget.value = ''
+    if (!file || !selectedSource || selectedSource.type !== 'widget') {
+      setMessage('Selecione um widget antes de importar um estilo.')
+      return
+    }
+    if (file.size > MAX_PROJECT_JSON_CHARS) {
+      setMessage('O arquivo de estilo é muito grande para importar.')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result)) as { format?: string; version?: number; settings?: unknown; widgetKind?: string }
+        if (parsed.format !== 'webcam-overlay-widget-style' || parsed.version !== 1 || !parsed.settings || typeof parsed.settings !== 'object' || Array.isArray(parsed.settings)) throw new Error('invalid style')
+        const incoming = parsed.settings as Record<string, unknown>
+        const updates: Partial<SceneSource> = {}
+        for (const key of WIDGET_STYLE_KEYS) {
+          if (!(key in incoming)) continue
+          const value = incoming[key]
+          if (typeof value === 'string') {
+            if (key === 'widgetBackgroundImage' && value && !isSafeImageSource(value)) continue
+            if (key === 'widgetCustomCss' && value.length > 1200) continue
+            ;(updates as Record<string, unknown>)[key] = value.slice(0, key === 'widgetBackgroundImage' ? MAX_LOCAL_PROJECT_CHARS : 3000)
+          } else if (typeof value === 'number' && Number.isFinite(value)) {
+            ;(updates as Record<string, unknown>)[key] = value
+          } else if (typeof value === 'boolean') {
+            ;(updates as Record<string, unknown>)[key] = value
+          }
+        }
+        updateSelected(updates)
+        setMessage('Estilo importado para o widget atual. Posição e tamanho do elemento foram preservados.')
+      } catch {
+        setMessage('Este arquivo não é um estilo de widget Webcam_overlay compatível. Use um JSON exportado pelo editor.')
+      }
+    }
+    reader.onerror = () => setMessage('Não foi possível ler o arquivo de estilo.')
+    reader.readAsText(file)
   }
 
   function toggleVisibility(sourceId: string) {
@@ -1665,21 +2239,23 @@ function Editor() {
   }
 
   function importProject(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    event.target.value = ''
+    const input = event.currentTarget
+    const file = input.files?.[0]
+    input.value = ''
     if (!file) return
     if (file.size > MAX_PROJECT_JSON_CHARS) {
-      setMessage('O arquivo de projeto é muito grande para importar com segurança neste navegador (limite aproximado de 2,1 MB).')
+      setMessage('O arquivo de projeto ultrapassa o limite de importação de 125 MB. Reduza os vídeos incorporados e tente novamente.')
       return
     }
     const reader = new FileReader()
-    reader.onload = () => {
+    reader.onload = async () => {
       try {
         const parsed: unknown = JSON.parse(String(reader.result))
-        if (!isValidProject(parsed)) throw new Error('invalid')
-        const repaired = normalizeProject(parsed)
-        if (JSON.stringify(repaired).length > MAX_PROJECT_JSON_CHARS) {
-          setMessage('Esse arquivo excede o limite seguro de armazenamento do navegador. Reduza as imagens incorporadas antes de importar.')
+        if (!isValidProject(parsed)) throw new Error('O JSON não passou pela validação de projeto.')
+        const normalized = normalizeProject(parsed)
+        const repaired = await storeEmbeddedVideos(normalized)
+        if (JSON.stringify(repaired).length > MAX_LOCAL_PROJECT_CHARS) {
+          setMessage('O projeto contém imagens ou configurações demais para o armazenamento local do navegador. Reduza imagens incorporadas; vídeos agora são guardados separadamente.')
           return
         }
         setProject(repaired)
@@ -1691,9 +2267,10 @@ function Editor() {
         historySnapshotRef.current = repaired
         setCanUndo(false)
         setCanRedo(false)
-        setMessage('Projeto importado com sucesso. O histórico anterior foi limpo para evitar misturar projetos.')
-      } catch {
-        setMessage('O arquivo não parece ser um projeto Webcam_overlay válido.')
+        setMessage('Projeto importado. Os vídeos incorporados foram extraídos para o armazenamento local do navegador.')
+      } catch (error) {
+        const detail = error instanceof Error ? ` (${error.message})` : ''
+        setMessage(`O arquivo não parece ser um projeto Webcam_overlay válido${detail}`)
       }
     }
     reader.onerror = () => setMessage('Não foi possível ler o arquivo selecionado.')
@@ -1736,6 +2313,9 @@ function Editor() {
     } catch {
       // O salvamento automático tentará persistir o projeto inicial logo depois.
     }
+    void clearStoredVideoAssets().catch(() => {
+      setMessage('Projeto redefinido. Alguns arquivos de vídeo antigos não puderam ser limpos do armazenamento do navegador.')
+    })
   }
 
   function beginInteraction(event: ReactPointerEvent<HTMLElement>, source: SceneSource, mode: Interaction['mode']) {
@@ -1812,9 +2392,10 @@ function Editor() {
             <div className="export-wrapper">
               <button className="secondary-button" type="button" onClick={() => setShowExportMenu((open) => !open)}>Projeto <span>⌄</span></button>
               {showExportMenu && <div className="export-menu">
-                <button type="button" onClick={() => { downloadProject(project); setShowExportMenu(false); setMessage('Arquivo JSON exportado.') }}>Exportar JSON</button>
+                <button type="button" onClick={() => { setShowExportMenu(false); void downloadProject(project).then(() => setMessage('Projeto exportado com mídia incorporada. O JSON pode ficar grande por incluir os vídeos locais.')).catch((error: unknown) => setMessage(error instanceof Error ? error.message : 'Não foi possível exportar o projeto.')) }}>Exportar projeto JSON (inclui vídeos)</button>
                 <button type="button" onClick={() => { importInputRef.current?.click(); setShowExportMenu(false) }}>Importar projeto / design editável (JSON)</button>
-                <button type="button" onClick={() => { imageInputRef.current?.click(); setShowExportMenu(false) }}>Importar elementos (PNG, SVG, GIF…)</button>
+                <button type="button" onClick={() => { imageInputRef.current?.click(); setShowExportMenu(false) }}>Importar imagem / GIF…</button>
+                <button type="button" onClick={() => { videoInputRef.current?.click(); setShowExportMenu(false) }}>Importar vídeo(s) MP4 / WebM / MOV / MKV…</button>
                 <button type="button" onClick={() => { backgroundDesignInputRef.current?.click(); setShowExportMenu(false) }}>Definir imagem de fundo</button>
                 <button className="menu-danger" type="button" onClick={() => { setShowExportMenu(false); resetEverything() }}>Redefinir tudo…</button>
                 <a href={`${window.location.pathname}?mode=overlay`} target="_blank" rel="noreferrer" onClick={() => setShowExportMenu(false)}>Abrir modo overlay ↗</a>
@@ -1863,7 +2444,7 @@ function Editor() {
           </div>
           <div className="preview-caption"><span><span className="status-dot" /> Arraste para mover · canto inferior para redimensionar</span><span>Proporção {activeScene.width ?? 1920}:{activeScene.height ?? 1080}</span></div>
         </section>
-        <footer className="studio-footer"><span className="footer-tip"><span className="tip-icon">i</span> As alterações são salvas automaticamente neste navegador.</span><span className="footer-version">WEBCAM_OVERLAY · 2.4.0</span></footer>
+        <footer className="studio-footer"><span className="footer-tip"><span className="tip-icon">i</span> As alterações são salvas automaticamente neste navegador.</span><span className="footer-version">WEBCAM_OVERLAY · 2.6.0</span></footer>
       </main>
 
       <aside className="inspector-panel">
@@ -1880,7 +2461,7 @@ function Editor() {
 
         {inspectorTab === 'layers' && <>
           {sourceMenuOpen && <div className="source-menu"><p className="eyebrow">ELEMENTOS BÁSICOS</p>
-            {(['text', 'shape', 'camera', 'image', 'video', 'browser'] as Exclude<SourceType, 'widget'>[]).map((type) => <button key={type} type="button" onClick={() => addSource(type)}><span className={`source-icon icon-${type}`}>{sourceGlyph(type)}</span><span><strong>{sourceLabel(type)}</strong><small>{{ text: 'Texto, tipografia e efeitos', shape: 'Retângulo, círculo, linha ou pílula', camera: 'Webcam do dispositivo', image: 'Arquivo PNG, JPG ou WebP', video: 'Banner animado com corte, loop e áudio', browser: 'Página ou widget web incorporado' }[type]}</small></span><span className="menu-arrow">›</span></button>)}
+            {(['text', 'shape', 'camera', 'image', 'video', 'browser'] as Exclude<SourceType, 'widget'>[]).map((type) => <button key={type} type="button" onClick={() => addSource(type)}><span className={`source-icon icon-${type}`}>{sourceGlyph(type)}</span><span><strong>{sourceLabel(type)}</strong><small>{{ text: 'Texto, tipografia e efeitos', shape: 'Retângulo, círculo, linha ou pílula', camera: 'Webcam do dispositivo', image: 'Imagem, GIF animado, PNG, JPG, WebP ou SVG', video: 'MP4, WebM, MOV, MKV e outros; corte, loop e áudio', browser: 'Página ou widget web incorporado' }[type]}</small></span><span className="menu-arrow">›</span></button>)}
             <div className="widget-library-title"><p className="eyebrow">WIDGETS PARA STREAM</p><span>{WIDGET_OPTIONS.length}</span></div>
             <input className="text-input widget-search" value={widgetSearch} onChange={(event) => setWidgetSearch(event.target.value)} placeholder="Buscar widget..." aria-label="Buscar widget" />
             {WIDGET_OPTIONS.filter((option) => `${option.label} ${option.description}`.toLocaleLowerCase('pt-BR').includes(widgetSearch.toLocaleLowerCase('pt-BR'))).map((option) => <button key={option.kind} type="button" onClick={() => addWidget(option.kind)}><span className="source-icon icon-widget">{option.glyph}</span><span><strong>{option.label}</strong><small>{option.description}</small></span><span className="menu-arrow">›</span></button>)}
@@ -1931,7 +2512,7 @@ function Editor() {
                   <select id="image-fit" className="text-input" value={selectedSource.objectFit ?? 'contain'} onChange={(event) => updateSelected({ objectFit: event.target.value as 'contain' | 'cover' })}><option value="contain">Mostrar imagem inteira</option><option value="cover">Preencher a área</option></select>
                 </>}
                 {selectedSource.type === 'video' && <>
-                  <div className="feature-note"><span className="note-icon">i</span><p>Os vídeos locais são armazenados dentro do projeto. Para esta versão, o arquivo precisa ter até 1,2 MB. MP4 e WebM costumam ser as melhores opções para banners curtos.</p></div>
+                  <div className="feature-note"><span className="note-icon">i</span><p>Vídeos locais são guardados no armazenamento do navegador (IndexedDB), separados das configurações. Cada arquivo pode ter até 50 MB. Exporte o projeto JSON para levar os vídeos a outro computador. MP4/H.264 e WebM costumam oferecer boa compatibilidade.</p></div>
                   {selectedSource.src ? <VideoSourceControls source={selectedSource} onChange={updateSelected} /> : <p className="field-hint">Este elemento não tem um vídeo carregado. Exclua a camada e adicione uma nova fonte de vídeo para importar um arquivo.</p>}
                 </>}
                 {selectedSource.type === 'browser' && <>
@@ -2014,18 +2595,94 @@ function Editor() {
                 {selectedSource.type === 'image' && <><p className="field-hint">Controle o corte, posição interna, borda e transparência desta imagem.</p><label className="field-label" htmlFor="image-fit-style">Ajuste</label><select id="image-fit-style" className="text-input" value={selectedSource.objectFit ?? 'contain'} onChange={(event) => updateSelected({ objectFit: event.target.value as 'contain' | 'cover' })}><option value="contain">Conter</option><option value="cover">Cobrir</option></select><label className="field-label" htmlFor="image-position-style">Posição dentro da moldura</label><select id="image-position-style" className="text-input" value={selectedSource.objectPosition ?? 'center center'} onChange={(event) => updateSelected({ objectPosition: event.target.value })}><option value="center center">Centro</option><option value="top center">Topo</option><option value="bottom center">Base</option><option value="left center">Esquerda</option><option value="right center">Direita</option><option value="top left">Superior esquerda</option><option value="top right">Superior direita</option><option value="bottom left">Inferior esquerda</option><option value="bottom right">Inferior direita</option></select></>}
                 {selectedSource.type === 'video' && <><p className="eyebrow section-eyebrow">APARÊNCIA DO VÍDEO</p><label className="field-label" htmlFor="video-fit-style">Enquadramento</label><select id="video-fit-style" className="text-input" value={selectedSource.objectFit ?? 'cover'} onChange={(event) => updateSelected({ objectFit: event.target.value as 'contain' | 'cover' })}><option value="cover">Preencher / cortar bordas</option><option value="contain">Mostrar vídeo inteiro</option></select><label className="field-label" htmlFor="video-position-style">Posição do vídeo no quadro</label><select id="video-position-style" className="text-input" value={selectedSource.objectPosition ?? 'center center'} onChange={(event) => updateSelected({ objectPosition: event.target.value })}><option value="center center">Centro</option><option value="top center">Topo</option><option value="bottom center">Base</option><option value="left center">Esquerda</option><option value="right center">Direita</option><option value="top left">Superior esquerda</option><option value="top right">Superior direita</option><option value="bottom left">Inferior esquerda</option><option value="bottom right">Inferior direita</option></select></>}
                 {selectedSource.type === 'widget' && <>
-                  <p className="eyebrow section-eyebrow">TEMA DO WIDGET</p>
+                  <p className="eyebrow section-eyebrow">APARÊNCIA DO CONTÊINER</p>
+                  <label className="lock-toggle"><input type="checkbox" checked={selectedSource.widgetShowBackground !== false} onChange={(event) => updateSelected({ widgetShowBackground: event.target.checked, widgetBackdropBlur: event.target.checked ? (selectedSource.widgetBackdropBlur ?? 8) : 0 })} /><span>Mostrar fundo do widget</span></label>
+                  <label className="lock-toggle"><input type="checkbox" checked={selectedSource.widgetShowBorder !== false} onChange={(event) => updateSelected({ widgetShowBorder: event.target.checked })} /><span>Mostrar borda do contêiner</span></label>
+                  <label className="lock-toggle"><input type="checkbox" checked={selectedSource.widgetShowShadow !== false} onChange={(event) => updateSelected({ widgetShowShadow: event.target.checked })} /><span>Mostrar sombra do contêiner</span></label>
+                  <label className="field-label" htmlFor="widget-blur">Desfoque do fundo · {selectedSource.widgetShowBackground === false ? '0' : selectedSource.widgetBackdropBlur ?? ((selectedSource.widgetTheme ?? 'glass') === 'glass' ? 8 : 0)} px</label><input id="widget-blur" className="video-trim-range" type="range" min="0" max="30" value={selectedSource.widgetShowBackground === false ? 0 : selectedSource.widgetBackdropBlur ?? ((selectedSource.widgetTheme ?? 'glass') === 'glass' ? 8 : 0)} disabled={selectedSource.widgetShowBackground === false} onChange={(event) => updateSelected({ widgetBackdropBlur: Number(event.target.value) })} />
                   <label className="field-label" htmlFor="widget-theme">Estilo base</label>
                   <select id="widget-theme" className="text-input" value={selectedSource.widgetTheme ?? 'glass'} onChange={(event) => updateSelected({ widgetTheme: event.target.value as WidgetTheme })}><option value="glass">Vidro translúcido</option><option value="neon">Neon gamer</option><option value="minimal">Minimalista</option><option value="solid">Fundo sólido</option></select>
                   <div className="two-field-grid"><div><label className="field-label" htmlFor="widget-accent">Cor de destaque</label><ColorField id="widget-accent" value={selectedSource.widgetAccent ?? '#8d85ff'} onChange={(widgetAccent) => updateSelected({ widgetAccent })} /></div><div><label className="field-label" htmlFor="widget-bg-color">Fundo personalizado</label><ColorField id="widget-bg-color" value={selectedSource.widgetBackgroundColor ?? '#141722'} onChange={(widgetBackgroundColor) => updateSelected({ widgetBackgroundColor })} /></div></div>
-                  <label className="field-label" htmlFor="widget-bg-opacity">Opacidade do fundo</label><div className="range-row"><input id="widget-bg-opacity" type="range" min="0" max="1" step="0.05" value={selectedSource.widgetBackgroundOpacity ?? 0.92} onChange={(event) => updateSelected({ widgetBackgroundOpacity: Number(event.target.value) })} /><span>{Math.round((selectedSource.widgetBackgroundOpacity ?? 0.92) * 100)}%</span></div>
+                  <label className="field-label" htmlFor="widget-bg-opacity">Opacidade da cor de fundo</label><div className="range-row"><input id="widget-bg-opacity" type="range" min="0" max="1" step="0.05" value={selectedSource.widgetBackgroundOpacity ?? 0.92} onChange={(event) => updateSelected({ widgetBackgroundOpacity: Number(event.target.value) })} /><span>{Math.round((selectedSource.widgetBackgroundOpacity ?? 0.92) * 100)}%</span></div>
+                  <p className="field-hint">A imagem de fundo é separada do conteúdo; o texto e os controles continuam editáveis por cima dela.</p>
+                  <button className="wide-action" type="button" onClick={() => widgetBackgroundInputRef.current?.click()}>{selectedSource.widgetBackgroundImage?.startsWith('data:') ? 'Substituir imagem de fundo' : 'Importar imagem de fundo do widget'}</button>
+                  <label className="field-label" htmlFor="widget-bg-url">Ou usar URL da imagem</label><input id="widget-bg-url" className="text-input" type="url" value={widgetBackgroundUrlDraft} onChange={(event) => setWidgetBackgroundUrlDraft(event.target.value)} placeholder="https://site.com/fundo.webp" />
+                  <button className="wide-action" type="button" onClick={applyWidgetBackgroundUrl}>Aplicar URL do fundo</button>
+                  {selectedSource.widgetBackgroundImage && <button className="wide-action danger-action" type="button" onClick={() => { updateSelected({ widgetBackgroundImage: undefined }); setWidgetBackgroundUrlDraft('') }}>Remover imagem de fundo</button>}
+                  {selectedSource.widgetBackgroundImage && <><label className="field-label" htmlFor="widget-bg-image-fit">Ajuste da imagem</label><select id="widget-bg-image-fit" className="text-input" value={selectedSource.widgetBackgroundImageFit ?? 'cover'} onChange={(event) => updateSelected({ widgetBackgroundImageFit: event.target.value as SceneSource['widgetBackgroundImageFit'] })}><option value="cover">Cobrir</option><option value="contain">Mostrar inteira</option><option value="stretch">Esticar</option></select><label className="field-label" htmlFor="widget-bg-image-opacity">Opacidade da imagem</label><div className="range-row"><input id="widget-bg-image-opacity" type="range" min="0" max="1" step="0.05" value={selectedSource.widgetBackgroundImageOpacity ?? 1} onChange={(event) => updateSelected({ widgetBackgroundImageOpacity: Number(event.target.value) })} /><span>{Math.round((selectedSource.widgetBackgroundImageOpacity ?? 1) * 100)}%</span></div></>}
                   <div className="two-field-grid"><div><label className="field-label" htmlFor="widget-text-color">Cor do conteúdo</label><ColorField id="widget-text-color" value={selectedSource.widgetTextColor ?? '#f2f3fb'} onChange={(widgetTextColor) => updateSelected({ widgetTextColor })} /></div><div><label className="field-label" htmlFor="widget-title-color">Cor dos títulos</label><ColorField id="widget-title-color" value={selectedSource.widgetTitleColor ?? '#ffffff'} onChange={(widgetTitleColor) => updateSelected({ widgetTitleColor })} /></div></div>
                   <div className="two-field-grid"><div><label className="field-label" htmlFor="widget-border-color">Cor da borda</label><ColorField id="widget-border-color" value={selectedSource.widgetBorderColor ?? '#555779'} onChange={(widgetBorderColor) => updateSelected({ widgetBorderColor })} /></div><div><label className="field-label" htmlFor="widget-border-width">Espessura</label><input id="widget-border-width" className="text-input" type="number" min="0" max="12" value={selectedSource.widgetBorderWidth ?? 1} onChange={(event) => updateSelected({ widgetBorderWidth: clamp(Number(event.target.value) || 0, 0, 12) })} /></div></div>
                   <label className="field-label" htmlFor="widget-radius">Cantos arredondados</label><div className="range-row"><input id="widget-radius" type="range" min="0" max="80" value={selectedSource.widgetRadius ?? 12} onChange={(event) => updateSelected({ widgetRadius: Number(event.target.value) })} /><span>{selectedSource.widgetRadius ?? 12}px</span></div>
                   <div className="two-field-grid"><div><label className="field-label" htmlFor="widget-padding">Espaço interno</label><input id="widget-padding" className="text-input" type="number" min="0" max="48" value={selectedSource.widgetPadding ?? 12} onChange={(event) => updateSelected({ widgetPadding: clamp(Number(event.target.value) || 0, 0, 48) })} /></div><div><label className="field-label" htmlFor="widget-gap">Espaço entre itens</label><input id="widget-gap" className="text-input" type="number" min="0" max="32" value={selectedSource.widgetGap ?? 8} onChange={(event) => updateSelected({ widgetGap: clamp(Number(event.target.value) || 0, 0, 32) })} /></div></div>
+                  {!['chat', 'clock'].includes(selectedSource.widgetKind ?? '') && <>
                   <label className="field-label" htmlFor="widget-font-family">Família tipográfica</label><input id="widget-font-family" className="text-input" value={selectedSource.widgetFontFamily ?? ''} onChange={(event) => updateSelected({ widgetFontFamily: event.target.value })} placeholder="Herdar padrão do widget" />
                   <label className="field-label" htmlFor="widget-font-url">Importar fonte para este widget por link</label><input id="widget-font-url" className="text-input" type="url" value={selectedSource.widgetFontUrl ?? ''} onChange={(event) => updateSelected({ widgetFontUrl: event.target.value })} placeholder="https://fonts.googleapis.com/css2?..." />
                   <button className="wide-action" type="button" onClick={applyWidgetFontUrl}>Carregar fonte do widget</button>
+                  </>}
+                  {!['chat', 'clock'].includes(selectedSource.widgetKind ?? '') && <>
+                  <div className="two-field-grid"><div><label className="field-label" htmlFor="widget-font-size">Tamanho base do texto (px)</label><input id="widget-font-size" className="text-input" type="number" min="6" max="100" value={selectedSource.widgetFontSize ?? 16} onChange={(event) => updateSelected({ widgetFontSize: clamp(Number(event.target.value) || 16, 6, 100) })} /></div><div><label className="field-label" htmlFor="widget-font-weight">Peso da fonte</label><select id="widget-font-weight" className="text-input" value={selectedSource.widgetFontWeight ?? 500} onChange={(event) => updateSelected({ widgetFontWeight: Number(event.target.value) })}><option value="300">Leve</option><option value="400">Normal</option><option value="500">Médio</option><option value="600">Seminegrito</option><option value="700">Negrito</option><option value="800">Extra negrito</option><option value="900">Preto</option></select></div></div>
+                  <div className="two-field-grid"><div><label className="field-label" htmlFor="widget-title-size">Tamanho do título (px)</label><input id="widget-title-size" className="text-input" type="number" min="6" max="80" value={selectedSource.widgetTitleSize ?? 12} onChange={(event) => updateSelected({ widgetTitleSize: clamp(Number(event.target.value) || 12, 6, 80) })} /></div><div><label className="field-label" htmlFor="widget-letter-spacing">Espaço entre letras (px)</label><input id="widget-letter-spacing" className="text-input" type="number" min="-5" max="20" step="0.1" value={selectedSource.widgetLetterSpacing ?? 0} onChange={(event) => updateSelected({ widgetLetterSpacing: clamp(Number(event.target.value) || 0, -5, 20) })} /></div></div>
+                  <div className="two-field-grid"><div><label className="field-label" htmlFor="widget-subtitle-color">Cor de subtítulos</label><ColorField id="widget-subtitle-color" value={selectedSource.widgetSubtitleColor ?? selectedSource.widgetTextColor ?? '#a7acbe'} onChange={(widgetSubtitleColor) => updateSelected({ widgetSubtitleColor })} /></div><div><label className="field-label" htmlFor="widget-value-color">Cor dos valores/números</label><ColorField id="widget-value-color" value={selectedSource.widgetValueColor ?? selectedSource.widgetTitleColor ?? '#ffffff'} onChange={(widgetValueColor) => updateSelected({ widgetValueColor })} /></div></div>
+                  <div className="two-field-grid"><div><label className="field-label" htmlFor="widget-track-color">Cor da trilha</label><ColorField id="widget-track-color" value={selectedSource.widgetTrackColor ?? '#080a14'} onChange={(widgetTrackColor) => updateSelected({ widgetTrackColor })} /></div><div><label className="field-label" htmlFor="widget-fill-color">Cor de preenchimento</label><ColorField id="widget-fill-color" value={selectedSource.widgetFillColor ?? selectedSource.widgetAccent ?? '#8d85ff'} onChange={(widgetFillColor) => updateSelected({ widgetFillColor })} /></div></div>
+                  <label className="field-label" htmlFor="widget-item-background">Fundo de cada item/linha</label><ColorField id="widget-item-background" value={selectedSource.widgetItemBackgroundColor ?? '#222432'} onChange={(widgetItemBackgroundColor) => updateSelected({ widgetItemBackgroundColor })} />
+                  <label className="field-label" htmlFor="widget-item-border">Borda de cada item/linha</label><ColorField id="widget-item-border" value={selectedSource.widgetItemBorderColor ?? '#ffffff'} onChange={(widgetItemBorderColor) => updateSelected({ widgetItemBorderColor })} />
+                  </>}
+                  {selectedSource.widgetKind === 'chat' && <>
+                    <div className="field-divider" /><p className="eyebrow section-eyebrow">CAIXA DE CHAT · BOLHAS E NOMES</p>
+                    <label className="field-label" htmlFor="chat-base-font-family">Fonte padrão do chat</label><input id="chat-base-font-family" className="text-input" value={selectedSource.widgetFontFamily ?? ''} onChange={(event) => updateSelected({ widgetFontFamily: event.target.value })} placeholder="Ex.: Inter, sans-serif" />
+                    <label className="field-label" htmlFor="chat-base-font-url">Carregar fonte pela internet (URL)</label><input id="chat-base-font-url" className="text-input" type="url" value={selectedSource.widgetFontUrl ?? ''} onChange={(event) => updateSelected({ widgetFontUrl: event.target.value })} placeholder="https://fonts.googleapis.com/css2?..." />
+                    <button className="wide-action" type="button" onClick={applyWidgetFontUrl}>Carregar fonte base do chat</button>
+                    <p className="field-hint">A fonte base é usada para nome e mensagem quando você não escolhe uma família específica abaixo.</p>
+                    <label className="field-label" htmlFor="chat-layout">Organização das mensagens</label><select id="chat-layout" className="text-input" value={selectedSource.chatLayout ?? 'stacked'} onChange={(event) => updateSelected({ chatLayout: event.target.value as SceneSource['chatLayout'] })}><option value="stacked">Nome acima da mensagem (estilo live)</option><option value="inline">Nome e mensagem na mesma linha</option></select>
+                    <label className="lock-toggle"><input type="checkbox" checked={selectedSource.chatUsernamePill !== false} onChange={(event) => updateSelected({ chatUsernamePill: event.target.checked })} /><span>Mostrar etiqueta separada para o nome</span></label>
+                    <div className="two-field-grid"><div><label className="field-label" htmlFor="chat-name-pill-color">Cor da etiqueta do nome</label><ColorField id="chat-name-pill-color" value={selectedSource.chatUsernamePillColor ?? '#b94780'} onChange={(chatUsernamePillColor) => updateSelected({ chatUsernamePillColor })} /></div><div><label className="field-label" htmlFor="chat-name-pill-opacity">Opacidade do nome (%)</label><input id="chat-name-pill-opacity" className="text-input" type="number" min="0" max="100" value={Math.round((selectedSource.chatUsernamePillOpacity ?? 0.95) * 100)} disabled={selectedSource.chatUsernamePill === false} onChange={(event) => updateSelected({ chatUsernamePillOpacity: clamp(Number(event.target.value) / 100 || 0, 0, 1) })} /></div></div>
+                    <div className="two-field-grid"><div><label className="field-label" htmlFor="chat-name-pill-radius">Arredondamento do nome</label><input id="chat-name-pill-radius" className="text-input" type="number" min="0" max="100" value={selectedSource.chatUsernamePillRadius ?? 999} disabled={selectedSource.chatUsernamePill === false} onChange={(event) => updateSelected({ chatUsernamePillRadius: clamp(Number(event.target.value) || 0, 0, 100) })} /></div><div><label className="field-label" htmlFor="chat-name-weight">Peso do nome</label><select id="chat-name-weight" className="text-input" value={selectedSource.chatUsernameFontWeight ?? 800} onChange={(event) => updateSelected({ chatUsernameFontWeight: Number(event.target.value) })}><option value="400">Normal</option><option value="500">Médio</option><option value="600">Seminegrito</option><option value="700">Negrito</option><option value="800">Extra negrito</option><option value="900">Preto</option></select></div></div>
+                    <div className="two-field-grid"><div><label className="field-label" htmlFor="chat-name-padding-x">Margem horizontal do nome</label><input id="chat-name-padding-x" className="text-input" type="number" min="0" max="40" value={selectedSource.chatUsernamePillPaddingX ?? 8} disabled={selectedSource.chatUsernamePill === false} onChange={(event) => updateSelected({ chatUsernamePillPaddingX: clamp(Number(event.target.value) || 0, 0, 40) })} /></div><div><label className="field-label" htmlFor="chat-name-padding-y">Margem vertical do nome</label><input id="chat-name-padding-y" className="text-input" type="number" min="0" max="30" value={selectedSource.chatUsernamePillPaddingY ?? 3} disabled={selectedSource.chatUsernamePill === false} onChange={(event) => updateSelected({ chatUsernamePillPaddingY: clamp(Number(event.target.value) || 0, 0, 30) })} /></div></div>
+                    <div className="two-field-grid"><div><label className="field-label" htmlFor="chat-name-border-width">Borda da etiqueta</label><input id="chat-name-border-width" className="text-input" type="number" min="0" max="8" value={selectedSource.chatUsernamePillBorderWidth ?? 0} disabled={selectedSource.chatUsernamePill === false} onChange={(event) => updateSelected({ chatUsernamePillBorderWidth: clamp(Number(event.target.value) || 0, 0, 8) })} /></div><div><label className="field-label" htmlFor="chat-name-border-color">Cor da borda da etiqueta</label><ColorField id="chat-name-border-color" value={selectedSource.chatUsernamePillBorderColor ?? '#ffffff'} onChange={(chatUsernamePillBorderColor) => updateSelected({ chatUsernamePillBorderColor })} /></div></div>
+                    <label className="field-label" htmlFor="chat-username-font-family">Fonte do nome (família CSS)</label><input id="chat-username-font-family" className="text-input" value={selectedSource.chatUsernameFontFamily ?? ''} onChange={(event) => updateSelected({ chatUsernameFontFamily: event.target.value })} placeholder="Herdar fonte do widget" />
+                    <label className="field-label" htmlFor="chat-message-font-family">Fonte da mensagem (família CSS)</label><input id="chat-message-font-family" className="text-input" value={selectedSource.chatMessageFontFamily ?? ''} onChange={(event) => updateSelected({ chatMessageFontFamily: event.target.value })} placeholder="Herdar fonte do widget" />
+                    <label className="lock-toggle"><input type="checkbox" checked={selectedSource.chatBubbleEnabled !== false} onChange={(event) => updateSelected({ chatBubbleEnabled: event.target.checked })} /><span>Mostrar balão atrás de cada mensagem</span></label>
+                    <div className="two-field-grid"><div><label className="field-label" htmlFor="chat-bubble-color">Cor dos balões</label><ColorField id="chat-bubble-color" value={selectedSource.chatBubbleColor ?? '#e979b2'} onChange={(chatBubbleColor) => updateSelected({ chatBubbleColor })} /></div><div><label className="field-label" htmlFor="chat-bubble-opacity">Opacidade do balão</label><input id="chat-bubble-opacity" className="text-input" type="number" min="0" max="100" value={Math.round((selectedSource.chatBubbleOpacity ?? 0.78) * 100)} disabled={selectedSource.chatBubbleEnabled === false} onChange={(event) => updateSelected({ chatBubbleOpacity: clamp(Number(event.target.value) / 100 || 0, 0, 1) })} /></div></div>
+                    <div className="two-field-grid"><div><label className="field-label" htmlFor="chat-bubble-radius">Arredondamento</label><input id="chat-bubble-radius" className="text-input" type="number" min="0" max="100" value={selectedSource.chatBubbleRadius ?? 18} disabled={selectedSource.chatBubbleEnabled === false} onChange={(event) => updateSelected({ chatBubbleRadius: clamp(Number(event.target.value) || 0, 0, 100) })} /></div><div><label className="field-label" htmlFor="chat-bubble-border-width">Borda do balão</label><input id="chat-bubble-border-width" className="text-input" type="number" min="0" max="8" value={selectedSource.chatBubbleBorderWidth ?? 0} disabled={selectedSource.chatBubbleEnabled === false} onChange={(event) => updateSelected({ chatBubbleBorderWidth: clamp(Number(event.target.value) || 0, 0, 8) })} /></div></div>
+                    <label className="field-label" htmlFor="chat-bubble-border-color">Cor da borda do balão</label><ColorField id="chat-bubble-border-color" value={selectedSource.chatBubbleBorderColor ?? '#ffffff'} onChange={(chatBubbleBorderColor) => updateSelected({ chatBubbleBorderColor })} />
+                    <div className="two-field-grid"><div><label className="field-label" htmlFor="chat-padding-x">Margem horizontal</label><input id="chat-padding-x" className="text-input" type="number" min="0" max="60" value={selectedSource.chatBubblePaddingX ?? 10} onChange={(event) => updateSelected({ chatBubblePaddingX: clamp(Number(event.target.value) || 0, 0, 60) })} /></div><div><label className="field-label" htmlFor="chat-padding-y">Margem vertical</label><input id="chat-padding-y" className="text-input" type="number" min="0" max="40" value={selectedSource.chatBubblePaddingY ?? 6} onChange={(event) => updateSelected({ chatBubblePaddingY: clamp(Number(event.target.value) || 0, 0, 40) })} /></div></div>
+                    <div className="two-field-grid"><div><label className="field-label" htmlFor="chat-username-size">Tamanho do nome</label><input id="chat-username-size" className="text-input" type="number" min="6" max="60" value={selectedSource.chatUsernameFontSize ?? 12} onChange={(event) => updateSelected({ chatUsernameFontSize: clamp(Number(event.target.value) || 12, 6, 60) })} /></div><div><label className="field-label" htmlFor="chat-message-size">Tamanho da mensagem</label><input id="chat-message-size" className="text-input" type="number" min="6" max="60" value={selectedSource.chatMessageFontSize ?? 13} onChange={(event) => updateSelected({ chatMessageFontSize: clamp(Number(event.target.value) || 13, 6, 60) })} /></div></div>
+                    <label className="field-label" htmlFor="chat-message-color">Cor do texto da mensagem</label><ColorField id="chat-message-color" value={selectedSource.chatMessageColor ?? selectedSource.widgetTextColor ?? '#ffffff'} onChange={(chatMessageColor) => updateSelected({ chatMessageColor })} />
+                    <label className="lock-toggle"><input type="checkbox" checked={Boolean(selectedSource.chatBubbleShadow)} onChange={(event) => updateSelected({ chatBubbleShadow: event.target.checked })} /><span>Sombra nos balões de mensagem</span></label>
+                    <label className="field-label" htmlFor="chat-message-line-height">Altura de linha da mensagem</label><div className="range-row"><input id="chat-message-line-height" type="range" min="0.8" max="3" step="0.05" value={selectedSource.chatMessageLineHeight ?? 1.35} onChange={(event) => updateSelected({ chatMessageLineHeight: Number(event.target.value) })} /><span>{(selectedSource.chatMessageLineHeight ?? 1.35).toFixed(2)}</span></div>
+                    <label className="field-label" htmlFor="chat-name-mode">Cores dos nomes</label><select id="chat-name-mode" className="text-input" value={selectedSource.chatUsernameColorMode ?? 'palette'} onChange={(event) => updateSelected({ chatUsernameColorMode: event.target.value as SceneSource['chatUsernameColorMode'] })}><option value="palette">Paleta colorida (por participante)</option><option value="uniform">Uma cor para todos os nomes</option></select>
+                    {selectedSource.chatUsernameColorMode === 'uniform' && <><label className="field-label" htmlFor="chat-name-color">Cor dos nomes</label><ColorField id="chat-name-color" value={selectedSource.chatUsernameColor ?? '#ffffff'} onChange={(chatUsernameColor) => updateSelected({ chatUsernameColor })} /></>}
+                    <label className="field-label" htmlFor="chat-name-colors">Sobrescrever cor de nomes específicos</label><textarea id="chat-name-colors" className="text-input textarea-input" rows={3} value={selectedSource.chatNameColors ?? ''} onChange={(event) => updateSelected({ chatNameColors: event.target.value })} placeholder={"Sophia=#ff82c5\nModerador=#78c8ff"} /><p className="field-hint">Uma entrada por linha no formato nome=#HEX. Tem prioridade sobre a paleta padrão.</p>
+                    <label className="field-label" htmlFor="chat-bubble-colors">Balões com cores por pessoa</label><textarea id="chat-bubble-colors" className="text-input textarea-input" rows={3} value={selectedSource.chatBubbleColors ?? ''} onChange={(event) => updateSelected({ chatBubbleColors: event.target.value })} placeholder={"Sophia=#b84f89\nModerador=#375c85"} disabled={selectedSource.chatBubbleEnabled === false} /><p className="field-hint">Opcional: uma entrada por linha no formato nome=#HEX. Substitui a cor global apenas para os nomes listados.</p>
+                    <div className="two-field-grid"><div><label className="field-label" htmlFor="chat-max-items">Mensagens visíveis</label><input id="chat-max-items" className="text-input" type="number" min="1" max="30" value={selectedSource.widgetMaxItems ?? 8} onChange={(event) => updateSelected({ widgetMaxItems: clamp(Math.round(Number(event.target.value) || 1), 1, 30) })} /></div><div><label className="field-label" htmlFor="chat-gap">Distância entre mensagens</label><input id="chat-gap" className="text-input" type="number" min="0" max="40" value={selectedSource.chatLineGap ?? 8} onChange={(event) => updateSelected({ chatLineGap: clamp(Number(event.target.value) || 0, 0, 40) })} /></div></div>
+                    <label className="field-label" htmlFor="chat-timestamp-color">Cor do horário</label><ColorField id="chat-timestamp-color" value={selectedSource.chatTimestampColor ?? '#f7d6e7'} onChange={(chatTimestampColor) => updateSelected({ chatTimestampColor })} />
+                    <label className="lock-toggle"><input type="checkbox" checked={Boolean(selectedSource.chatShowBadges)} onChange={(event) => updateSelected({ chatShowBadges: event.target.checked })} /><span>Mostrar emblema decorativo</span></label>
+                    <label className="lock-toggle"><input type="checkbox" checked={Boolean(selectedSource.chatShowTimestamp)} onChange={(event) => updateSelected({ chatShowTimestamp: event.target.checked })} /><span>Mostrar horário demonstrativo</span></label>
+                    <label className="lock-toggle"><input type="checkbox" checked={Boolean(selectedSource.chatTextShadow)} onChange={(event) => updateSelected({ chatTextShadow: event.target.checked })} /><span>Sombra no texto das mensagens</span></label>
+                    <label className="lock-toggle"><input type="checkbox" checked={Boolean(selectedSource.chatShowInput)} onChange={(event) => updateSelected({ chatShowInput: event.target.checked })} /><span>Mostrar campo de envio (visual)</span></label>
+                  </>}
+                  {selectedSource.widgetKind === 'clock' && <>
+                    <div className="field-divider" /><p className="eyebrow section-eyebrow">RELÓGIO · NÚMEROS</p>
+                    <label className="field-label" htmlFor="clock-font-family">Fonte dos números</label><input id="clock-font-family" className="text-input" value={selectedSource.widgetFontFamily ?? ''} onChange={(event) => updateSelected({ widgetFontFamily: event.target.value })} placeholder="Ex.: Inter, monospace" />
+                    <label className="field-label" htmlFor="clock-font-url">Importar fonte pela internet (URL)</label><input id="clock-font-url" className="text-input" type="url" value={selectedSource.widgetFontUrl ?? ''} onChange={(event) => updateSelected({ widgetFontUrl: event.target.value })} placeholder="https://fonts.googleapis.com/css2?..." />
+                    <button className="wide-action" type="button" onClick={applyWidgetFontUrl}>Carregar fonte dos números</button>
+                    <label className="field-label" htmlFor="clock-font-size">Tamanho dos números (px)</label><input id="clock-font-size" className="text-input" type="number" min="8" max="200" value={selectedSource.widgetFontSize ?? 48} onChange={(event) => updateSelected({ widgetFontSize: clamp(Number(event.target.value) || 48, 8, 200) })} />
+                    <label className="field-label" htmlFor="clock-color">Cor dos números</label><ColorField id="clock-color" value={selectedSource.clockColor ?? selectedSource.widgetTitleColor ?? '#ffffff'} onChange={(clockColor) => updateSelected({ clockColor })} />
+                    <label className="field-label" htmlFor="clock-font-weight">Peso dos números</label><select id="clock-font-weight" className="text-input" value={selectedSource.widgetFontWeight ?? 800} onChange={(event) => updateSelected({ widgetFontWeight: Number(event.target.value) })}><option value="300">Leve</option><option value="400">Normal</option><option value="500">Médio</option><option value="600">Seminegrito</option><option value="700">Negrito</option><option value="800">Extra negrito</option><option value="900">Preto</option></select>
+                    <label className="field-label" htmlFor="clock-spacing">Espaçamento dos números</label><input id="clock-spacing" className="text-input" type="number" min="-10" max="25" step="0.5" value={selectedSource.widgetLetterSpacing ?? -1} onChange={(event) => updateSelected({ widgetLetterSpacing: clamp(Number(event.target.value) || 0, -10, 25) })} />
+                    <label className="field-label" htmlFor="clock-date-color">Cor da data</label><ColorField id="clock-date-color" value={selectedSource.clockDateColor ?? selectedSource.widgetTextColor ?? '#c6c8d5'} onChange={(clockDateColor) => updateSelected({ clockDateColor })} />
+                    <label className="lock-toggle"><input type="checkbox" checked={selectedSource.widgetShowHeader !== false} onChange={(event) => updateSelected({ widgetShowHeader: event.target.checked })} /><span>Mostrar título do relógio</span></label>
+                    <label className="lock-toggle"><input type="checkbox" checked={selectedSource.clockShowDate !== false} onChange={(event) => updateSelected({ clockShowDate: event.target.checked })} /><span>Mostrar data</span></label>
+                    <label className="lock-toggle"><input type="checkbox" checked={selectedSource.clockShowSeconds !== false} onChange={(event) => updateSelected({ clockShowSeconds: event.target.checked })} /><span>Mostrar segundos</span></label>
+                    <label className="lock-toggle"><input type="checkbox" checked={selectedSource.clock24h !== false} onChange={(event) => updateSelected({ clock24h: event.target.checked })} /><span>Formato de 24 horas</span></label>
+                    <label className="lock-toggle"><input type="checkbox" checked={Boolean(selectedSource.clockTextShadow)} onChange={(event) => updateSelected({ clockTextShadow: event.target.checked })} /><span>Sombra nos números</span></label>
+                    <label className="field-label" htmlFor="clock-date-format">Formato da data</label><select id="clock-date-format" className="text-input" value={selectedSource.clockDateFormat ?? 'short'} onChange={(event) => updateSelected({ clockDateFormat: event.target.value as SceneSource['clockDateFormat'] })}><option value="short">DD/MM/AAAA</option><option value="long">Data por extenso</option><option value="time">Dia e mês abreviados</option></select>
+                  </>}
+                  <div className="field-divider" />
+                  <p className="eyebrow section-eyebrow">ESTILO REUTILIZÁVEL</p>
+                  <button className="wide-action" type="button" onClick={() => downloadWidgetStyle(selectedSource)}>Exportar estilo deste widget (JSON)</button>
+                  <button className="wide-action" type="button" onClick={() => widgetStyleInputRef.current?.click()}>Importar estilo para este widget (JSON)</button>
+                  <p className="field-hint">O arquivo de estilo reutiliza a aparência e o conteúdo sem substituir a posição, o tamanho ou o nome da camada.</p>
                   <label className="field-label" htmlFor="widget-motion">Animação</label><select id="widget-motion" className="text-input" value={selectedSource.widgetAnimation ?? 'subtle'} onChange={(event) => updateSelected({ widgetAnimation: event.target.value as SceneSource['widgetAnimation'] })}><option value="none">Sem animações</option><option value="subtle">Suave</option><option value="energetic">Mais chamativa</option></select>
                   <label className="lock-toggle"><input type="checkbox" checked={selectedSource.widgetShowHeader !== false} onChange={(event) => updateSelected({ widgetShowHeader: event.target.checked })} /><span>Mostrar cabeçalho (quando suportado)</span></label>
                   <label className="lock-toggle"><input type="checkbox" checked={Boolean(selectedSource.widgetCompact)} onChange={(event) => updateSelected({ widgetCompact: event.target.checked })} /><span>Modo compacto</span></label>
@@ -2106,8 +2763,10 @@ function Editor() {
       </aside>
 
       <input ref={imageInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" multiple onChange={onImageSelected} />
-      <input ref={videoInputRef} className="hidden-input" type="file" accept="video/mp4,video/webm,video/ogg,.mp4,.webm,.ogv,.ogg,.mov" onChange={onVideoSelected} />
+      <input ref={videoInputRef} className="hidden-input" type="file" accept="video/*,.mp4,.m4v,.webm,.ogv,.ogg,.mov,.3gp,.mkv,.avi,.wmv,.mpeg,.mpg,.ts,.m2ts" multiple onChange={onVideoSelected} />
       <input ref={backgroundDesignInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" onChange={onBackgroundDesignSelected} />
+      <input ref={widgetBackgroundInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" onChange={onWidgetBackgroundSelected} />
+      <input ref={widgetStyleInputRef} className="hidden-input" type="file" accept="application/json,.json" onChange={importWidgetStyle} />
       <input ref={importInputRef} className="hidden-input" type="file" accept="application/json,.json" onChange={importProject} />
       {message && <div className="save-toast" role="status"><span>✓</span>{message}<button type="button" onClick={() => setMessage('')} aria-label="Fechar aviso">×</button></div>}
     </div>
