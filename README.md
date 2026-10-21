@@ -88,53 +88,6 @@ Para testar localmente a versão compilada:
 npm run preview
 ```
 
-## Publicação no GitHub Pages
-
-O projeto contém o workflow `.github/workflows/deploy.yml`, preparado para compilar a aplicação e publicar a pasta `dist` quando há um `push` para `main`.
-
-1. Envie os arquivos do projeto para a branch `main`, incluindo a pasta `.github/workflows/`.
-2. No repositório, abra **Settings → Pages** e escolha **GitHub Actions** em *Build and deployment → Source*.
-3. Abra a aba **Actions** e acompanhe o workflow **Publicar Webcam_overlay no GitHub Pages**.
-4. Só considere o site publicado quando a execução terminar com sucesso. O endereço esperado é `https://sophialilithlima-crypto.github.io/Webcam_overlay/`.
-
-### Se o GitHub Pages mostrar “There isn't a GitHub Pages site here”
-
-Verifique, nesta ordem:
-
-1. **Visibilidade e plano:** no GitHub Free, o Pages está disponível para repositórios públicos. A publicação a partir de repositórios privados depende de um plano compatível. Tornar o repositório público expõe o código e o histórico de commits; faça isso somente depois de confirmar que não há dados privados, tokens ou senhas no repositório.
-2. **Workflow no GitHub:** confira se `.github/workflows/deploy.yml` aparece na branch `main` do repositório remoto.
-3. **Origem de publicação:** em **Settings → Pages**, selecione **GitHub Actions**.
-4. **Resultado do deploy:** em **Actions**, abra a execução mais recente. Se estiver vermelha, leia o primeiro passo que falhou e corrija o erro antes de tentar novamente.
-5. **Permissões:** nas configurações do repositório, confira se o GitHub Actions está autorizado a executar workflows e publicar Pages.
-
-Documentação oficial: [GitHub Pages — configurar a origem de publicação](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site) e [GitHub Pages — início rápido e requisitos de plano](https://docs.github.com/en/pages/quickstart).
-
-## Conferir commits e sincronização
-
-No terminal do VS Code, dentro da pasta do projeto, execute:
-
-```powershell
-git status -sb
-git branch -vv
-git log --oneline --decorate -8
-git remote -v
-```
-
-- Se a branch aparecer como **ahead** (à frente de `origin/main`), há commits locais que ainda precisam ser enviados com `git push origin main`.
-- Se aparecerem arquivos modificados ou não rastreados, eles ainda precisam ser adicionados e commitados.
-- Se aparecer **behind** (atrás de `origin/main`), não use `push --force`; primeiro confira as diferenças e sincronize com o remoto.
-- Se estiver `up to date` e sem alterações, os commits da pasta atual já estão sincronizados. Nesse caso, confirme se está na pasta correta e se o arquivo que você editou pertence a esse repositório.
-
-Para enviar apenas este README, depois de copiá-lo para a raiz do repositório com o nome `README.md`:
-
-```powershell
-git add README.md
-git commit -m "docs: improve README and deployment instructions"
-git push origin main
-```
-
-Se o Git disser `nothing to commit`, não crie um commit vazio: confirme o conteúdo do README, o caminho atual e o resultado de `git status -sb`.
-
 ## Limitações conhecidas
 
 - A aplicação é um editor visual e overlay, não um encoder/serviço de transmissão. Ela não envia diretamente o vídeo para uma plataforma.
