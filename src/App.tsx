@@ -11,7 +11,9 @@ import './App.css'
 type WidgetKind = 'alert' | 'chat' | 'events' | 'goal' | 'latest' | 'socials' | 'countdown' | 'clock' | 'viewer' | 'ticker' | 'music' | 'poll' | 'sponsor' | 'webcam-frame' | 'live-badge' | 'tip-jar' | 'stream-boss' | 'leaderboard'
 type WidgetTheme = 'glass' | 'neon' | 'minimal' | 'solid'
 type SourceType = 'text' | 'shape' | 'camera' | 'image' | 'browser' | 'widget'
-type BackgroundConfig = { mode: 'transparent' | 'solid' | 'gradient'; color: string; color2: string; angle: number }
+type BackgroundConfig = { mode: 'transparent' | 'solid' | 'gradient' | 'image'; color: string; color2: string; angle: number; imageSrc?: string; imageFit?: 'cover' | 'contain' | 'stretch'; imagePosition?: string; imageOpacity?: number; overlayColor?: string; overlayOpacity?: number }
+type InspectorTab = 'layers' | 'element' | 'background' | 'canvas'
+type ElementSection = 'content' | 'style' | 'transform'
 type SceneSource = {
   id: string
   type: SourceType
@@ -27,6 +29,10 @@ type SceneSource = {
   fontSize?: number
   src?: string
   objectFit?: 'contain' | 'cover'
+  objectPosition?: string
+  textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize'
+  textDecoration?: 'none' | 'underline' | 'line-through'
+  textShadowEnabled?: boolean
   radius?: number
   rotation?: number
   opacity?: number
@@ -34,6 +40,7 @@ type SceneSource = {
   borderWidth?: number
   shadow?: boolean
   fontFamily?: string
+  fontUrl?: string
   fontWeight?: number
   textAlign?: 'left' | 'center' | 'right'
   italic?: boolean
@@ -56,6 +63,20 @@ type SceneSource = {
   widgetTheme?: WidgetTheme
   widgetShowHeader?: boolean
   widgetCompact?: boolean
+  widgetBackgroundColor?: string
+  widgetBackgroundOpacity?: number
+  widgetTextColor?: string
+  widgetTitleColor?: string
+  widgetBorderColor?: string
+  widgetBorderWidth?: number
+  widgetRadius?: number
+  widgetPadding?: number
+  widgetGap?: number
+  widgetFontFamily?: string
+  widgetFontUrl?: string
+  widgetShowIcon?: boolean
+  widgetAnimation?: 'none' | 'subtle' | 'energetic'
+  widgetCustomCss?: string
   isBackgroundAsset?: boolean
 }
 type Scene = { id: string; name: string; sources: SceneSource[]; background?: BackgroundConfig; width?: number; height?: number }
@@ -192,7 +213,9 @@ function isValidProject(value: unknown): value is Project {
     sceneIds.add(scene.id)
     if (scene.width !== undefined && (!Number.isFinite(scene.width) || scene.width < 320 || scene.width > 3840)) return false
     if (scene.height !== undefined && (!Number.isFinite(scene.height) || scene.height < 320 || scene.height > 3840)) return false
-    if (scene.background !== undefined && (!scene.background || !['transparent', 'solid', 'gradient'].includes(scene.background.mode))) return false
+    if (scene.background !== undefined && (!scene.background || !['transparent', 'solid', 'gradient', 'image'].includes(scene.background.mode))) return false
+    if (scene.background?.imageSrc !== undefined && typeof scene.background.imageSrc !== 'string') return false
+    if (scene.background?.imageSrc && !isSafeImageSource(scene.background.imageSrc)) return false
 
     const sourceIds = new Set<string>()
     for (const source of scene.sources) {
@@ -207,6 +230,8 @@ function isValidProject(value: unknown): value is Project {
       if (source.w !== undefined && !Number.isFinite(source.w)) return false
       if (source.h !== undefined && !Number.isFinite(source.h)) return false
       if (source.src !== undefined && typeof source.src !== 'string') return false
+      if (source.fontUrl !== undefined && typeof source.fontUrl !== 'string') return false
+      if (source.widgetFontUrl !== undefined && typeof source.widgetFontUrl !== 'string') return false
       if (source.text !== undefined && typeof source.text !== 'string') return false
       if (source.color !== undefined && typeof source.color !== 'string') return false
       if (source.url !== undefined && typeof source.url !== 'string') return false
@@ -231,6 +256,16 @@ function normalizeProject(parsed: Project): Project {
         opacity: clamp(Number.isFinite(source.opacity) ? Number(source.opacity) : 1, 0, 1),
         rotation: clamp(Number.isFinite(source.rotation) ? Number(source.rotation) : 0, -180, 180),
         fontSize: clamp(Number.isFinite(source.fontSize) ? Number(source.fontSize) : 30, 8, 160),
+        fontUrl: typeof source.fontUrl === 'string' ? source.fontUrl.slice(0, 1000) : undefined,
+        objectPosition: typeof source.objectPosition === 'string' ? source.objectPosition.slice(0, 40) : 'center center',
+        textTransform: ['uppercase', 'lowercase', 'capitalize'].includes(source.textTransform ?? '') ? source.textTransform : 'none',
+        textDecoration: ['underline', 'line-through'].includes(source.textDecoration ?? '') ? source.textDecoration : 'none',
+        widgetBackgroundOpacity: clamp(Number.isFinite(source.widgetBackgroundOpacity) ? Number(source.widgetBackgroundOpacity) : 0.92, 0, 1),
+        widgetBorderWidth: clamp(Number.isFinite(source.widgetBorderWidth) ? Number(source.widgetBorderWidth) : 1, 0, 12),
+        widgetRadius: clamp(Number.isFinite(source.widgetRadius) ? Number(source.widgetRadius) : 12, 0, 80),
+        widgetPadding: clamp(Number.isFinite(source.widgetPadding) ? Number(source.widgetPadding) : 12, 0, 48),
+        widgetGap: clamp(Number.isFinite(source.widgetGap) ? Number(source.widgetGap) : 8, 0, 32),
+
         text: typeof source.text === 'string' ? source.text.slice(0, 2000) : undefined,
         widgetTitle: typeof source.widgetTitle === 'string' ? source.widgetTitle.slice(0, 90) : undefined,
         widgetText: typeof source.widgetText === 'string' ? source.widgetText.slice(0, 300) : undefined,
@@ -240,10 +275,16 @@ function normalizeProject(parsed: Project): Project {
     })
     const rawBackground = scene.background
     const background: BackgroundConfig = {
-      mode: rawBackground && ['transparent', 'solid', 'gradient'].includes(rawBackground.mode) ? rawBackground.mode : 'transparent',
+      mode: rawBackground && ['transparent', 'solid', 'gradient', 'image'].includes(rawBackground.mode) ? rawBackground.mode : 'transparent',
       color: typeof rawBackground?.color === 'string' ? rawBackground.color : '#171923',
       color2: typeof rawBackground?.color2 === 'string' ? rawBackground.color2 : '#28243c',
       angle: clamp(Number.isFinite(rawBackground?.angle) ? Number(rawBackground?.angle) : 135, 0, 360),
+      imageSrc: typeof rawBackground?.imageSrc === 'string' && isSafeImageSource(rawBackground.imageSrc) ? rawBackground.imageSrc : undefined,
+      imageFit: rawBackground?.imageFit === 'contain' || rawBackground?.imageFit === 'stretch' ? rawBackground.imageFit : 'cover',
+      imagePosition: typeof rawBackground?.imagePosition === 'string' ? rawBackground.imagePosition.slice(0, 40) : 'center center',
+      imageOpacity: clamp(Number.isFinite(rawBackground?.imageOpacity) ? Number(rawBackground?.imageOpacity) : 1, 0, 1),
+      overlayColor: typeof rawBackground?.overlayColor === 'string' ? rawBackground.overlayColor : '#000000',
+      overlayOpacity: clamp(Number.isFinite(rawBackground?.overlayOpacity) ? Number(rawBackground?.overlayOpacity) : 0, 0, 1),
     }
     return {
       ...scene,
@@ -416,6 +457,9 @@ function sourceStyle(source: SceneSource, index: number): CSSProperties {
     style.fontStyle = source.italic ? 'italic' : 'normal'
     style.letterSpacing = `${(source.letterSpacing ?? -0.5) / 19.2}cqw`
     style.lineHeight = source.lineHeight ?? 1.12
+    style.textTransform = source.textTransform ?? 'none'
+    style.textDecoration = source.textDecoration ?? 'none'
+    style.textShadow = source.textShadowEnabled === false ? 'none' : '0 2px 12px #0005'
     style.backgroundColor = source.textBackground ? (source.textBackgroundColor ?? '#11121b') : 'transparent'
     style.padding = source.textBackground ? '0.22em 0.35em' : '0'
   }
@@ -437,6 +481,26 @@ function getBrowserUrl(url: string | undefined) {
   }
 }
 
+function isSafeImageSource(source: string): boolean {
+  if (/^data:image\/(png|jpeg|webp|gif|svg\+xml);/i.test(source)) return source.length <= MAX_PROJECT_JSON_CHARS
+  try {
+    const parsed = new URL(source)
+    return (parsed.protocol === 'https:' || parsed.protocol === 'http:') && parsed.href.length < 2000
+  } catch {
+    return false
+  }
+}
+
+function hexToRgba(color: string, alpha = 1): string {
+  const normalized = color.trim().replace('#', '')
+  const expanded = normalized.length === 3 ? normalized.split('').map((part) => part + part).join('') : normalized
+  if (!/^[0-9a-fA-F]{6}$/.test(expanded)) return `rgba(0, 0, 0, ${clamp(alpha, 0, 1)})`
+  const red = Number.parseInt(expanded.slice(0, 2), 16)
+  const green = Number.parseInt(expanded.slice(2, 4), 16)
+  const blue = Number.parseInt(expanded.slice(4, 6), 16)
+  return `rgba(${red}, ${green}, ${blue}, ${clamp(alpha, 0, 1)})`
+}
+
 function sceneBackgroundStyle(scene: Scene, isPreview = false): CSSProperties {
   const background = scene.background
   const mode = background?.mode ?? 'transparent'
@@ -446,12 +510,137 @@ function sceneBackgroundStyle(scene: Scene, isPreview = false): CSSProperties {
       : { backgroundColor: 'transparent', backgroundImage: 'none' }
   }
   if (mode === 'solid') return { backgroundColor: background?.color ?? '#171923', backgroundImage: 'none' }
-  return { backgroundColor: background?.color ?? '#171923', backgroundImage: `linear-gradient(${background?.angle ?? 135}deg, ${background?.color ?? '#25233a'}, ${background?.color2 ?? '#10121a'})` }
+  if (mode === 'gradient') return { backgroundColor: background?.color ?? '#171923', backgroundImage: `linear-gradient(${background?.angle ?? 135}deg, ${background?.color ?? '#25233a'}, ${background?.color2 ?? '#10121a'})` }
+  const imageSrc = background?.imageSrc && isSafeImageSource(background.imageSrc) ? background.imageSrc : ''
+  if (!imageSrc) return { backgroundColor: background?.color ?? '#171923', backgroundImage: isPreview ? 'repeating-conic-gradient(#262936 0% 25%, #1c1f29 0% 50%)' : 'none', backgroundSize: '24px 24px' }
+  const fadeImage = 1 - clamp(background?.imageOpacity ?? 1, 0, 1)
+  const overlayOpacity = clamp(background?.overlayOpacity ?? 0, 0, 1)
+  const imageUrl = `url(${JSON.stringify(imageSrc)})`
+  const backgroundLayers = [
+    `linear-gradient(${hexToRgba(background?.overlayColor ?? '#000000', overlayOpacity)}, ${hexToRgba(background?.overlayColor ?? '#000000', overlayOpacity)})`,
+    `linear-gradient(${hexToRgba(background?.color ?? '#171923', fadeImage)}, ${hexToRgba(background?.color ?? '#171923', fadeImage)})`,
+    imageUrl,
+  ]
+  const fit = background?.imageFit ?? 'cover'
+  return {
+    backgroundColor: background?.color ?? '#171923',
+    backgroundImage: backgroundLayers.join(', '),
+    backgroundSize: `100% 100%, 100% 100%, ${fit === 'stretch' ? '100% 100%' : fit}`,
+    backgroundPosition: `center center, center center, ${background?.imagePosition ?? 'center center'}`,
+    backgroundRepeat: 'no-repeat, no-repeat, no-repeat',
+  }
+}
+
+function backgroundPositionPercent(position: string | undefined, axis: 'x' | 'y'): number {
+  const value = (position ?? 'center center').trim().toLowerCase()
+  const tokens = value.split(/\s+/)
+  const percentages = tokens.filter((token) => /^-?\d+(?:\.\d+)?%$/.test(token)).map((token) => clamp(Number(token.slice(0, -1)), 0, 100))
+  if (percentages.length) return percentages[axis === 'x' ? 0 : Math.min(1, percentages.length - 1)] ?? 50
+  if (axis === 'x') {
+    if (tokens.includes('left')) return 0
+    if (tokens.includes('right')) return 100
+    return 50
+  }
+  if (tokens.includes('top')) return 0
+  if (tokens.includes('bottom')) return 100
+  return 50
+}
+
+function externalFontFamilyFromUrl(urlValue: string, sourceId: string): { family: string; faceName: string; kind: 'stylesheet' | 'font' } | null {
+  try {
+    const url = new URL(urlValue.trim())
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
+    const path = url.pathname.toLowerCase()
+    if (url.hostname === 'fonts.googleapis.com' || path.endsWith('.css')) {
+      const familyParam = url.searchParams.get('family')
+      const family = familyParam ? familyParam.split(':')[0].replace(/\+/g, ' ').replace(/[^\p{L}\p{N} _-]/gu, '').trim() : ''
+      return { family: family ? `"${family}", sans-serif` : '', faceName: family, kind: 'stylesheet' }
+    }
+    const extension = path.match(/\.(woff2?|ttf|otf)$/)?.[1]
+    if (!extension) return null
+    const faceName = `WebFont_${sourceId.replace(/[^a-zA-Z0-9_]/g, '').slice(-30) || 'Custom'}`
+    return { family: `"${faceName}", sans-serif`, faceName, kind: 'font' }
+  } catch {
+    return null
+  }
+}
+
+function customWidgetDeclarations(source: SceneSource): CSSProperties {
+  const allowed = new Set(['color', 'background', 'background-color', 'border', 'border-radius', 'border-color', 'border-width', 'border-style', 'padding', 'gap', 'font-family', 'font-size', 'font-weight', 'line-height', 'letter-spacing', 'text-shadow', 'box-shadow', 'text-transform', 'text-align', 'filter', 'backdrop-filter'])
+  const result: Record<string, string> = {}
+  for (const declaration of (source.widgetCustomCss ?? '').split(';')) {
+    const colon = declaration.indexOf(':')
+    if (colon < 1) continue
+    const property = declaration.slice(0, colon).trim().toLowerCase()
+    const value = declaration.slice(colon + 1).trim()
+    if (!allowed.has(property) || !value || /[{}<>]/.test(value) || /url\s*\(|expression\s*\(/i.test(value) || value.length > 120) continue
+    result[property.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase())] = value
+  }
+  return result as CSSProperties
+}
+
+function ExternalFontLoader({ project }: { project: Project }) {
+  useEffect(() => {
+    const sources = project.scenes.flatMap((scene) => scene.sources).filter((source) => (source.type === 'text' && source.fontUrl?.trim()) || (source.type === 'widget' && source.widgetFontUrl?.trim()))
+    const activeResourceIds = new Set<string>()
+    for (const source of sources) {
+      const fontUrl = source.type === 'widget' ? source.widgetFontUrl : source.fontUrl
+      const currentFontFamily = source.type === 'widget' ? source.widgetFontFamily : source.fontFamily
+      const info = externalFontFamilyFromUrl(fontUrl ?? '', source.id)
+      if (!info) continue
+      try {
+        const url = new URL(fontUrl!.trim())
+        const resourceId = `overlay-font-${Array.from(`${source.id}-${url.href}`).reduce((hash, char) => ((hash * 31) + char.charCodeAt(0)) >>> 0, 7).toString(36)}`
+        activeResourceIds.add(resourceId)
+        if (info.kind === 'stylesheet') {
+          let link = document.getElementById(resourceId) as HTMLLinkElement | null
+          if (!link) {
+            link = document.createElement('link')
+            link.id = resourceId
+            link.rel = 'stylesheet'
+            document.head.appendChild(link)
+          }
+          if (link.href !== url.href) link.href = url.href
+        } else {
+          let style = document.getElementById(resourceId) as HTMLStyleElement | null
+          if (!style) {
+            style = document.createElement('style')
+            style.id = resourceId
+            document.head.appendChild(style)
+          }
+          const firstFamily = (currentFontFamily ?? info.family).split(',')[0].trim().replace(/^['"]|['"]$/g, '') || info.faceName
+          const format = url.pathname.toLowerCase().endsWith('.woff2') ? 'woff2' : url.pathname.toLowerCase().endsWith('.woff') ? 'woff' : url.pathname.toLowerCase().endsWith('.otf') ? 'opentype' : 'truetype'
+          style.textContent = `@font-face{font-family:${JSON.stringify(firstFamily)};src:url(${JSON.stringify(url.href)}) format(${JSON.stringify(format)});font-style:normal;font-weight:100 900;font-display:swap;}`
+        }
+      } catch {
+        // A fonte inválida é ignorada sem interromper o editor.
+      }
+    }
+    document.querySelectorAll<HTMLElement>('[id^="overlay-font-"]').forEach((element) => {
+      if (!activeResourceIds.has(element.id)) element.remove()
+    })
+  }, [project])
+  return null
 }
 
 function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testToken?: number }) {
   const kind = source.widgetKind ?? 'goal'
   const accent = source.widgetAccent ?? source.color ?? '#8d85ff'
+  const widgetAppearance = {
+    '--widget-accent': accent,
+    '--widget-text-color': source.widgetTextColor ?? '#f2f3fb',
+    '--widget-title-color': source.widgetTitleColor ?? '#ffffff',
+    '--widget-border-color': source.widgetBorderColor ?? 'color-mix(in srgb, var(--widget-accent) 42%, #424456)',
+    '--widget-border-width': `${source.widgetBorderWidth ?? 1}px`,
+    '--widget-radius': `${source.widgetRadius ?? 12}px`,
+    '--widget-padding': `${source.widgetCompact ? Math.min(source.widgetPadding ?? 12, 6) : source.widgetPadding ?? 12}px`,
+    '--widget-gap': `${source.widgetCompact ? Math.min(source.widgetGap ?? 8, 4) : source.widgetGap ?? 8}px`,
+    '--widget-background': source.widgetBackgroundColor ? hexToRgba(source.widgetBackgroundColor, source.widgetBackgroundOpacity ?? 0.92) : 'var(--widget-theme-background)',
+    '--widget-font-family': source.widgetFontFamily?.trim() || 'inherit',
+  } as CSSProperties
+  const widgetRootStyle = { ...widgetAppearance, ...customWidgetDeclarations(source) } as CSSProperties
+  const widgetMotion = `widget-motion-${source.widgetAnimation ?? 'subtle'}`
+  const showHeader = source.widgetShowHeader !== false
   const [remaining, setRemaining] = useState(source.widgetSeconds ?? 600)
   const [now, setNow] = useState(() => new Date())
   const [alertVisible, setAlertVisible] = useState(false)
@@ -488,7 +677,7 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
     : `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`
 
   if (kind === 'webcam-frame') {
-    return <div className={`stream-widget webcam-frame-widget widget-theme-${source.widgetTheme ?? 'neon'}`} style={{ '--widget-accent': accent } as CSSProperties}>
+    return <div className={`stream-widget webcam-frame-widget widget-theme-${source.widgetTheme ?? 'neon'} ${widgetMotion} ${source.widgetShowIcon === false ? 'widget-no-icon' : ''}`} style={widgetRootStyle}>
       <div className="webcam-frame-corner corner-tl" /><div className="webcam-frame-corner corner-tr" />
       <div className="webcam-frame-corner corner-bl" /><div className="webcam-frame-corner corner-br" />
       <span className="webcam-frame-label">{source.widgetTitle || 'WEBCAM'}</span>
@@ -496,20 +685,20 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
   }
 
   if (kind === 'live-badge') {
-    return <div className={`stream-widget live-badge-widget widget-theme-${source.widgetTheme ?? 'minimal'}`} style={{ '--widget-accent': accent } as CSSProperties}>
+    return <div className={`stream-widget live-badge-widget widget-theme-${source.widgetTheme ?? 'minimal'} ${widgetMotion} ${source.widgetShowIcon === false ? 'widget-no-icon' : ''}`} style={widgetRootStyle}>
       <span className="live-badge-dot" />
       <span className="live-badge-copy"><strong>{source.widgetTitle || 'AO VIVO'}</strong><small>{source.widgetText || 'TRANSMITINDO'}</small></span>
     </div>
   }
 
-  return <div className={`stream-widget widget-${kind} widget-theme-${source.widgetTheme ?? 'glass'} ${alertVisible ? 'alert-triggered' : ''}`} style={{ '--widget-accent': accent } as CSSProperties}>
+  return <div className={`stream-widget widget-${kind} widget-theme-${source.widgetTheme ?? 'glass'} ${widgetMotion} ${source.widgetCompact ? 'widget-compact' : ''} ${source.widgetShowIcon === false ? 'widget-no-icon' : ''} ${alertVisible ? 'alert-triggered' : ''}`} style={widgetRootStyle}>
     {kind === 'alert' && <>
       <div className="widget-alert-icon">✦</div>
       <div className="widget-alert-content"><span className="widget-kicker">{alertVisible ? 'NOVO EVENTO!' : (source.widgetTitle || 'ALERTA DE EVENTO')}</span><strong>{alertVisible ? (source.widgetValue || 'pixelrider') : (source.widgetValue || 'Novo seguidor')}</strong><small>{source.widgetText || 'começou a seguir o canal'}</small></div>
     </>}
 
     {kind === 'chat' && <>
-      <div className="widget-header"><strong>{source.widgetTitle || 'CHAT AO VIVO'}</strong></div>
+      {showHeader && <div className="widget-header"><strong>{source.widgetTitle || 'CHAT AO VIVO'}</strong></div>}
       <div className="chat-messages">{(lines.length ? lines : ['LuaGamer: Oi, chat!', 'PixelRider: Boa live!', 'nina: Qual é o jogo?', 'Gui: Cheguei agora']).map((line, index) => {
         const separator = line.indexOf(':')
         const username = separator >= 0 ? line.slice(0, separator) : `viewer${index + 1}`
@@ -520,7 +709,7 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
     </>}
 
     {kind === 'events' && <>
-      <div className="widget-header"><strong>{source.widgetTitle || 'ATIVIDADE RECENTE'}</strong></div>
+      {showHeader && <div className="widget-header"><strong>{source.widgetTitle || 'ATIVIDADE RECENTE'}</strong></div>}
       <div className="event-items">{(lines.length ? lines : ['Novo seguidor · pixelrider', 'Nova inscrição · lua_gamer', 'Apoio · catbits · R$ 10', 'Raid · canal_da_nina · 24']).slice(0, 6).map((line, index) => {
         const parts = line.split('·').map((part) => part.trim())
         return <div className="event-item" key={`${line}-${index}`}><span className={`event-type-icon event-icon-${index % 4}`}>{['↗', '★', '♥', '✦'][index % 4]}</span><span className="event-copy"><strong>{parts[0]}</strong><small>{parts.slice(1).join(' · ') || 'viewer_exemplo'}</small></span></div>
@@ -528,7 +717,7 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
     </>}
 
     {kind === 'goal' && <>
-      <div className="widget-header"><strong>{source.widgetTitle || 'META DA LIVE'}</strong></div>
+      {showHeader && <div className="widget-header"><strong>{source.widgetTitle || 'META DA LIVE'}</strong></div>}
       {source.widgetText && <p className="widget-muted-line">{source.widgetText}</p>}
       <div className="goal-numbers"><strong>{source.widgetValue ?? '68'}</strong><span>/ {source.widgetTarget ?? '100'}</span><b>{Math.round(progress)}%</b></div>
       <div className="goal-track"><span style={{ width: `${progress}%` }} /></div>
@@ -540,7 +729,7 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
     </>}
 
     {kind === 'socials' && <>
-      {source.widgetTitle && <div className="widget-header"><strong>{source.widgetTitle}</strong><span className="widget-header-pill">PERFIS</span></div>}
+      {showHeader && source.widgetTitle && <div className="widget-header"><strong>{source.widgetTitle}</strong><span className="widget-header-pill">PERFIS</span></div>}
       <div className="social-list">{(lines.length ? lines : ['Twitch  @seucanal', 'Instagram  @seuperfil', 'YouTube  @seucanal']).map((line, index) => {
         const separator = line.search(/[·|]/)
         const label = separator >= 0 ? line.slice(0, separator).trim() : line.split(/\s+/)[0]
@@ -574,7 +763,7 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
     </>}
 
     {kind === 'poll' && <>
-      <div className="widget-header"><strong>{source.widgetTitle || 'ENQUETE DA LIVE'}</strong></div>
+      {showHeader && <div className="widget-header"><strong>{source.widgetTitle || 'ENQUETE DA LIVE'}</strong></div>}
       <div className="poll-options">{(lines.length ? lines : ['Aventura | 42', 'RPG | 28', 'FPS | 30']).slice(0, 4).map((line, index) => {
         const [name, valueText] = line.split('|').map((part) => part.trim())
         const votes = Math.max(0, Number.parseFloat(valueText ?? '0') || 0)
@@ -623,6 +812,9 @@ function Editor() {
   projectRef.current = project
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>('source-title')
   const [sourceMenuOpen, setSourceMenuOpen] = useState(false)
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>('layers')
+  const [elementSection, setElementSection] = useState<ElementSection>('content')
+  const [backgroundUrlInput, setBackgroundUrlInput] = useState('')
   const [widgetSearch, setWidgetSearch] = useState('')
   const [showPackMenu, setShowPackMenu] = useState(false)
   const [alertTestTokens, setAlertTestTokens] = useState<Record<string, number>>({})
@@ -743,6 +935,8 @@ function Editor() {
   function selectScene(scene: Scene) {
     setProject((current) => ({ ...current, activeSceneId: scene.id }))
     setSelectedSourceId(scene.sources[0]?.id ?? null)
+    setInspectorTab('layers')
+    setElementSection('content')
     setInteraction(null)
     setOpenSceneMenuId(null)
     setSourceMenuOpen(false)
@@ -750,9 +944,11 @@ function Editor() {
   }
 
   function addScene() {
-    const scene: Scene = { id: newId('scene'), name: `Cena ${project.scenes.length + 1}`, sources: [], background: { mode: 'transparent', color: '#171923', color2: '#28243c', angle: 135 }, width: activeScene?.width ?? 1920, height: activeScene?.height ?? 1080 }
+    const scene: Scene = { id: newId('scene'), name: `Cena ${project.scenes.length + 1}`, sources: [], background: { mode: 'transparent', color: '#171923', color2: '#28243c', angle: 135, imageFit: 'cover', imagePosition: 'center center', imageOpacity: 1, overlayColor: '#000000', overlayOpacity: 0 }, width: activeScene?.width ?? 1920, height: activeScene?.height ?? 1080 }
     setProject((current) => ({ ...current, scenes: [...current.scenes, scene], activeSceneId: scene.id }))
     setSelectedSourceId(null)
+    setInspectorTab('layers')
+    setElementSection('content')
     setInteraction(null)
     setSourceMenuOpen(false)
     setShowPackMenu(false)
@@ -772,7 +968,7 @@ function Editor() {
       id: newId('text'), type: 'text', name, text: content, visible: true, x, y, w, h, fontSize, color, fontFamily: 'Inter, system-ui, sans-serif', fontWeight: 800, textAlign: 'left',
     })
     const camera = (x: number, y: number, w: number, h: number): SceneSource => ({ id: newId('camera'), type: 'camera', name: 'Webcam', visible: true, x, y, w, h, radius: 8, cameraMirror: true, shadow: true })
-    const scene = (name: string, sources: SceneSource[], background: BackgroundConfig = { mode: 'transparent', color: '#171923', color2: '#25233a', angle: 135 }): Scene => ({
+    const scene = (name: string, sources: SceneSource[], background: BackgroundConfig = { mode: 'transparent', color: '#171923', color2: '#25233a', angle: 135, imageFit: 'cover', imagePosition: 'center center', imageOpacity: 1, overlayColor: '#000000', overlayOpacity: 0 }): Scene => ({
       id: newId('scene'), name, sources, background, width: dimensions.width, height: dimensions.height,
     })
     let additions: Scene[] = []
@@ -871,6 +1067,7 @@ function Editor() {
     }
     setProject((current) => ({ ...current, scenes: [...current.scenes, copy], activeSceneId: copy.id }))
     setSelectedSourceId(copy.sources[0]?.id ?? null)
+    setInspectorTab('layers')
     setOpenSceneMenuId(null)
     setMessage('Cena duplicada.')
   }
@@ -885,6 +1082,7 @@ function Editor() {
     const nextActive = scene.id === project.activeSceneId ? remaining[0] : activeScene
     setProject((current) => ({ ...current, scenes: remaining, activeSceneId: nextActive.id }))
     setSelectedSourceId(nextActive.sources[0]?.id ?? null)
+    setInspectorTab('layers')
   }
 
   function addSource(type: Exclude<SourceType, 'widget'>) {
@@ -906,6 +1104,8 @@ function Editor() {
     } as SceneSource)
     updateActiveScene((scene) => ({ ...scene, sources: [...scene.sources, source] }))
     setSelectedSourceId(source.id)
+    setInspectorTab('element')
+    setElementSection('content')
     setSourceMenuOpen(false)
   }
 
@@ -946,6 +1146,8 @@ function Editor() {
     })
     updateActiveScene((scene) => ({ ...scene, sources: [...scene.sources, source] }))
     setSelectedSourceId(source.id)
+    setInspectorTab('element')
+    setElementSection('content')
     setSourceMenuOpen(false)
     setMessage(`${labels[kind]} adicionado. Os dados são exemplos editáveis.`)
   }
@@ -1009,7 +1211,7 @@ function Editor() {
         return
       }
       setProject(nextProject)
-      if (currentProject.activeSceneId === targetSceneId && additions.length) setSelectedSourceId(additions[additions.length - 1].id)
+      if (currentProject.activeSceneId === targetSceneId && additions.length) { setSelectedSourceId(additions[additions.length - 1].id); setInspectorTab('element'); setElementSection('content') }
       const ignoredNote = ignoredCount ? ` ${ignoredCount} arquivo(s) sem suporte foram ignorados.` : ''
       setMessage(`${loaded.length} ${loaded.length === 1 ? 'elemento importado' : 'elementos importados'}. O posicionamento automático evitou sobreposições quando havia espaço.${ignoredNote}`)
     } catch {
@@ -1024,40 +1226,65 @@ function Editor() {
     if (!file) return
     const extension = file.name.toLowerCase().split('.').pop() ?? ''
     if (!(file.type.startsWith('image/') || extension === 'svg')) {
-      setMessage('Escolha uma imagem PNG, JPG, WebP, GIF ou SVG para importar como design completo.')
+      setMessage('Escolha uma imagem PNG, JPG, WebP, GIF ou SVG para usar como plano de fundo.')
       return
     }
     if (file.size > MAX_IMAGE_BYTES) {
       setMessage('O arquivo deve ter até 1,5 MB para manter o projeto leve.')
       return
     }
-    const targetSceneId = activeScene.id
     try {
-      const src = await parseLocalImageData(file)
-      const source: SceneSource = {
-        id: newId('design'), type: 'image', name: `${file.name.replace(/\.[^.]+$/, '').slice(0, 52) || 'Design'} · fundo`,
-        visible: true, x: 0, y: 0, w: 100, h: 100, src, objectFit: 'contain', radius: 0, rotation: 0, opacity: 1, isBackgroundAsset: true,
+      const imageSrc = await parseLocalImageData(file)
+      const nextBackground: BackgroundConfig = {
+        ...(activeScene.background ?? { mode: 'image', color: '#171923', color2: '#25233a', angle: 135 }),
+        mode: 'image', imageSrc, imageFit: activeScene.background?.imageFit ?? 'cover', imagePosition: activeScene.background?.imagePosition ?? 'center center', imageOpacity: activeScene.background?.imageOpacity ?? 1, overlayColor: activeScene.background?.overlayColor ?? '#000000', overlayOpacity: activeScene.background?.overlayOpacity ?? 0,
       }
-      const currentProject = projectRef.current
-      const targetScene = currentProject.scenes.find((scene) => scene.id === targetSceneId)
-      if (!targetScene) {
-        setMessage('A cena de destino não existe mais. Selecione a cena novamente e importe o design.')
-        return
-      }
-      const nextProject: Project = {
-        ...currentProject,
-        scenes: currentProject.scenes.map((scene) => scene.id === targetSceneId ? { ...scene, sources: [source, ...scene.sources] } : scene),
-      }
-      if (JSON.stringify(nextProject).length > MAX_PROJECT_JSON_CHARS) {
-        setMessage('Esse design ultrapassaria o limite seguro de armazenamento. Remova imagens grandes ou importe um arquivo menor.')
-        return
-      }
-      setProject(nextProject)
-      if (currentProject.activeSceneId === targetSceneId) setSelectedSourceId(source.id)
-      setMessage('Design importado como camada de fundo. O arquivo original fica como uma imagem editável; seus elementos internos só serão separados se forem importados como projeto JSON com camadas.')
+      updateScene({ background: nextBackground })
+      setInspectorTab('background')
+      setMessage(`Imagem “${file.name}” definida como plano de fundo da cena.`)
     } catch {
-      setMessage('Não foi possível importar esse design.')
+      setMessage('Não foi possível importar essa imagem de fundo.')
     }
+  }
+
+  function applyBackgroundUrl() {
+    const candidate = backgroundUrlInput.trim()
+    if (!isSafeImageSource(candidate) || candidate.startsWith('data:')) {
+      setMessage('Informe um link de imagem HTTP ou HTTPS válido.')
+      return
+    }
+    updateScene({ background: {
+      ...(activeScene.background ?? { mode: 'image', color: '#171923', color2: '#25233a', angle: 135 }),
+      mode: 'image', imageSrc: candidate, imageFit: activeScene.background?.imageFit ?? 'cover', imagePosition: activeScene.background?.imagePosition ?? 'center center', imageOpacity: activeScene.background?.imageOpacity ?? 1, overlayColor: activeScene.background?.overlayColor ?? '#000000', overlayOpacity: activeScene.background?.overlayOpacity ?? 0,
+    } })
+    setInspectorTab('background')
+    setMessage('Imagem de fundo vinculada ao endereço informado. Ela precisa continuar acessível pela internet.')
+  }
+
+  function applyFontUrl() {
+    if (!selectedSource || selectedSource.type !== 'text') return
+    const candidate = (selectedSource.fontUrl ?? '').trim()
+    const info = externalFontFamilyFromUrl(candidate, selectedSource.id)
+    if (!info) {
+      setMessage('Link de fonte inválido. Use uma URL HTTPS para Google Fonts CSS ou um arquivo .woff2, .woff, .ttf ou .otf.')
+      return
+    }
+    if (info.family) updateSelected({ fontFamily: info.family })
+    else updateSelected({ fontFamily: selectedSource.fontFamily || info.family })
+    setMessage('Link de fonte aplicado. A fonte pode demorar alguns segundos para carregar e depende de permissão de acesso do servidor.')
+  }
+
+  function applyWidgetFontUrl() {
+    if (!selectedSource || selectedSource.type !== 'widget') return
+    const candidate = (selectedSource.widgetFontUrl ?? '').trim()
+    const info = externalFontFamilyFromUrl(candidate, selectedSource.id)
+    if (!info) {
+      setMessage('Link de fonte inválido. Use Google Fonts CSS ou um arquivo .woff2, .woff, .ttf ou .otf.')
+      return
+    }
+    if (info.family) updateSelected({ widgetFontFamily: info.family })
+    else updateSelected({ widgetFontFamily: selectedSource.widgetFontFamily || info.family })
+    setMessage('Fonte aplicada ao widget. O carregamento depende da disponibilidade da URL e das permissões do servidor.')
   }
 
   function toggleVisibility(sourceId: string) {
@@ -1069,13 +1296,15 @@ function Editor() {
 
   function deleteSource(sourceId: string) {
     updateActiveScene((scene) => ({ ...scene, sources: scene.sources.filter((source) => source.id !== sourceId) }))
-    if (selectedSourceId === sourceId) setSelectedSourceId(null)
+    if (selectedSourceId === sourceId) { setSelectedSourceId(null); setInspectorTab('layers') }
   }
 
   function duplicateSource(source: SceneSource) {
     const copy: SceneSource = placeWithoutOverlap(activeScene.sources, { ...source, id: newId('source'), name: `${source.name} (cópia)`.slice(0, 70), x: clamp(source.x + 3, 0, 100 - source.w), y: clamp(source.y + 3, 0, 100 - source.h) })
     updateActiveScene((scene) => ({ ...scene, sources: [...scene.sources, copy] }))
     setSelectedSourceId(copy.id)
+    setInspectorTab('element')
+    setElementSection('content')
     setMessage('Fonte duplicada.')
   }
 
@@ -1237,6 +1466,10 @@ function Editor() {
     setCameraError('')
     setInteraction(null)
     setProject(next)
+    setInspectorTab('layers')
+    setElementSection('content')
+    setBackgroundUrlInput('')
+    setSourceMenuOpen(false)
     if (imageInputRef.current) imageInputRef.current.value = ''
     if (backgroundDesignInputRef.current) backgroundDesignInputRef.current.value = ''
     if (importInputRef.current) importInputRef.current.value = ''
@@ -1267,6 +1500,8 @@ function Editor() {
     event.preventDefault()
     event.stopPropagation()
     setSelectedSourceId(source.id)
+    setInspectorTab('element')
+    setElementSection('content')
     setInteraction({
       sourceId: source.id, mode,
       pointerX: event.clientX, pointerY: event.clientY,
@@ -1276,6 +1511,7 @@ function Editor() {
 
   return (
     <div className="app-shell">
+      <ExternalFontLoader project={project} />
       <aside className="app-rail">
         <div className="brand-mark" title="Webcam_overlay">W<span>.</span></div>
         <div className="rail-divider" />
@@ -1336,7 +1572,7 @@ function Editor() {
                 <button type="button" onClick={() => { downloadProject(project); setShowExportMenu(false); setMessage('Arquivo JSON exportado.') }}>Exportar JSON</button>
                 <button type="button" onClick={() => { importInputRef.current?.click(); setShowExportMenu(false) }}>Importar projeto / design editável (JSON)</button>
                 <button type="button" onClick={() => { imageInputRef.current?.click(); setShowExportMenu(false) }}>Importar elementos (PNG, SVG, GIF…)</button>
-                <button type="button" onClick={() => { backgroundDesignInputRef.current?.click(); setShowExportMenu(false) }}>Importar design completo como fundo</button>
+                <button type="button" onClick={() => { backgroundDesignInputRef.current?.click(); setShowExportMenu(false) }}>Definir imagem de fundo</button>
                 <button className="menu-danger" type="button" onClick={() => { setShowExportMenu(false); resetEverything() }}>Redefinir tudo…</button>
                 <a href={`${window.location.pathname}?mode=overlay`} target="_blank" rel="noreferrer" onClick={() => setShowExportMenu(false)}>Abrir modo overlay ↗</a>
               </div>}
@@ -1351,24 +1587,24 @@ function Editor() {
             <span className="local-badge"><i /> EDITOR</span>
           </div>
           <div className="preview-frame">
-            <div className="preview-canvas" ref={stageRef} style={{ ...sceneBackgroundStyle(activeScene, true), aspectRatio: `${activeScene.width ?? 1920} / ${activeScene.height ?? 1080}` }} onPointerDown={() => setSelectedSourceId(null)}>
+            <div className="preview-canvas" ref={stageRef} style={{ ...sceneBackgroundStyle(activeScene, true), aspectRatio: `${activeScene.width ?? 1920} / ${activeScene.height ?? 1080}` }} onPointerDown={() => { setSelectedSourceId(null); setInspectorTab('background') }}>
               {activeScene.sources.filter((source) => source.visible).map((source, index) => (
                 <div
                   className={`canvas-object object-${source.type} ${source.type === 'shape' ? `shape-${source.shapeKind ?? 'rectangle'}` : ''} ${source.locked ? 'locked' : ''} ${selectedSourceId === source.id ? 'is-selected' : ''}`}
                   key={source.id}
                   style={sourceStyle(source, index)}
                   onPointerDown={(event) => beginInteraction(event, source, 'move')}
-                  onClick={(event) => { event.stopPropagation(); setSelectedSourceId(source.id) }}
+                  onClick={(event) => { event.stopPropagation(); setSelectedSourceId(source.id); setInspectorTab('element') }}
                   role="button"
                   tabIndex={0}
                   aria-label={`Selecionar e mover ${source.name}`}
                   onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedSourceId(source.id) }
+                    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedSourceId(source.id); setInspectorTab('element') }
                   }}
                 >
-                  {source.type === 'text' && <span className="object-text">{source.text || source.name}</span>}
+                  {source.type === 'text' && <span className="object-text" style={{ textTransform: source.textTransform ?? 'none', textDecoration: source.textDecoration ?? 'none', textShadow: source.textShadowEnabled === false ? 'none' : undefined }}>{source.text || source.name}</span>}
                   {source.type === 'shape' && <span className={`shape-inner shape-inner-${source.shapeKind ?? 'rectangle'}`} />}
-                  {source.type === 'image' && source.src && <img src={source.src} alt={source.name} draggable={false} style={{ objectFit: source.objectFit ?? 'contain' }} />}
+                  {source.type === 'image' && source.src && <img src={source.src} alt={source.name} draggable={false} style={{ objectFit: source.objectFit ?? 'contain', objectPosition: source.objectPosition ?? 'center center' }} />}
                   {source.type === 'browser' && <iframe className="browser-frame" title={source.name} src={getBrowserUrl(source.url)} sandbox="allow-scripts allow-forms allow-popups" referrerPolicy="no-referrer" loading="lazy" tabIndex={-1} />}
                   {source.type === 'camera' && (cameraStream
                     ? <video className="camera-video" autoPlay muted playsInline style={{ transform: source.cameraMirror === false ? 'none' : 'scaleX(-1)' }} ref={(element) => { if (element && element.srcObject !== cameraStream) element.srcObject = cameraStream }} />
@@ -1383,164 +1619,241 @@ function Editor() {
           </div>
           <div className="preview-caption"><span><span className="status-dot" /> Arraste para mover · canto inferior para redimensionar</span><span>Proporção {activeScene.width ?? 1920}:{activeScene.height ?? 1080}</span></div>
         </section>
-        <footer className="studio-footer"><span className="footer-tip"><span className="tip-icon">i</span> As alterações são salvas automaticamente neste navegador.</span><span className="footer-version">WEBCAM_OVERLAY · 2.2.1</span></footer>
+        <footer className="studio-footer"><span className="footer-tip"><span className="tip-icon">i</span> As alterações são salvas automaticamente neste navegador.</span><span className="footer-version">WEBCAM_OVERLAY · 2.3.0</span></footer>
       </main>
 
       <aside className="inspector-panel">
-        <div className="inspector-heading"><div><p className="eyebrow">ORGANIZAÇÃO</p><h2>Fontes</h2></div><button className="icon-button add-button" type="button" onClick={() => setSourceMenuOpen((open) => !open)} title="Adicionar fonte" aria-label="Adicionar fonte">+</button></div>
-        {sourceMenuOpen && <div className="source-menu"><p className="eyebrow">ELEMENTOS BÁSICOS</p>
-          {(['text', 'shape', 'camera', 'image', 'browser'] as Exclude<SourceType, 'widget'>[]).map((type) => <button key={type} type="button" onClick={() => addSource(type)}><span className={`source-icon icon-${type}`}>{sourceGlyph(type)}</span><span><strong>{sourceLabel(type)}</strong><small>{{ text: 'Texto com tipografia e efeitos', shape: 'Retângulo, círculo, linha ou pílula', camera: 'Webcam do dispositivo', image: 'Arquivo PNG, JPG ou WebP', browser: 'Página ou widget web incorporado' }[type]}</small></span><span className="menu-arrow">›</span></button>)}
-          <div className="widget-library-title"><p className="eyebrow">WIDGETS PARA STREAM</p><span>{WIDGET_OPTIONS.length}</span></div>
-          <input className="text-input widget-search" value={widgetSearch} onChange={(event) => setWidgetSearch(event.target.value)} placeholder="Buscar widget..." aria-label="Buscar widget" />
-          {WIDGET_OPTIONS.filter((option) => `${option.label} ${option.description}`.toLocaleLowerCase('pt-BR').includes(widgetSearch.toLocaleLowerCase('pt-BR'))).map((option) => <button key={option.kind} type="button" onClick={() => addWidget(option.kind)}><span className="source-icon icon-widget">{option.glyph}</span><span><strong>{option.label}</strong><small>{option.description}</small></span><span className="menu-arrow">›</span></button>)}
-          {WIDGET_OPTIONS.filter((option) => `${option.label} ${option.description}`.toLocaleLowerCase('pt-BR').includes(widgetSearch.toLocaleLowerCase('pt-BR'))).length === 0 && <p className="widget-no-results">Nenhum widget encontrado.</p>}
-        </div>}
-        <div className="source-list-heading"><span className="eyebrow">CAMADAS DA CENA</span><span className="count-badge">{activeScene.sources.length}</span></div>
-        <div className="source-list">
-          {activeScene.sources.length === 0 && <p className="empty-list">Ainda não existem fontes nesta cena. Use o botão + para adicionar uma.</p>}
-          {[...activeScene.sources].map((source, index) => ({ source, index })).reverse().map(({ source, index }) => (
-            <div className={`source-row ${selectedSourceId === source.id ? 'selected' : ''}`} key={source.id}>
-              <button className="source-select" type="button" onClick={() => setSelectedSourceId(source.id)}><span className={`source-icon icon-${source.type}`}>{sourceGlyph(source.type)}</span><span className="source-name">{source.name}</span></button>
-              <button className="tiny-action layer-action" type="button" title="Subir camada" aria-label="Subir camada" disabled={index === activeScene.sources.length - 1} onClick={() => moveLayer(source.id, 1)}>↑</button>
-              <button className="tiny-action layer-action" type="button" title="Descer camada" aria-label="Descer camada" disabled={index === 0} onClick={() => moveLayer(source.id, -1)}>↓</button>
-              <button className={`tiny-action ${source.visible ? 'visible' : ''}`} type="button" onClick={() => toggleVisibility(source.id)} title={source.visible ? 'Ocultar fonte' : 'Mostrar fonte'} aria-label={source.visible ? 'Ocultar fonte' : 'Mostrar fonte'}>{source.visible ? '◉' : '◌'}</button>
-              <button className="tiny-action remove-action" type="button" onClick={() => deleteSource(source.id)} title="Remover fonte" aria-label={`Remover ${source.name}`}>×</button>
-            </div>
-          ))}
+        <div className="inspector-heading">
+          <div><p className="eyebrow">ESTÚDIO</p><h2>Inspetor</h2></div>
+          {inspectorTab === 'layers' && <button className="icon-button add-button" type="button" onClick={() => setSourceMenuOpen((open) => !open)} title="Adicionar fonte" aria-label="Adicionar fonte">+</button>}
         </div>
+        <nav className="inspector-tabs" aria-label="Painéis do inspetor">
+          <button type="button" className={inspectorTab === 'layers' ? 'active' : ''} onClick={() => { setInspectorTab('layers'); setSourceMenuOpen(false) }}>Camadas</button>
+          <button type="button" className={inspectorTab === 'element' ? 'active' : ''} disabled={!selectedSource} onClick={() => { setInspectorTab('element'); setElementSection('content') }}>Elemento</button>
+          <button type="button" className={inspectorTab === 'background' ? 'active' : ''} onClick={() => { setInspectorTab('background'); setSourceMenuOpen(false); setBackgroundUrlInput(activeScene.background?.imageSrc?.startsWith('http') ? activeScene.background.imageSrc : '') }}>Fundo</button>
+          <button type="button" className={inspectorTab === 'canvas' ? 'active' : ''} onClick={() => { setInspectorTab('canvas'); setSourceMenuOpen(false) }}>Tela</button>
+        </nav>
 
-        <div className="properties-panel">
-          <div className="properties-heading"><div><p className="eyebrow">PERSONALIZAÇÃO</p><h3>Propriedades</h3></div>{selectedSource && <span className="property-type">{sourceLabel(selectedSource.type)}</span>}</div>
-          {!selectedSource && <p className="empty-properties">Selecione uma fonte na prévia ou na lista para editar suas propriedades.</p>}
-          {selectedSource && <div className="property-fields">
-            <label className="field-label" htmlFor="source-name">Nome</label>
-            <input id="source-name" className="text-input" value={selectedSource.name} maxLength={70} onChange={(event) => updateSelected({ name: event.target.value })} />
-            {selectedSource.type === 'text' && <>
-              <label className="field-label" htmlFor="source-text">Conteúdo do texto</label>
-              <textarea id="source-text" className="text-input textarea-input" rows={3} maxLength={400} value={selectedSource.text ?? ''} onChange={(event) => updateSelected({ text: event.target.value })} placeholder="Digite sua mensagem..." />
-              <label className="field-label" htmlFor="source-font-size">Tamanho da fonte</label>
-              <div className="range-row"><input id="source-font-size" type="range" min="12" max="100" value={selectedSource.fontSize ?? 30} onChange={(event) => updateSelected({ fontSize: Number(event.target.value) })} /><span>{selectedSource.fontSize ?? 30}px</span></div>
-              <label className="field-label" htmlFor="source-color">Cor do texto</label>
-              <ColorField id="source-color" value={selectedSource.color ?? '#ffffff'} onChange={(color) => updateSelected({ color })} />
-              <label className="field-label" htmlFor="source-font-family">Família tipográfica</label>
-              <input id="source-font-family" className="text-input" list="font-family-presets" value={selectedSource.fontFamily ?? 'Inter, system-ui, sans-serif'} onChange={(event) => updateSelected({ fontFamily: event.target.value })} placeholder="Ex.: Arial, sans-serif" />
-              <datalist id="font-family-presets"><option value="Inter, system-ui, sans-serif" /><option value="Arial, Helvetica, sans-serif" /><option value="Georgia, serif" /><option value="'Trebuchet MS', sans-serif" /><option value="'Courier New', monospace" /><option value="Impact, sans-serif" /><option value="system-ui, sans-serif" /></datalist>
-              <p className="field-hint">Você também pode digitar uma família tipográfica instalada no dispositivo.</p>
-              <label className="field-label" htmlFor="source-font-weight">Peso da fonte</label>
-              <select id="source-font-weight" className="text-input" value={selectedSource.fontWeight ?? 750} onChange={(event) => updateSelected({ fontWeight: Number(event.target.value) })}><option value="300">Leve</option><option value="400">Normal</option><option value="500">Médio</option><option value="600">Seminegrito</option><option value="700">Negrito</option><option value="750">Seminegrito alto (padrão)</option><option value="800">Extra negrito</option><option value="900">Preto</option></select>
-              <label className="field-label" htmlFor="source-align">Alinhamento</label>
-              <select id="source-align" className="text-input" value={selectedSource.textAlign ?? 'left'} onChange={(event) => updateSelected({ textAlign: event.target.value as 'left' | 'center' | 'right' })}><option value="left">Esquerda</option><option value="center">Centro</option><option value="right">Direita</option></select>
-              <label className="field-label" htmlFor="source-line-height">Altura de linha</label>
-              <div className="range-row"><input id="source-line-height" type="range" min="0.8" max="2" step="0.05" value={selectedSource.lineHeight ?? 1.12} onChange={(event) => updateSelected({ lineHeight: Number(event.target.value) })} /><span>{(selectedSource.lineHeight ?? 1.12).toFixed(2)}</span></div>
-              <label className="field-label" htmlFor="source-spacing">Espaçamento entre letras</label>
-              <div className="range-row"><input id="source-spacing" type="range" min="-4" max="12" step="0.5" value={selectedSource.letterSpacing ?? -0.5} onChange={(event) => updateSelected({ letterSpacing: Number(event.target.value) })} /><span>{selectedSource.letterSpacing ?? -0.5}px</span></div>
-              <label className="lock-toggle"><input type="checkbox" checked={Boolean(selectedSource.italic)} onChange={(event) => updateSelected({ italic: event.target.checked })} /><span>Itálico</span></label>
-              <label className="lock-toggle"><input type="checkbox" checked={Boolean(selectedSource.textBackground)} onChange={(event) => updateSelected({ textBackground: event.target.checked })} /><span>Fundo atrás do texto</span></label>
-              {selectedSource.textBackground && <><label className="field-label" htmlFor="text-background-color">Cor do fundo do texto</label><ColorField id="text-background-color" value={selectedSource.textBackgroundColor ?? '#11121b'} onChange={(color) => updateSelected({ textBackgroundColor: color })} /></>}
-            </>}
-            {selectedSource.type === 'shape' && <>
-              <label className="field-label" htmlFor="shape-kind">Formato</label>
-              <select id="shape-kind" className="text-input" value={selectedSource.shapeKind ?? 'rectangle'} onChange={(event) => updateSelected({ shapeKind: event.target.value as SceneSource['shapeKind'] })}><option value="rectangle">Retângulo</option><option value="circle">Círculo / elipse</option><option value="pill">Pílula</option><option value="line">Linha</option></select>
-              <label className="field-label" htmlFor="shape-color">Cor da forma</label>
-              <ColorField id="shape-color" value={selectedSource.color ?? '#7772f2'} onChange={(color) => updateSelected({ color })} />
-              <label className="field-label" htmlFor="shape-radius">Arredondamento</label>
-              <div className="range-row"><input id="shape-radius" type="range" min="0" max="100" value={selectedSource.radius ?? 4} onChange={(event) => updateSelected({ radius: Number(event.target.value) })} /><span>{selectedSource.radius ?? 4}px</span></div>
-            </>}
-            {selectedSource.type === 'image' && <>
-              <label className="field-label" htmlFor="image-fit">Ajuste da imagem</label>
-              <select id="image-fit" className="text-input" value={selectedSource.objectFit ?? 'contain'} onChange={(event) => updateSelected({ objectFit: event.target.value as 'contain' | 'cover' })}><option value="contain">Mostrar imagem inteira</option><option value="cover">Preencher área</option></select>
-              <p className="field-hint">Para trocar a imagem, remova esta fonte e adicione outra.</p>
-            </>}
-            {selectedSource.type === 'browser' && <>
-              <label className="field-label" htmlFor="browser-url">Endereço da página / widget</label>
-              <input id="browser-url" className="text-input" type="url" value={selectedSource.url ?? ''} onChange={(event) => updateSelected({ url: event.target.value })} placeholder="https://..." />
-              <p className="field-hint">Alguns sites bloqueiam incorporação externa. Use apenas endereços HTTP ou HTTPS.</p>
-            </>}
-            {selectedSource.type === 'camera' && <>
-              <div className="feature-note"><span className="note-icon">i</span><p>A webcam aparece após conceder permissão ao navegador. O áudio não é capturado nesta versão.</p></div>
-              <button className="wide-action" type="button" onClick={enableCamera}>{cameraStream ? 'Reativar webcam' : 'Ativar webcam'}</button>
-              {cameraStream && <button className="wide-action quiet-action" type="button" onClick={() => { cameraStream.getTracks().forEach((track) => track.stop()); setCameraStream(null); setMessage('Webcam desativada.') }}>Desativar webcam</button>}
-              {cameraError && <p className="error-note">{cameraError}</p>}
-            </>}
-            {selectedSource.type === 'widget' && <>
-              <div className="widget-inspector-note"><span className="note-icon">i</span><p>Widget em modo de demonstração. Os dados são editáveis, mas ainda não vêm de uma conta conectada.</p></div>
-              <label className="field-label" htmlFor="widget-kind">Tipo de widget</label>
-              <select id="widget-kind" className="text-input" value={selectedSource.widgetKind ?? 'goal'} onChange={(event) => updateSelected({ widgetKind: event.target.value as WidgetKind })}>{WIDGET_OPTIONS.map((option) => <option key={option.kind} value={option.kind}>{option.label}</option>)}</select>
-              <label className="field-label" htmlFor="widget-title">Título / rótulo</label>
-              <input id="widget-title" className="text-input" value={selectedSource.widgetTitle ?? ''} maxLength={90} onChange={(event) => updateSelected({ widgetTitle: event.target.value })} placeholder="Título exibido no widget" />
-              {['alert', 'latest', 'countdown', 'music', 'sponsor', 'ticker', 'goal', 'live-badge'].includes(selectedSource.widgetKind ?? 'goal') && <>
-                <label className="field-label" htmlFor="widget-text">Mensagem / descrição</label>
-                <textarea id="widget-text" className="text-input textarea-input" rows={2} maxLength={300} value={selectedSource.widgetText ?? ''} onChange={(event) => updateSelected({ widgetText: event.target.value })} placeholder="Texto complementar" />
-              </>}
-              {['chat', 'events', 'socials', 'poll', 'leaderboard'].includes(selectedSource.widgetKind ?? '') && <>
-                <label className="field-label" htmlFor="widget-items">Conteúdo (uma linha por item)</label>
-                <textarea id="widget-items" className="text-input textarea-input widget-items-input" rows={5} maxLength={1200} value={selectedSource.widgetItems ?? ''} onChange={(event) => updateSelected({ widgetItems: event.target.value })} placeholder={selectedSource.widgetKind === 'chat' ? 'Nome: mensagem' : selectedSource.widgetKind === 'poll' ? 'Opção | votos' : selectedSource.widgetKind === 'leaderboard' ? 'Nome | valor (uma linha por apoiador)' : 'Tipo · nome · valor'} />
-                <p className="field-hint">Chat: “Nome: mensagem”. Enquete: “Opção | votos”. Eventos e redes: uma entrada por linha.</p>
-              </>}
-              {['goal', 'viewer', 'alert', 'tip-jar', 'stream-boss'].includes(selectedSource.widgetKind ?? '') && <>
-                <label className="field-label" htmlFor="widget-value">{selectedSource.widgetKind === 'goal' ? 'Valor atual' : selectedSource.widgetKind === 'tip-jar' ? 'Total arrecadado (R$)' : selectedSource.widgetKind === 'stream-boss' ? 'Vida atual do chefe (%)' : selectedSource.widgetKind === 'viewer' ? 'Espectadores (valor ilustrativo)' : 'Nome ilustrativo'}</label>
-                <input id="widget-value" className="text-input" value={selectedSource.widgetValue ?? ''} onChange={(event) => updateSelected({ widgetValue: event.target.value })} placeholder={['goal', 'tip-jar', 'stream-boss'].includes(selectedSource.widgetKind ?? '') ? '68' : 'Exemplo'} />
-              </>}
-              {['goal', 'tip-jar', 'stream-boss'].includes(selectedSource.widgetKind ?? '') && <>
-                <label className="field-label" htmlFor="widget-target">{selectedSource.widgetKind === 'stream-boss' ? 'Vida total do chefe' : selectedSource.widgetKind === 'tip-jar' ? 'Meta de apoio (R$)' : 'Valor da meta'}</label>
-                <input id="widget-target" className="text-input" type="number" min="1" value={selectedSource.widgetTarget ?? '100'} onChange={(event) => updateSelected({ widgetTarget: event.target.value })} />
-              </>}
-              {selectedSource.widgetKind === 'countdown' && <>
-                <label className="field-label" htmlFor="widget-seconds">Duração inicial (segundos)</label>
-                <input id="widget-seconds" className="text-input" type="number" min="0" max="604800" value={selectedSource.widgetSeconds ?? 600} onChange={(event) => updateSelected({ widgetSeconds: clamp(Number(event.target.value) || 0, 0, 604800) })} />
-                <label className="lock-toggle"><input type="checkbox" checked={selectedSource.widgetRunning !== false} onChange={(event) => updateSelected({ widgetRunning: event.target.checked })} /><span>Executar contagem</span></label>
-              </>}
-              {selectedSource.widgetKind === 'alert' && <button className="wide-action test-alert-button" type="button" onClick={() => setAlertTestTokens((current) => ({ ...current, [selectedSource.id]: (current[selectedSource.id] ?? 0) + 1 }))}>✦ Testar animação do alerta</button>}
-              <label className="field-label" htmlFor="widget-theme">Estilo visual</label>
-              <select id="widget-theme" className="text-input" value={selectedSource.widgetTheme ?? 'glass'} onChange={(event) => updateSelected({ widgetTheme: event.target.value as WidgetTheme })}><option value="glass">Vidro / translúcido</option><option value="neon">Neon / gamer</option><option value="minimal">Minimalista</option><option value="solid">Fundo sólido</option></select>
-              <label className="field-label" htmlFor="widget-accent">Cor de destaque</label>
-              <ColorField id="widget-accent" value={selectedSource.widgetAccent ?? '#8d85ff'} onChange={(widgetAccent) => updateSelected({ widgetAccent })} />
-            </>}
-            <div className="field-divider" />
-            <p className="eyebrow geometry-label">APARÊNCIA</p>
-            <label className="field-label" htmlFor="source-opacity">Opacidade</label>
-            <div className="range-row"><input id="source-opacity" type="range" min="0" max="1" step="0.05" value={selectedSource.opacity ?? 1} onChange={(event) => updateSelected({ opacity: Number(event.target.value) })} /><span>{Math.round((selectedSource.opacity ?? 1) * 100)}%</span></div>
-            <label className="field-label" htmlFor="source-rotation">Rotação</label>
-            <div className="range-row"><input id="source-rotation" type="range" min="-180" max="180" step="1" value={selectedSource.rotation ?? 0} onChange={(event) => updateSelected({ rotation: Number(event.target.value) })} /><span>{selectedSource.rotation ?? 0}°</span></div>
-            <label className="field-label" htmlFor="source-border-width">Espessura da borda</label>
-            <div className="range-row"><input id="source-border-width" type="range" min="0" max="20" step="1" value={selectedSource.borderWidth ?? 0} onChange={(event) => updateSelected({ borderWidth: Number(event.target.value) })} /><span>{selectedSource.borderWidth ?? 0}px</span></div>
-            <label className="field-label" htmlFor="source-border-color">Cor da borda</label>
-            <ColorField id="source-border-color" value={selectedSource.borderColor ?? '#ffffff'} onChange={(color) => updateSelected({ borderColor: color })} />
-            {selectedSource.type !== 'shape' && <><label className="field-label" htmlFor="source-radius">Arredondamento</label><div className="range-row"><input id="source-radius" type="range" min="0" max="100" step="1" value={selectedSource.radius ?? 4} onChange={(event) => updateSelected({ radius: Number(event.target.value) })} /><span>{selectedSource.radius ?? 4}px</span></div></>}
-            <label className="lock-toggle"><input type="checkbox" checked={Boolean(selectedSource.shadow)} onChange={(event) => updateSelected({ shadow: event.target.checked })} /><span>Sombra projetada</span></label>
-            {selectedSource.type === 'camera' && <label className="lock-toggle"><input type="checkbox" checked={selectedSource.cameraMirror !== false} onChange={(event) => updateSelected({ cameraMirror: event.target.checked })} /><span>Espelhar webcam</span></label>}
-            <div className="field-divider" />
-            <p className="eyebrow geometry-label">POSIÇÃO E TAMANHO · % DA TELA</p>
-            <div className="geometry-grid">
-              <NumberField label="X" value={selectedSource.x} onChange={(x) => updateSelected({ x: clamp(x, 0, 100 - selectedSource.w) })} />
-              <NumberField label="Y" value={selectedSource.y} onChange={(y) => updateSelected({ y: clamp(y, 0, 100 - selectedSource.h) })} />
-              <NumberField label="Largura" value={selectedSource.w} onChange={(w) => updateSelected({ w: clamp(w, 4, 100 - selectedSource.x) })} />
-              <NumberField label="Altura" value={selectedSource.h} onChange={(h) => updateSelected({ h: clamp(h, 4, 100 - selectedSource.y) })} />
-            </div>
-            <label className="field-label">Alinhamento rápido</label>
-            <div className="align-grid">
-              <button type="button" disabled={Boolean(selectedSource.locked)} onClick={() => alignSelected('left')} title="Alinhar à esquerda">◧ Esquerda</button>
-              <button type="button" disabled={Boolean(selectedSource.locked)} onClick={() => alignSelected('center-x')} title="Centralizar horizontalmente">↔ Centro</button>
-              <button type="button" disabled={Boolean(selectedSource.locked)} onClick={() => alignSelected('right')} title="Alinhar à direita">Direita ◨</button>
-              <button type="button" disabled={Boolean(selectedSource.locked)} onClick={() => alignSelected('top')} title="Alinhar ao topo">↑ Topo</button>
-              <button type="button" disabled={Boolean(selectedSource.locked)} onClick={() => alignSelected('center-y')} title="Centralizar verticalmente">↕ Meio</button>
-              <button type="button" disabled={Boolean(selectedSource.locked)} onClick={() => alignSelected('bottom')} title="Alinhar à base">Base ↓</button>
-            </div>
-            <label className="lock-toggle"><input type="checkbox" checked={Boolean(selectedSource.locked)} onChange={(event) => updateSelected({ locked: event.target.checked })} /><span>Bloquear posição</span></label>
-            <div className="property-actions"><button className="wide-action" type="button" onClick={() => duplicateSource(selectedSource)}>Duplicar fonte</button><button className="wide-action danger-action" type="button" onClick={() => deleteSource(selectedSource.id)}>Excluir fonte</button></div>
+        {inspectorTab === 'layers' && <>
+          {sourceMenuOpen && <div className="source-menu"><p className="eyebrow">ELEMENTOS BÁSICOS</p>
+            {(['text', 'shape', 'camera', 'image', 'browser'] as Exclude<SourceType, 'widget'>[]).map((type) => <button key={type} type="button" onClick={() => addSource(type)}><span className={`source-icon icon-${type}`}>{sourceGlyph(type)}</span><span><strong>{sourceLabel(type)}</strong><small>{{ text: 'Texto, tipografia e efeitos', shape: 'Retângulo, círculo, linha ou pílula', camera: 'Webcam do dispositivo', image: 'Arquivo PNG, JPG ou WebP', browser: 'Página ou widget web incorporado' }[type]}</small></span><span className="menu-arrow">›</span></button>)}
+            <div className="widget-library-title"><p className="eyebrow">WIDGETS PARA STREAM</p><span>{WIDGET_OPTIONS.length}</span></div>
+            <input className="text-input widget-search" value={widgetSearch} onChange={(event) => setWidgetSearch(event.target.value)} placeholder="Buscar widget..." aria-label="Buscar widget" />
+            {WIDGET_OPTIONS.filter((option) => `${option.label} ${option.description}`.toLocaleLowerCase('pt-BR').includes(widgetSearch.toLocaleLowerCase('pt-BR'))).map((option) => <button key={option.kind} type="button" onClick={() => addWidget(option.kind)}><span className="source-icon icon-widget">{option.glyph}</span><span><strong>{option.label}</strong><small>{option.description}</small></span><span className="menu-arrow">›</span></button>)}
+            {WIDGET_OPTIONS.filter((option) => `${option.label} ${option.description}`.toLocaleLowerCase('pt-BR').includes(widgetSearch.toLocaleLowerCase('pt-BR'))).length === 0 && <p className="widget-no-results">Nenhum widget encontrado.</p>}
           </div>}
-        </div>
-        <div className="scene-settings-panel">
-          <div className="properties-heading"><div><p className="eyebrow">CONFIGURAÇÃO</p><h3>Tela da cena</h3></div></div>
-          <label className="field-label" htmlFor="scene-background-mode">Plano de fundo</label>
-          <select id="scene-background-mode" className="text-input" value={activeScene.background?.mode ?? 'transparent'} onChange={(event) => updateScene({ background: { mode: event.target.value as BackgroundConfig['mode'], color: activeScene.background?.color ?? '#25233a', color2: activeScene.background?.color2 ?? '#10121a', angle: activeScene.background?.angle ?? 135 } })}><option value="transparent">Transparente (overlay)</option><option value="solid">Cor sólida</option><option value="gradient">Gradiente</option></select>
-          {(activeScene.background?.mode ?? 'transparent') !== 'transparent' && <><label className="field-label" htmlFor="scene-bg-color">Cor principal</label><ColorField id="scene-bg-color" value={activeScene.background?.color ?? '#25233a'} onChange={(color) => updateScene({ background: { mode: activeScene.background?.mode ?? 'solid', color, color2: activeScene.background?.color2 ?? '#10121a', angle: activeScene.background?.angle ?? 135 } })} /></>}
+          <div className="source-list-heading"><span className="eyebrow">CAMADAS DA CENA</span><span className="count-badge">{activeScene.sources.length}</span></div>
+          <div className="source-list">
+            {activeScene.sources.length === 0 && <div className="empty-state"><span>＋</span><strong>Cena vazia</strong><p>Adicione texto, imagens, webcam, formas ou widgets usando o botão +.</p></div>}
+            {[...activeScene.sources].map((source, index) => ({ source, index })).reverse().map(({ source, index }) => (
+              <div className={`source-row ${selectedSourceId === source.id ? 'selected' : ''}`} key={source.id}>
+                <button className="source-select" type="button" onClick={() => { setSelectedSourceId(source.id); setInspectorTab('element'); setElementSection('content') }}><span className={`source-icon icon-${source.type}`}>{sourceGlyph(source.type)}</span><span className="source-name">{source.name}</span></button>
+                <button className="tiny-action layer-action" type="button" title="Subir camada" aria-label="Subir camada" disabled={index === activeScene.sources.length - 1} onClick={() => moveLayer(source.id, 1)}>↑</button>
+                <button className="tiny-action layer-action" type="button" title="Descer camada" aria-label="Descer camada" disabled={index === 0} onClick={() => moveLayer(source.id, -1)}>↓</button>
+                <button className={`tiny-action ${source.visible ? 'visible' : ''}`} type="button" onClick={() => toggleVisibility(source.id)} title={source.visible ? 'Ocultar fonte' : 'Mostrar fonte'} aria-label={source.visible ? 'Ocultar fonte' : 'Mostrar fonte'}>{source.visible ? '◉' : '◌'}</button>
+                <button className="tiny-action remove-action" type="button" onClick={() => deleteSource(source.id)} title="Remover fonte" aria-label={`Remover ${source.name}`}>×</button>
+              </div>
+            ))}
+          </div>
+          <div className="inspector-tip"><span className="note-icon">i</span><p>Selecione uma camada para abrir seus controles. Fundo e resolução estão em painéis separados.</p></div>
+        </>}
+
+        {inspectorTab === 'element' && <div className="inspector-workspace">
+          {!selectedSource && <div className="empty-state"><span>◇</span><strong>Nenhum elemento selecionado</strong><p>Escolha uma camada ou clique em um objeto na prévia.</p><button className="wide-action" type="button" onClick={() => setInspectorTab('layers')}>Ver camadas</button></div>}
+          {selectedSource && <>
+            <div className="properties-panel context-properties">
+              <div className="properties-heading"><div><p className="eyebrow">EDITANDO ELEMENTO</p><h3>{selectedSource.name}</h3></div><span className="property-type">{sourceLabel(selectedSource.type)}</span></div>
+              <div className="element-subtabs" role="tablist" aria-label="Opções do elemento">
+                <button type="button" className={elementSection === 'content' ? 'active' : ''} onClick={() => setElementSection('content')}>Conteúdo</button>
+                <button type="button" className={elementSection === 'style' ? 'active' : ''} onClick={() => setElementSection('style')}>Estilo</button>
+                <button type="button" className={elementSection === 'transform' ? 'active' : ''} onClick={() => setElementSection('transform')}>Posição</button>
+              </div>
+
+              {elementSection === 'content' && <div className="property-fields">
+                <label className="field-label" htmlFor="source-name">Nome da camada</label>
+                <input id="source-name" className="text-input" value={selectedSource.name} maxLength={70} onChange={(event) => updateSelected({ name: event.target.value })} />
+                {selectedSource.type === 'text' && <>
+                  <label className="field-label" htmlFor="source-text">Texto exibido</label>
+                  <textarea id="source-text" className="text-input textarea-input" rows={4} maxLength={2000} value={selectedSource.text ?? ''} onChange={(event) => updateSelected({ text: event.target.value })} placeholder="Digite a mensagem..." />
+                  <p className="field-hint">Use quebras de linha para distribuir o texto em várias linhas.</p>
+                </>}
+                {selectedSource.type === 'shape' && <>
+                  <label className="field-label" htmlFor="shape-kind">Formato</label>
+                  <select id="shape-kind" className="text-input" value={selectedSource.shapeKind ?? 'rectangle'} onChange={(event) => updateSelected({ shapeKind: event.target.value as SceneSource['shapeKind'] })}><option value="rectangle">Retângulo</option><option value="circle">Círculo / elipse</option><option value="pill">Pílula</option><option value="line">Linha</option></select>
+                </>}
+                {selectedSource.type === 'image' && <>
+                  <p className="field-hint">A imagem foi importada como uma camada independente. Para substituir o arquivo, remova-a e importe outra.</p>
+                  <label className="field-label" htmlFor="image-fit">Modo de ajuste</label>
+                  <select id="image-fit" className="text-input" value={selectedSource.objectFit ?? 'contain'} onChange={(event) => updateSelected({ objectFit: event.target.value as 'contain' | 'cover' })}><option value="contain">Mostrar imagem inteira</option><option value="cover">Preencher a área</option></select>
+                </>}
+                {selectedSource.type === 'browser' && <>
+                  <label className="field-label" htmlFor="browser-url">URL da página/widget</label>
+                  <input id="browser-url" className="text-input" type="url" value={selectedSource.url ?? ''} onChange={(event) => updateSelected({ url: event.target.value })} placeholder="https://..." />
+                  <p className="field-hint">Alguns sites bloqueiam incorporação em iframe. Use URLs HTTP ou HTTPS.</p>
+                </>}
+                {selectedSource.type === 'camera' && <>
+                  <div className="feature-note"><span className="note-icon">i</span><p>A webcam exige permissão do navegador. O áudio não é capturado nesta versão.</p></div>
+                  <button className="wide-action" type="button" onClick={enableCamera}>{cameraStream ? 'Reativar webcam' : 'Ativar webcam'}</button>
+                  {cameraStream && <button className="wide-action quiet-action" type="button" onClick={() => { cameraStream.getTracks().forEach((track) => track.stop()); setCameraStream(null); setMessage('Webcam desativada.') }}>Desativar webcam</button>}
+                  {cameraError && <p className="error-note">{cameraError}</p>}
+                </>}
+                {selectedSource.type === 'widget' && <>
+                  <div className="widget-inspector-note"><span className="note-icon">i</span><p>Dados de demonstração. Personalize o conteúdo e o visual nas abas deste elemento.</p></div>
+                  <label className="field-label" htmlFor="widget-kind">Tipo de widget</label>
+                  <select id="widget-kind" className="text-input" value={selectedSource.widgetKind ?? 'goal'} onChange={(event) => updateSelected({ widgetKind: event.target.value as WidgetKind })}>{WIDGET_OPTIONS.map((option) => <option key={option.kind} value={option.kind}>{option.label}</option>)}</select>
+                  <label className="field-label" htmlFor="widget-title">Título / rótulo</label>
+                  <input id="widget-title" className="text-input" value={selectedSource.widgetTitle ?? ''} maxLength={90} onChange={(event) => updateSelected({ widgetTitle: event.target.value })} placeholder="Título exibido" />
+                  {['alert', 'latest', 'countdown', 'music', 'sponsor', 'ticker', 'goal', 'live-badge', 'webcam-frame', 'clock', 'viewer', 'tip-jar', 'stream-boss'].includes(selectedSource.widgetKind ?? 'goal') && <>
+                    <label className="field-label" htmlFor="widget-text">Mensagem / descrição</label>
+                    <textarea id="widget-text" className="text-input textarea-input" rows={3} maxLength={1000} value={selectedSource.widgetText ?? ''} onChange={(event) => updateSelected({ widgetText: event.target.value })} placeholder="Texto complementar" />
+                  </>}
+                  {['chat', 'events', 'socials', 'poll', 'leaderboard'].includes(selectedSource.widgetKind ?? '') && <>
+                    <label className="field-label" htmlFor="widget-items">Itens do widget</label>
+                    <textarea id="widget-items" className="text-input textarea-input widget-items-input" rows={6} maxLength={3000} value={selectedSource.widgetItems ?? ''} onChange={(event) => updateSelected({ widgetItems: event.target.value })} placeholder={selectedSource.widgetKind === 'chat' ? 'Nome: mensagem (uma por linha)' : selectedSource.widgetKind === 'poll' ? 'Opção | votos' : selectedSource.widgetKind === 'leaderboard' ? 'Nome | valor (uma linha por apoiador)' : 'Tipo · nome · valor'} />
+                    <p className="field-hint">Uma linha para cada item. Os dados serão exibidos como exemplos locais.</p>
+                  </>}
+                  {['goal', 'viewer', 'alert', 'tip-jar', 'stream-boss'].includes(selectedSource.widgetKind ?? '') && <>
+                    <label className="field-label" htmlFor="widget-value">{selectedSource.widgetKind === 'goal' ? 'Valor atual' : selectedSource.widgetKind === 'tip-jar' ? 'Total arrecadado (R$)' : selectedSource.widgetKind === 'stream-boss' ? 'Vida atual do chefe (%)' : selectedSource.widgetKind === 'viewer' ? 'Espectadores (exemplo)' : 'Nome do evento (exemplo)'}</label>
+                    <input id="widget-value" className="text-input" value={selectedSource.widgetValue ?? ''} onChange={(event) => updateSelected({ widgetValue: event.target.value })} placeholder={['goal', 'tip-jar', 'stream-boss'].includes(selectedSource.widgetKind ?? '') ? '68' : 'Exemplo'} />
+                  </>}
+                  {['goal', 'tip-jar', 'stream-boss'].includes(selectedSource.widgetKind ?? '') && <>
+                    <label className="field-label" htmlFor="widget-target">{selectedSource.widgetKind === 'stream-boss' ? 'Vida total do chefe' : selectedSource.widgetKind === 'tip-jar' ? 'Meta de apoio (R$)' : 'Valor da meta'}</label>
+                    <input id="widget-target" className="text-input" type="number" min="1" value={selectedSource.widgetTarget ?? '100'} onChange={(event) => updateSelected({ widgetTarget: event.target.value })} />
+                  </>}
+                  {selectedSource.widgetKind === 'countdown' && <>
+                    <label className="field-label" htmlFor="widget-seconds">Duração inicial (segundos)</label>
+                    <input id="widget-seconds" className="text-input" type="number" min="0" max="604800" value={selectedSource.widgetSeconds ?? 600} onChange={(event) => updateSelected({ widgetSeconds: clamp(Number(event.target.value) || 0, 0, 604800) })} />
+                    <label className="lock-toggle"><input type="checkbox" checked={selectedSource.widgetRunning !== false} onChange={(event) => updateSelected({ widgetRunning: event.target.checked })} /><span>Executar contagem</span></label>
+                  </>}
+                  {selectedSource.widgetKind === 'alert' && <button className="wide-action test-alert-button" type="button" onClick={() => setAlertTestTokens((current) => ({ ...current, [selectedSource.id]: (current[selectedSource.id] ?? 0) + 1 }))}>✦ Testar alerta</button>}
+                </>}
+              </div>}
+
+              {elementSection === 'style' && <div className="property-fields">
+                {selectedSource.type === 'text' && <>
+                  <p className="eyebrow section-eyebrow">TIPOGRAFIA</p>
+                  <label className="field-label" htmlFor="source-font-size">Tamanho do texto</label>
+                  <div className="range-row"><input id="source-font-size" type="range" min="8" max="160" value={selectedSource.fontSize ?? 30} onChange={(event) => updateSelected({ fontSize: Number(event.target.value) })} /><span>{selectedSource.fontSize ?? 30}px</span></div>
+                  <label className="field-label" htmlFor="source-color">Cor do texto</label>
+                  <ColorField id="source-color" value={selectedSource.color ?? '#ffffff'} onChange={(color) => updateSelected({ color })} />
+                  <label className="field-label" htmlFor="source-font-family">Família tipográfica</label>
+                  <input id="source-font-family" className="text-input" list="font-family-presets" value={selectedSource.fontFamily ?? 'Inter, system-ui, sans-serif'} onChange={(event) => updateSelected({ fontFamily: event.target.value })} placeholder="Ex.: Arial, sans-serif" />
+                  <datalist id="font-family-presets"><option value="Inter, system-ui, sans-serif" /><option value="Arial, Helvetica, sans-serif" /><option value="Georgia, serif" /><option value="'Trebuchet MS', sans-serif" /><option value="'Courier New', monospace" /><option value="Impact, sans-serif" /><option value="system-ui, sans-serif" /></datalist>
+                  <label className="field-label" htmlFor="source-font-url">Importar fonte por link</label>
+                  <input id="source-font-url" className="text-input" type="url" value={selectedSource.fontUrl ?? ''} onChange={(event) => updateSelected({ fontUrl: event.target.value })} placeholder="https://fonts.googleapis.com/css2?..." />
+                  <button className="wide-action" type="button" onClick={applyFontUrl}>Carregar fonte do link</button>
+                  <p className="field-hint">Aceita URL CSS do Google Fonts ou arquivo .woff2/.woff/.ttf/.otf. O servidor precisa permitir acesso externo (CORS para arquivos de fonte).</p>
+                  <label className="field-label" htmlFor="source-font-weight">Peso</label>
+                  <select id="source-font-weight" className="text-input" value={selectedSource.fontWeight ?? 750} onChange={(event) => updateSelected({ fontWeight: Number(event.target.value) })}><option value="300">Leve</option><option value="400">Normal</option><option value="500">Médio</option><option value="600">Seminegrito</option><option value="700">Negrito</option><option value="750">Seminegrito alto</option><option value="800">Extra negrito</option><option value="900">Preto</option></select>
+                  <label className="field-label" htmlFor="source-align">Alinhamento do texto</label>
+                  <select id="source-align" className="text-input" value={selectedSource.textAlign ?? 'left'} onChange={(event) => updateSelected({ textAlign: event.target.value as 'left' | 'center' | 'right' })}><option value="left">Esquerda</option><option value="center">Centro</option><option value="right">Direita</option></select>
+                  <label className="field-label" htmlFor="source-line-height">Altura de linha</label>
+                  <div className="range-row"><input id="source-line-height" type="range" min="0.8" max="2" step="0.05" value={selectedSource.lineHeight ?? 1.12} onChange={(event) => updateSelected({ lineHeight: Number(event.target.value) })} /><span>{(selectedSource.lineHeight ?? 1.12).toFixed(2)}</span></div>
+                  <label className="field-label" htmlFor="source-spacing">Espaçamento entre letras</label>
+                  <div className="range-row"><input id="source-spacing" type="range" min="-4" max="12" step="0.5" value={selectedSource.letterSpacing ?? -0.5} onChange={(event) => updateSelected({ letterSpacing: Number(event.target.value) })} /><span>{selectedSource.letterSpacing ?? -0.5}px</span></div>
+                  <label className="lock-toggle"><input type="checkbox" checked={Boolean(selectedSource.italic)} onChange={(event) => updateSelected({ italic: event.target.checked })} /><span>Itálico</span></label>
+                  <label className="field-label" htmlFor="source-text-transform">Transformação do texto</label><select id="source-text-transform" className="text-input" value={selectedSource.textTransform ?? 'none'} onChange={(event) => updateSelected({ textTransform: event.target.value as SceneSource['textTransform'] })}><option value="none">Como digitado</option><option value="uppercase">MAIÚSCULAS</option><option value="lowercase">minúsculas</option><option value="capitalize">Primeira Letra Maiúscula</option></select>
+                  <label className="field-label" htmlFor="source-text-decoration">Decoração do texto</label><select id="source-text-decoration" className="text-input" value={selectedSource.textDecoration ?? 'none'} onChange={(event) => updateSelected({ textDecoration: event.target.value as SceneSource['textDecoration'] })}><option value="none">Nenhuma</option><option value="underline">Sublinhado</option><option value="line-through">Tachado</option></select>
+                  <label className="lock-toggle"><input type="checkbox" checked={selectedSource.textShadowEnabled !== false} onChange={(event) => updateSelected({ textShadowEnabled: event.target.checked })} /><span>Sombra nas letras</span></label>
+                  <label className="lock-toggle"><input type="checkbox" checked={Boolean(selectedSource.textBackground)} onChange={(event) => updateSelected({ textBackground: event.target.checked })} /><span>Fundo atrás do texto</span></label>
+                  {selectedSource.textBackground && <><label className="field-label" htmlFor="text-background-color">Cor do fundo do texto</label><ColorField id="text-background-color" value={selectedSource.textBackgroundColor ?? '#11121b'} onChange={(color) => updateSelected({ textBackgroundColor: color })} /></>}
+                </>}
+                {selectedSource.type === 'shape' && <>
+                  <p className="eyebrow section-eyebrow">FORMA</p>
+                  <label className="field-label" htmlFor="shape-color">Cor / preenchimento</label><ColorField id="shape-color" value={selectedSource.color ?? '#7772f2'} onChange={(color) => updateSelected({ color })} />
+                  <label className="field-label" htmlFor="shape-radius">Arredondamento</label><div className="range-row"><input id="shape-radius" type="range" min="0" max="100" value={selectedSource.radius ?? 4} onChange={(event) => updateSelected({ radius: Number(event.target.value) })} /><span>{selectedSource.radius ?? 4}px</span></div>
+                </>}
+                {selectedSource.type === 'image' && <><p className="field-hint">Controle o corte, posição interna, borda e transparência desta imagem.</p><label className="field-label" htmlFor="image-fit-style">Ajuste</label><select id="image-fit-style" className="text-input" value={selectedSource.objectFit ?? 'contain'} onChange={(event) => updateSelected({ objectFit: event.target.value as 'contain' | 'cover' })}><option value="contain">Conter</option><option value="cover">Cobrir</option></select><label className="field-label" htmlFor="image-position-style">Posição dentro da moldura</label><select id="image-position-style" className="text-input" value={selectedSource.objectPosition ?? 'center center'} onChange={(event) => updateSelected({ objectPosition: event.target.value })}><option value="center center">Centro</option><option value="top center">Topo</option><option value="bottom center">Base</option><option value="left center">Esquerda</option><option value="right center">Direita</option><option value="top left">Superior esquerda</option><option value="top right">Superior direita</option><option value="bottom left">Inferior esquerda</option><option value="bottom right">Inferior direita</option></select></>}
+                {selectedSource.type === 'widget' && <>
+                  <p className="eyebrow section-eyebrow">TEMA DO WIDGET</p>
+                  <label className="field-label" htmlFor="widget-theme">Estilo base</label>
+                  <select id="widget-theme" className="text-input" value={selectedSource.widgetTheme ?? 'glass'} onChange={(event) => updateSelected({ widgetTheme: event.target.value as WidgetTheme })}><option value="glass">Vidro translúcido</option><option value="neon">Neon gamer</option><option value="minimal">Minimalista</option><option value="solid">Fundo sólido</option></select>
+                  <div className="two-field-grid"><div><label className="field-label" htmlFor="widget-accent">Cor de destaque</label><ColorField id="widget-accent" value={selectedSource.widgetAccent ?? '#8d85ff'} onChange={(widgetAccent) => updateSelected({ widgetAccent })} /></div><div><label className="field-label" htmlFor="widget-bg-color">Fundo personalizado</label><ColorField id="widget-bg-color" value={selectedSource.widgetBackgroundColor ?? '#141722'} onChange={(widgetBackgroundColor) => updateSelected({ widgetBackgroundColor })} /></div></div>
+                  <label className="field-label" htmlFor="widget-bg-opacity">Opacidade do fundo</label><div className="range-row"><input id="widget-bg-opacity" type="range" min="0" max="1" step="0.05" value={selectedSource.widgetBackgroundOpacity ?? 0.92} onChange={(event) => updateSelected({ widgetBackgroundOpacity: Number(event.target.value) })} /><span>{Math.round((selectedSource.widgetBackgroundOpacity ?? 0.92) * 100)}%</span></div>
+                  <div className="two-field-grid"><div><label className="field-label" htmlFor="widget-text-color">Cor do conteúdo</label><ColorField id="widget-text-color" value={selectedSource.widgetTextColor ?? '#f2f3fb'} onChange={(widgetTextColor) => updateSelected({ widgetTextColor })} /></div><div><label className="field-label" htmlFor="widget-title-color">Cor dos títulos</label><ColorField id="widget-title-color" value={selectedSource.widgetTitleColor ?? '#ffffff'} onChange={(widgetTitleColor) => updateSelected({ widgetTitleColor })} /></div></div>
+                  <div className="two-field-grid"><div><label className="field-label" htmlFor="widget-border-color">Cor da borda</label><ColorField id="widget-border-color" value={selectedSource.widgetBorderColor ?? '#555779'} onChange={(widgetBorderColor) => updateSelected({ widgetBorderColor })} /></div><div><label className="field-label" htmlFor="widget-border-width">Espessura</label><input id="widget-border-width" className="text-input" type="number" min="0" max="12" value={selectedSource.widgetBorderWidth ?? 1} onChange={(event) => updateSelected({ widgetBorderWidth: clamp(Number(event.target.value) || 0, 0, 12) })} /></div></div>
+                  <label className="field-label" htmlFor="widget-radius">Cantos arredondados</label><div className="range-row"><input id="widget-radius" type="range" min="0" max="80" value={selectedSource.widgetRadius ?? 12} onChange={(event) => updateSelected({ widgetRadius: Number(event.target.value) })} /><span>{selectedSource.widgetRadius ?? 12}px</span></div>
+                  <div className="two-field-grid"><div><label className="field-label" htmlFor="widget-padding">Espaço interno</label><input id="widget-padding" className="text-input" type="number" min="0" max="48" value={selectedSource.widgetPadding ?? 12} onChange={(event) => updateSelected({ widgetPadding: clamp(Number(event.target.value) || 0, 0, 48) })} /></div><div><label className="field-label" htmlFor="widget-gap">Espaço entre itens</label><input id="widget-gap" className="text-input" type="number" min="0" max="32" value={selectedSource.widgetGap ?? 8} onChange={(event) => updateSelected({ widgetGap: clamp(Number(event.target.value) || 0, 0, 32) })} /></div></div>
+                  <label className="field-label" htmlFor="widget-font-family">Família tipográfica</label><input id="widget-font-family" className="text-input" value={selectedSource.widgetFontFamily ?? ''} onChange={(event) => updateSelected({ widgetFontFamily: event.target.value })} placeholder="Herdar padrão do widget" />
+                  <label className="field-label" htmlFor="widget-font-url">Importar fonte para este widget por link</label><input id="widget-font-url" className="text-input" type="url" value={selectedSource.widgetFontUrl ?? ''} onChange={(event) => updateSelected({ widgetFontUrl: event.target.value })} placeholder="https://fonts.googleapis.com/css2?..." />
+                  <button className="wide-action" type="button" onClick={applyWidgetFontUrl}>Carregar fonte do widget</button>
+                  <label className="field-label" htmlFor="widget-motion">Animação</label><select id="widget-motion" className="text-input" value={selectedSource.widgetAnimation ?? 'subtle'} onChange={(event) => updateSelected({ widgetAnimation: event.target.value as SceneSource['widgetAnimation'] })}><option value="none">Sem animações</option><option value="subtle">Suave</option><option value="energetic">Mais chamativa</option></select>
+                  <label className="lock-toggle"><input type="checkbox" checked={selectedSource.widgetShowHeader !== false} onChange={(event) => updateSelected({ widgetShowHeader: event.target.checked })} /><span>Mostrar cabeçalho (quando suportado)</span></label>
+                  <label className="lock-toggle"><input type="checkbox" checked={Boolean(selectedSource.widgetCompact)} onChange={(event) => updateSelected({ widgetCompact: event.target.checked })} /><span>Modo compacto</span></label>
+                  <label className="lock-toggle"><input type="checkbox" checked={selectedSource.widgetShowIcon !== false} onChange={(event) => updateSelected({ widgetShowIcon: event.target.checked })} /><span>Mostrar ícones decorativos</span></label>
+                  <div className="field-divider" />
+                  <p className="eyebrow section-eyebrow">CSS PERSONALIZADO · AVANÇADO</p>
+                  <label className="field-label" htmlFor="widget-custom-css">Declarações CSS</label><textarea id="widget-custom-css" className="text-input textarea-input" rows={4} maxLength={1200} value={selectedSource.widgetCustomCss ?? ''} onChange={(event) => updateSelected({ widgetCustomCss: event.target.value })} placeholder={'ex.: text-transform: uppercase;\nborder-style: dashed;\nletter-spacing: 0.05em;'} />
+                  <p className="field-hint">Use declarações separadas por ponto e vírgula. Por segurança, seletores, scripts e regras globais não são aceitos.</p>
+                </>}
+                <div className="field-divider" />
+                <p className="eyebrow section-eyebrow">ACABAMENTO DO ELEMENTO</p>
+                <label className="field-label" htmlFor="source-opacity">Opacidade geral</label><div className="range-row"><input id="source-opacity" type="range" min="0" max="1" step="0.05" value={selectedSource.opacity ?? 1} onChange={(event) => updateSelected({ opacity: Number(event.target.value) })} /><span>{Math.round((selectedSource.opacity ?? 1) * 100)}%</span></div>
+                <label className="field-label" htmlFor="source-border-width">Espessura da borda externa</label><div className="range-row"><input id="source-border-width" type="range" min="0" max="20" step="1" value={selectedSource.borderWidth ?? 0} onChange={(event) => updateSelected({ borderWidth: Number(event.target.value) })} /><span>{selectedSource.borderWidth ?? 0}px</span></div>
+                <label className="field-label" htmlFor="source-border-color">Cor da borda externa</label><ColorField id="source-border-color" value={selectedSource.borderColor ?? '#ffffff'} onChange={(borderColor) => updateSelected({ borderColor })} />
+                {selectedSource.type !== 'shape' && <><label className="field-label" htmlFor="source-radius-general">Arredondamento externo</label><div className="range-row"><input id="source-radius-general" type="range" min="0" max="100" step="1" value={selectedSource.radius ?? 4} onChange={(event) => updateSelected({ radius: Number(event.target.value) })} /><span>{selectedSource.radius ?? 4}px</span></div></>}
+                <label className="lock-toggle"><input type="checkbox" checked={Boolean(selectedSource.shadow)} onChange={(event) => updateSelected({ shadow: event.target.checked })} /><span>Sombra projetada</span></label>
+                {selectedSource.type === 'camera' && <label className="lock-toggle"><input type="checkbox" checked={selectedSource.cameraMirror !== false} onChange={(event) => updateSelected({ cameraMirror: event.target.checked })} /><span>Espelhar webcam</span></label>}
+              </div>}
+
+              {elementSection === 'transform' && <div className="property-fields">
+                <p className="eyebrow section-eyebrow">POSIÇÃO E TAMANHO · % DA TELA</p>
+                <div className="geometry-grid">
+                  <NumberField label="X" value={selectedSource.x} onChange={(x) => updateSelected({ x: clamp(x, 0, 100 - selectedSource.w) })} />
+                  <NumberField label="Y" value={selectedSource.y} onChange={(y) => updateSelected({ y: clamp(y, 0, 100 - selectedSource.h) })} />
+                  <NumberField label="Largura" value={selectedSource.w} onChange={(w) => updateSelected({ w: clamp(w, 4, 100 - selectedSource.x) })} />
+                  <NumberField label="Altura" value={selectedSource.h} onChange={(h) => updateSelected({ h: clamp(h, 4, 100 - selectedSource.y) })} />
+                </div>
+                <label className="field-label" htmlFor="source-rotation">Rotação</label><div className="range-row"><input id="source-rotation" type="range" min="-180" max="180" step="1" value={selectedSource.rotation ?? 0} onChange={(event) => updateSelected({ rotation: Number(event.target.value) })} /><span>{selectedSource.rotation ?? 0}°</span></div>
+                <label className="field-label">Alinhamento rápido</label>
+                <div className="align-grid">
+                  <button type="button" disabled={Boolean(selectedSource.locked)} onClick={() => alignSelected('left')}>◧ Esquerda</button><button type="button" disabled={Boolean(selectedSource.locked)} onClick={() => alignSelected('center-x')}>↔ Centro</button><button type="button" disabled={Boolean(selectedSource.locked)} onClick={() => alignSelected('right')}>Direita ◨</button><button type="button" disabled={Boolean(selectedSource.locked)} onClick={() => alignSelected('top')}>↑ Topo</button><button type="button" disabled={Boolean(selectedSource.locked)} onClick={() => alignSelected('center-y')}>↕ Meio</button><button type="button" disabled={Boolean(selectedSource.locked)} onClick={() => alignSelected('bottom')}>Base ↓</button>
+                </div>
+                <label className="lock-toggle"><input type="checkbox" checked={Boolean(selectedSource.locked)} onChange={(event) => updateSelected({ locked: event.target.checked })} /><span>Bloquear movimento no canvas</span></label>
+                <div className="property-actions"><button className="wide-action" type="button" onClick={() => duplicateSource(selectedSource)}>Duplicar elemento</button><button className="wide-action danger-action" type="button" onClick={() => deleteSource(selectedSource.id)}>Excluir elemento</button></div>
+              </div>}
+            </div>
+          </>}
+        </div>}
+
+        {inspectorTab === 'background' && <div className="scene-settings-panel background-settings-panel">
+          <div className="properties-heading"><div><p className="eyebrow">CENA ATUAL</p><h3>Plano de fundo</h3></div><span className="property-type">{activeScene.name}</span></div>
+          <label className="field-label" htmlFor="scene-background-mode">Tipo de fundo</label>
+          <select id="scene-background-mode" className="text-input" value={activeScene.background?.mode ?? 'transparent'} onChange={(event) => updateScene({ background: { ...(activeScene.background ?? { color: '#25233a', color2: '#10121a', angle: 135 }), mode: event.target.value as BackgroundConfig['mode'] } })}><option value="transparent">Transparente (overlay)</option><option value="solid">Cor sólida</option><option value="gradient">Gradiente</option><option value="image">Imagem de fundo</option></select>
+          {(activeScene.background?.mode === 'solid' || activeScene.background?.mode === 'gradient' || activeScene.background?.mode === 'image') && <><label className="field-label" htmlFor="scene-bg-color">Cor base</label><ColorField id="scene-bg-color" value={activeScene.background?.color ?? '#171923'} onChange={(color) => updateScene({ background: { ...(activeScene.background ?? { mode: 'solid', color2: '#10121a', angle: 135 }), color } })} /></>}
           {activeScene.background?.mode === 'gradient' && <><label className="field-label" htmlFor="scene-bg-color2">Segunda cor</label><ColorField id="scene-bg-color2" value={activeScene.background.color2 ?? '#10121a'} onChange={(color2) => updateScene({ background: { ...activeScene.background!, color2 } })} /><label className="field-label" htmlFor="scene-bg-angle">Ângulo do gradiente</label><div className="range-row"><input id="scene-bg-angle" type="range" min="0" max="360" value={activeScene.background.angle ?? 135} onChange={(event) => updateScene({ background: { ...activeScene.background!, angle: Number(event.target.value) } })} /><span>{activeScene.background.angle ?? 135}°</span></div></>}
-          <label className="field-label" htmlFor="scene-resolution">Resolução da composição</label>
+          {activeScene.background?.mode === 'image' && <>
+            <div className="background-import-card"><strong>{activeScene.background.imageSrc ? 'Imagem definida' : 'Nenhuma imagem selecionada'}</strong><small>Use arquivo local ou URL pública de imagem.</small><button className="wide-action" type="button" onClick={() => backgroundDesignInputRef.current?.click()}>Escolher imagem do computador</button></div>
+            <label className="field-label" htmlFor="background-image-url">Ou usar link da imagem</label>
+            <input id="background-image-url" className="text-input" type="url" value={backgroundUrlInput} onChange={(event) => setBackgroundUrlInput(event.target.value)} placeholder="https://site.com/imagem.webp" />
+            <button className="wide-action" type="button" onClick={applyBackgroundUrl}>Aplicar link de imagem</button>
+            <label className="field-label" htmlFor="background-image-fit">Preenchimento</label>
+            <select id="background-image-fit" className="text-input" value={activeScene.background.imageFit ?? 'cover'} onChange={(event) => updateScene({ background: { ...activeScene.background!, imageFit: event.target.value as BackgroundConfig['imageFit'] } })}><option value="cover">Cobrir a tela (pode cortar)</option><option value="contain">Mostrar imagem inteira</option><option value="stretch">Esticar para preencher</option></select>
+            <label className="field-label" htmlFor="background-image-position">Ponto de ancoragem</label>
+            <select id="background-image-position" className="text-input" value={activeScene.background.imagePosition ?? 'center center'} onChange={(event) => updateScene({ background: { ...activeScene.background!, imagePosition: event.target.value } })}><option value="center center">Centro</option><option value="top center">Topo</option><option value="bottom center">Base</option><option value="left center">Esquerda</option><option value="right center">Direita</option><option value="top left">Superior esquerda</option><option value="top right">Superior direita</option><option value="bottom left">Inferior esquerda</option><option value="bottom right">Inferior direita</option></select>
+            <label className="field-label" htmlFor="background-image-x">Posição horizontal da imagem</label><div className="range-row"><input id="background-image-x" type="range" min="0" max="100" value={backgroundPositionPercent(activeScene.background.imagePosition, 'x')} onChange={(event) => updateScene({ background: { ...activeScene.background!, imagePosition: `${event.target.value}% ${backgroundPositionPercent(activeScene.background?.imagePosition, 'y')}%` } })} /><span>{backgroundPositionPercent(activeScene.background.imagePosition, 'x')}%</span></div>
+            <label className="field-label" htmlFor="background-image-y">Posição vertical da imagem</label><div className="range-row"><input id="background-image-y" type="range" min="0" max="100" value={backgroundPositionPercent(activeScene.background.imagePosition, 'y')} onChange={(event) => updateScene({ background: { ...activeScene.background!, imagePosition: `${backgroundPositionPercent(activeScene.background?.imagePosition, 'x')}% ${event.target.value}%` } })} /><span>{backgroundPositionPercent(activeScene.background.imagePosition, 'y')}%</span></div>
+            <label className="field-label" htmlFor="background-image-opacity">Opacidade da imagem</label><div className="range-row"><input id="background-image-opacity" type="range" min="0" max="1" step="0.05" value={activeScene.background.imageOpacity ?? 1} onChange={(event) => updateScene({ background: { ...activeScene.background!, imageOpacity: Number(event.target.value) } })} /><span>{Math.round((activeScene.background.imageOpacity ?? 1) * 100)}%</span></div>
+            <div className="field-divider" />
+            <label className="field-label" htmlFor="background-overlay-color">Cor de sobreposição</label><ColorField id="background-overlay-color" value={activeScene.background.overlayColor ?? '#000000'} onChange={(overlayColor) => updateScene({ background: { ...activeScene.background!, overlayColor } })} />
+            <label className="field-label" htmlFor="background-overlay-opacity">Intensidade da sobreposição</label><div className="range-row"><input id="background-overlay-opacity" type="range" min="0" max="0.9" step="0.05" value={activeScene.background.overlayOpacity ?? 0} onChange={(event) => updateScene({ background: { ...activeScene.background!, overlayOpacity: Number(event.target.value) } })} /><span>{Math.round((activeScene.background.overlayOpacity ?? 0) * 100)}%</span></div>
+            {activeScene.background.imageSrc && <button className="wide-action danger-action" type="button" onClick={() => updateScene({ background: { ...activeScene.background!, mode: 'transparent', imageSrc: undefined, imageOpacity: 1, overlayOpacity: 0 } })}>Remover imagem de fundo</button>}
+          </>}
+          <p className="field-hint">O fundo é independente dos widgets. Um overlay transparente permite deixar o vídeo do jogo visível atrás da composição.</p>
+        </div>}
+
+        {inspectorTab === 'canvas' && <div className="scene-settings-panel canvas-settings-panel">
+          <div className="properties-heading"><div><p className="eyebrow">CONFIGURAÇÃO</p><h3>Tela da cena</h3></div></div>
+          <label className="field-label" htmlFor="scene-name">Nome da cena</label>
+          <input id="scene-name" className="text-input" value={activeScene.name} maxLength={40} onChange={(event) => updateScene({ name: event.target.value })} />
+          <label className="field-label" htmlFor="scene-resolution">Resolução</label>
           <select id="scene-resolution" className="text-input" value={`${activeScene.width ?? 1920}x${activeScene.height ?? 1080}`} onChange={(event) => { const [width, height] = event.target.value.split('x').map(Number); updateScene({ width, height }) }}><option value="1920x1080">Full HD · 1920 × 1080</option><option value="1280x720">HD · 1280 × 720</option><option value="1080x1920">Vertical · 1080 × 1920</option><option value="1080x1080">Quadrado · 1080 × 1080</option><option value="2560x1440">QHD · 2560 × 1440</option></select>
-          <p className="field-hint">A posição e o tamanho dos elementos são relativos à tela, então funcionam em todas as resoluções.</p>
-        </div>
-        <div className="inspector-footer"><span className="status-dot" /> Modo de edição local</div>
+          <p className="field-hint">As posições são relativas à composição. Alterar a resolução preserva a localização proporcional dos elementos.</p>
+          <div className="field-divider" />
+          <button className="wide-action" type="button" onClick={() => setInspectorTab('background')}>Editar plano de fundo</button>
+          <button className="wide-action" type="button" onClick={() => setInspectorTab('layers')}>Organizar camadas</button>
+        </div>}
+        <div className="inspector-footer"><span className="status-dot" /> {inspectorTab === 'element' ? 'Editando apenas o elemento selecionado' : inspectorTab === 'background' ? 'Fundo separado das camadas' : inspectorTab === 'canvas' ? 'Configurações da tela' : 'Camadas e widgets'}</div>
       </aside>
 
       <input ref={imageInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" multiple onChange={onImageSelected} />
@@ -1612,10 +1925,11 @@ function OverlayView() {
 
   if (!activeScene) return null
   return <div className="overlay-output" aria-label={`Overlay: ${activeScene.name}`} style={sceneBackgroundStyle(activeScene)}>
+    <ExternalFontLoader project={project} />
     {activeScene.sources.filter((source) => source.visible).map((source, index) => <div key={source.id} className={`overlay-object overlay-${source.type} ${source.type === 'shape' ? `shape-${source.shapeKind ?? 'rectangle'}` : ''}`} style={sourceStyle(source, index)}>
-      {source.type === 'text' && <span className="object-text">{source.text || source.name}</span>}
+      {source.type === 'text' && <span className="object-text" style={{ textTransform: source.textTransform ?? 'none', textDecoration: source.textDecoration ?? 'none', textShadow: source.textShadowEnabled === false ? 'none' : undefined }}>{source.text || source.name}</span>}
       {source.type === 'shape' && <span className={`shape-inner shape-inner-${source.shapeKind ?? 'rectangle'}`} style={{ background: source.color ?? '#7772f2', borderRadius: source.shapeKind === 'circle' ? '50%' : source.shapeKind === 'pill' ? '999px' : source.shapeKind === 'line' ? '999px' : `${source.radius ?? 4}px` }} />}
-      {source.type === 'image' && source.src && <img src={source.src} alt={source.name} draggable={false} style={{ objectFit: source.objectFit ?? 'contain' }} />}
+      {source.type === 'image' && source.src && <img src={source.src} alt={source.name} draggable={false} style={{ objectFit: source.objectFit ?? 'contain', objectPosition: source.objectPosition ?? 'center center' }} />}
       {source.type === 'browser' && <iframe className="browser-frame" title={source.name} src={getBrowserUrl(source.url)} sandbox="allow-scripts allow-forms allow-popups" referrerPolicy="no-referrer" loading="lazy" tabIndex={-1} />}
       {source.type === 'camera' && (cameraStream ? <video className="camera-video" autoPlay muted playsInline style={{ transform: source.cameraMirror === false ? 'none' : 'scaleX(-1)' }} ref={(element) => { if (element && element.srcObject !== cameraStream) element.srcObject = cameraStream }} /> : <div className="overlay-camera-placeholder" />)}
       {source.type === 'widget' && <WidgetContent source={source} />}
