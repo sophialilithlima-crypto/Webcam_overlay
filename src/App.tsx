@@ -8,7 +8,9 @@ import {
 import type { ChangeEvent, CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
 import './App.css'
 
-type SourceType = 'text' | 'shape' | 'camera' | 'image' | 'browser'
+type WidgetKind = 'alert' | 'chat' | 'events' | 'goal' | 'latest' | 'socials' | 'countdown' | 'clock' | 'viewer' | 'ticker' | 'music' | 'poll' | 'sponsor' | 'webcam-frame' | 'live-badge'
+type WidgetTheme = 'glass' | 'neon' | 'minimal' | 'solid'
+type SourceType = 'text' | 'shape' | 'camera' | 'image' | 'browser' | 'widget'
 type BackgroundConfig = { mode: 'transparent' | 'solid' | 'gradient'; color: string; color2: string; angle: number }
 type SceneSource = {
   id: string
@@ -42,6 +44,18 @@ type SceneSource = {
   shapeKind?: 'rectangle' | 'circle' | 'pill' | 'line'
   url?: string
   cameraMirror?: boolean
+  widgetKind?: WidgetKind
+  widgetTitle?: string
+  widgetText?: string
+  widgetValue?: string
+  widgetTarget?: string
+  widgetItems?: string
+  widgetAccent?: string
+  widgetSeconds?: number
+  widgetRunning?: boolean
+  widgetTheme?: WidgetTheme
+  widgetShowHeader?: boolean
+  widgetCompact?: boolean
 }
 type Scene = { id: string; name: string; sources: SceneSource[]; background?: BackgroundConfig; width?: number; height?: number }
 type Project = { version: 1; activeSceneId: string; scenes: Scene[] }
@@ -56,8 +70,27 @@ type Interaction = {
   h: number
 }
 
-const STORAGE_KEY = 'webcam-overlay-project-v1'
+const STORAGE_KEY = 'webcam-overlay-project-v2'
+const LEGACY_STORAGE_KEY = 'webcam-overlay-project-v1'
 const MAX_IMAGE_BYTES = 1_500_000
+
+const WIDGET_OPTIONS: { kind: WidgetKind; label: string; description: string; glyph: string }[] = [
+  { kind: 'alert', label: 'Alertas de evento', description: 'Seguidor, inscrição, raid ou doação (demonstração)', glyph: '✦' },
+  { kind: 'chat', label: 'Caixa de chat', description: 'Mensagens com nomes, cores e estilo editáveis', glyph: '☷' },
+  { kind: 'events', label: 'Atividade recente', description: 'Últimos follows, subs, raids e apoios', glyph: '↗' },
+  { kind: 'goal', label: 'Barra de meta', description: 'Seguidores, inscrições ou arrecadação', glyph: '▰' },
+  { kind: 'latest', label: 'Último apoiador', description: 'Etiqueta para último seguidor ou inscrito', glyph: '☆' },
+  { kind: 'socials', label: 'Redes sociais', description: 'Perfis e nomes das redes do streamer', glyph: '◎' },
+  { kind: 'countdown', label: 'Contagem regressiva', description: 'Temporizador para início ou retorno', glyph: '◷' },
+  { kind: 'clock', label: 'Relógio', description: 'Hora local para streams e maratonas', glyph: '◴' },
+  { kind: 'viewer', label: 'Status e espectadores', description: 'Selo AO VIVO e contador demonstrativo', glyph: '●' },
+  { kind: 'ticker', label: 'Faixa rolante', description: 'Avisos, comandos ou mensagem de apoio', glyph: '⇠' },
+  { kind: 'music', label: 'Tocando agora', description: 'Faixa e artista editáveis manualmente', glyph: '♫' },
+  { kind: 'poll', label: 'Enquete', description: 'Opções e votos de demonstração', glyph: '◫' },
+  { kind: 'sponsor', label: 'Patrocinador / marca', description: 'Logo textual e mensagem de parceria', glyph: '◆' },
+  { kind: 'webcam-frame', label: 'Moldura de webcam', description: 'Borda decorativa com rótulo', glyph: '▣' },
+  { kind: 'live-badge', label: 'Selo AO VIVO', description: 'Indicador de transmissão e tema personalizável', glyph: '●' },
+]
 
 function makeDefaultProject(): Project {
   return {
@@ -79,6 +112,26 @@ function makeDefaultProject(): Project {
           {
             id: 'source-title', type: 'text', name: 'Título', visible: true,
             x: 7, y: 72, w: 43, h: 11, text: 'SUA MARCA AQUI', color: '#ffffff', fontSize: 36,
+          },
+          {
+            id: 'widget-live-badge', type: 'widget', widgetKind: 'live-badge', name: 'Selo AO VIVO', visible: true,
+            x: 84, y: 4, w: 11, h: 6, widgetTitle: 'AO VIVO', widgetText: 'TRANSMITINDO', widgetAccent: '#ff4e70', widgetTheme: 'minimal',
+          },
+          {
+            id: 'widget-goal', type: 'widget', widgetKind: 'goal', name: 'Meta de seguidores', visible: true,
+            x: 65, y: 15, w: 30, h: 13, widgetTitle: 'META DE SEGUIDORES', widgetText: 'Rumo à próxima meta', widgetValue: '68', widgetTarget: '100', widgetAccent: '#8d85ff', widgetTheme: 'glass',
+          },
+          {
+            id: 'widget-events', type: 'widget', widgetKind: 'events', name: 'Atividade recente', visible: true,
+            x: 65, y: 31, w: 30, h: 31, widgetTitle: 'ATIVIDADE RECENTE', widgetItems: 'Novo seguidor · pixelrider\nNova inscrição · lua_gamer\nApoio · catbits · R$ 10\nRaid · canal_da_nina · 24', widgetAccent: '#8d85ff', widgetTheme: 'glass',
+          },
+          {
+            id: 'widget-socials', type: 'widget', widgetKind: 'socials', name: 'Redes sociais', visible: true,
+            x: 5, y: 91, w: 67, h: 6, widgetTitle: 'ME ENCONTRE', widgetItems: 'Twitch  @seucanal\nInstagram  @seuperfil\nYouTube  @seucanal', widgetAccent: '#8d85ff', widgetTheme: 'minimal',
+          },
+          {
+            id: 'widget-latest', type: 'widget', widgetKind: 'latest', name: 'Último seguidor', visible: true,
+            x: 65, y: 67, w: 30, h: 10, widgetTitle: 'ÚLTIMO SEGUIDOR', widgetText: 'pixelrider', widgetAccent: '#70e1c1', widgetTheme: 'minimal',
           },
         ],
       },
@@ -129,7 +182,7 @@ function isValidProject(value: unknown): value is Project {
 
 function readProject(): Project {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY)
     if (raw) {
       const parsed: unknown = JSON.parse(raw)
       if (isValidProject(parsed)) {
@@ -150,11 +203,11 @@ function newId(prefix: string) {
 }
 
 function sourceLabel(type: SourceType) {
-  return ({ text: 'Texto', shape: 'Forma', camera: 'Câmera', image: 'Imagem', browser: 'Navegador' })[type]
+  return ({ text: 'Texto', shape: 'Forma', camera: 'Câmera', image: 'Imagem', browser: 'Navegador', widget: 'Widget' })[type]
 }
 
 function sourceGlyph(type: SourceType) {
-  return ({ text: 'T', shape: '◇', camera: '◉', image: '▧', browser: '↗' })[type]
+  return ({ text: 'T', shape: '◇', camera: '◉', image: '▧', browser: '↗', widget: '✦' })[type]
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -206,6 +259,9 @@ function sourceStyle(source: SceneSource, index: number): CSSProperties {
     style.padding = source.textBackground ? '0.22em 0.35em' : '0'
   }
   if (source.type === 'shape') style.backgroundColor = source.color ?? '#7772f2'
+  if (source.type === 'widget') {
+    Object.assign(style, { '--widget-accent': source.widgetAccent ?? source.color ?? '#8d85ff' })
+  }
   if (source.type === 'camera' || source.type === 'image' || source.type === 'browser') style.overflow = 'hidden'
   return style
 }
@@ -232,6 +288,148 @@ function sceneBackgroundStyle(scene: Scene, isPreview = false): CSSProperties {
   return { backgroundColor: background?.color ?? '#171923', backgroundImage: `linear-gradient(${background?.angle ?? 135}deg, ${background?.color ?? '#25233a'}, ${background?.color2 ?? '#10121a'})` }
 }
 
+function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testToken?: number }) {
+  const kind = source.widgetKind ?? 'goal'
+  const accent = source.widgetAccent ?? source.color ?? '#8d85ff'
+  const [remaining, setRemaining] = useState(source.widgetSeconds ?? 600)
+  const [now, setNow] = useState(() => new Date())
+  const [alertVisible, setAlertVisible] = useState(false)
+
+  useEffect(() => {
+    setRemaining(source.widgetSeconds ?? 600)
+  }, [source.widgetSeconds, kind])
+
+  useEffect(() => {
+    if (kind !== 'countdown' || source.widgetRunning === false) return
+    const timer = window.setInterval(() => setRemaining((value) => Math.max(0, value - 1)), 1000)
+    return () => window.clearInterval(timer)
+  }, [kind, source.widgetRunning])
+
+  useEffect(() => {
+    if (kind !== 'clock') return
+    const timer = window.setInterval(() => setNow(new Date()), 1000)
+    return () => window.clearInterval(timer)
+  }, [kind])
+
+  useEffect(() => {
+    if (kind !== 'alert' || testToken <= 0) return
+    setAlertVisible(true)
+    const timeout = window.setTimeout(() => setAlertVisible(false), 4200)
+    return () => window.clearTimeout(timeout)
+  }, [kind, testToken])
+
+  const lines = (source.widgetItems ?? '').split('\n').map((line) => line.trim()).filter(Boolean)
+  const currentValue = Number.parseFloat((source.widgetValue ?? '68').replace(/[^\d.]/g, '')) || 0
+  const targetValue = Math.max(1, Number.parseFloat((source.widgetTarget ?? '100').replace(/[^\d.]/g, '')) || 100)
+  const progress = Math.min(100, Math.max(0, (currentValue / targetValue) * 100))
+  const time = `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`
+
+  if (kind === 'webcam-frame') {
+    return <div className={`stream-widget webcam-frame-widget widget-theme-${source.widgetTheme ?? 'neon'}`} style={{ '--widget-accent': accent } as CSSProperties}>
+      <div className="webcam-frame-corner corner-tl" /><div className="webcam-frame-corner corner-tr" />
+      <div className="webcam-frame-corner corner-bl" /><div className="webcam-frame-corner corner-br" />
+      <span className="webcam-frame-label">{source.widgetTitle || 'WEBCAM'}</span>
+      <span className="widget-demo-tag">MOLDURA</span>
+    </div>
+  }
+
+  if (kind === 'live-badge') {
+    return <div className={`stream-widget live-badge-widget widget-theme-${source.widgetTheme ?? 'minimal'}`} style={{ '--widget-accent': accent } as CSSProperties}>
+      <span className="live-badge-dot" />
+      <span className="live-badge-copy"><strong>{source.widgetTitle || 'AO VIVO'}</strong><small>{source.widgetText || 'TRANSMITINDO'}</small></span>
+      <span className="widget-demo-tag">DEMO</span>
+    </div>
+  }
+
+  return <div className={`stream-widget widget-${kind} widget-theme-${source.widgetTheme ?? 'glass'} ${alertVisible ? 'alert-triggered' : ''}`} style={{ '--widget-accent': accent } as CSSProperties}>
+    {kind === 'alert' && <>
+      <div className="widget-alert-icon">✦</div>
+      <div className="widget-alert-content"><span className="widget-kicker">{alertVisible ? 'NOVO EVENTO!' : (source.widgetTitle || 'ALERTA DE EVENTO')}</span><strong>{alertVisible ? (source.widgetValue || 'pixelrider') : (source.widgetValue || 'Novo seguidor')}</strong><small>{source.widgetText || 'começou a seguir o canal'}</small></div>
+      <span className="widget-demo-tag">DEMO</span>
+    </>}
+
+    {kind === 'chat' && <>
+      <div className="widget-header"><strong>{source.widgetTitle || 'CHAT AO VIVO'}</strong><span className="widget-header-pill">DEMO</span></div>
+      <div className="chat-messages">{(lines.length ? lines : ['LuaGamer: Oi, chat!', 'PixelRider: Boa live!', 'nina: Qual é o jogo?', 'Gui: Cheguei agora']).map((line, index) => {
+        const separator = line.indexOf(':')
+        const username = separator >= 0 ? line.slice(0, separator) : `viewer${index + 1}`
+        const message = separator >= 0 ? line.slice(separator + 1).trim() : line
+        return <div className="chat-message" key={`${line}-${index}`}><strong style={{ color: ['#b8a8ff', '#74dfc5', '#ffbd83', '#85c8ff'][index % 4] }}>{username}</strong><span>{message}</span></div>
+      })}</div>
+      <div className="chat-input-sample"><span>Enviar mensagem…</span><b>↗</b></div>
+    </>}
+
+    {kind === 'events' && <>
+      <div className="widget-header"><strong>{source.widgetTitle || 'ATIVIDADE RECENTE'}</strong><span className="widget-header-pill">DEMO</span></div>
+      <div className="event-items">{(lines.length ? lines : ['Novo seguidor · pixelrider', 'Nova inscrição · lua_gamer', 'Apoio · catbits · R$ 10', 'Raid · canal_da_nina · 24']).slice(0, 6).map((line, index) => {
+        const parts = line.split('·').map((part) => part.trim())
+        return <div className="event-item" key={`${line}-${index}`}><span className={`event-type-icon event-icon-${index % 4}`}>{['↗', '★', '♥', '✦'][index % 4]}</span><span className="event-copy"><strong>{parts[0]}</strong><small>{parts.slice(1).join(' · ') || 'viewer_exemplo'}</small></span></div>
+      })}</div>
+    </>}
+
+    {kind === 'goal' && <>
+      <div className="widget-header"><strong>{source.widgetTitle || 'META DA LIVE'}</strong><span className="widget-header-pill">DEMO</span></div>
+      {source.widgetText && <p className="widget-muted-line">{source.widgetText}</p>}
+      <div className="goal-numbers"><strong>{source.widgetValue ?? '68'}</strong><span>/ {source.widgetTarget ?? '100'}</span><b>{Math.round(progress)}%</b></div>
+      <div className="goal-track"><span style={{ width: `${progress}%` }} /></div>
+      <small className="goal-footnote">{progress >= 100 ? 'Meta alcançada!' : `${Math.max(0, targetValue - currentValue)} para alcançar a meta`}</small>
+    </>}
+
+    {kind === 'latest' && <>
+      <div className="latest-icon">☆</div><div className="latest-copy"><span className="widget-kicker">{source.widgetTitle || 'ÚLTIMO SEGUIDOR'}</span><strong>{source.widgetText || 'pixelrider'}</strong><small>Dados de demonstração</small></div>
+    </>}
+
+    {kind === 'socials' && <>
+      {source.widgetTitle && <div className="widget-header"><strong>{source.widgetTitle}</strong><span className="widget-header-pill">PERFIS</span></div>}
+      <div className="social-list">{(lines.length ? lines : ['Twitch  @seucanal', 'Instagram  @seuperfil', 'YouTube  @seucanal']).map((line, index) => {
+        const separator = line.search(/[·|]/)
+        const label = separator >= 0 ? line.slice(0, separator).trim() : line.split(/\s+/)[0]
+        const account = separator >= 0 ? line.slice(separator + 1).trim() : line.slice(label.length).trim()
+        return <div className="social-item" key={`${line}-${index}`}><span>{['T', '◎', '▶', '♪'][index % 4]}</span><strong>{label}</strong><small>{account || '@seuperfil'}</small></div>
+      })}</div>
+    </>}
+
+    {kind === 'countdown' && <>
+      <span className="widget-kicker">{source.widgetTitle || 'COMEÇAMOS EM'}</span>
+      <strong className="countdown-time">{time}</strong>
+      <small className="widget-muted-line">{remaining === 0 ? 'Está na hora!' : (source.widgetText || 'Prepare-se para a transmissão')}</small>
+      <span className="widget-demo-tag">{source.widgetRunning === false ? 'PAUSADO' : 'DEMO'}</span>
+    </>}
+
+    {kind === 'clock' && <>
+      <span className="widget-kicker">{source.widgetTitle || 'HORA LOCAL'}</span>
+      <strong className="clock-time">{now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</strong>
+      <small className="widget-muted-line">{now.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}</small>
+    </>}
+
+    {kind === 'viewer' && <>
+      <span className="live-badge-dot" /><div className="viewer-copy"><span className="widget-kicker">{source.widgetTitle || 'AO VIVO'}</span><strong>{source.widgetValue || '128'} <small>espectadores</small></strong></div><span className="widget-demo-tag">DEMO</span>
+    </>}
+
+    {kind === 'ticker' && <>
+      <span className="ticker-star">✦</span><div className="ticker-window"><div className="ticker-track"><span>{source.widgetText || 'SIGA O CANAL  •  ATIVE AS NOTIFICAÇÕES  •  COMPARTILHE A LIVE  •  OBRIGADO POR ASSISTIR  •  '}</span><span aria-hidden="true">{source.widgetText || 'SIGA O CANAL  •  ATIVE AS NOTIFICAÇÕES  •  COMPARTILHE A LIVE  •  OBRIGADO POR ASSISTIR  •  '}</span></div></div>
+    </>}
+
+    {kind === 'music' && <>
+      <div className="music-art">♫</div><div className="music-copy"><span className="widget-kicker">{source.widgetTitle || 'TOCANDO AGORA'}</span><strong>{source.widgetText || 'Nome da música'}</strong><small>{source.widgetValue || 'Artista / álbum'}</small></div><span className="music-bars"><i /><i /><i /><i /></span>
+    </>}
+
+    {kind === 'poll' && <>
+      <div className="widget-header"><strong>{source.widgetTitle || 'ENQUETE DA LIVE'}</strong><span className="widget-header-pill">DEMO</span></div>
+      <div className="poll-options">{(lines.length ? lines : ['Aventura | 42', 'RPG | 28', 'FPS | 30']).slice(0, 4).map((line, index) => {
+        const [name, valueText] = line.split('|').map((part) => part.trim())
+        const votes = Math.max(0, Number.parseFloat(valueText ?? '0') || 0)
+        const maxVotes = Math.max(1, ...(lines.length ? lines : ['Aventura | 42', 'RPG | 28', 'FPS | 30']).map((item) => Number.parseFloat(item.split('|')[1] ?? '0') || 0))
+        return <div className="poll-option" key={`${line}-${index}`}><div><span>{name}</span><b>{Math.round((votes / maxVotes) * 100)}%</b></div><div className="poll-track"><span style={{ width: `${(votes / maxVotes) * 100}%` }} /></div></div>
+      })}</div>
+    </>}
+
+    {kind === 'sponsor' && <>
+      <div className="sponsor-mark">◆</div><div className="sponsor-copy"><span className="widget-kicker">{source.widgetTitle || 'APOIO'}</span><strong>{source.widgetText || 'SUA MARCA AQUI'}</strong><small>{source.widgetValue || 'Parceiro oficial da live'}</small></div><span className="widget-demo-tag">DEMO</span>
+    </>}
+  </div>
+}
+
 function App() {
   const overlayMode = new URLSearchParams(window.location.search).get('mode') === 'overlay'
   return overlayMode ? <OverlayView /> : <Editor />
@@ -241,6 +439,9 @@ function Editor() {
   const [project, setProject] = useState<Project>(() => readProject())
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>('source-title')
   const [sourceMenuOpen, setSourceMenuOpen] = useState(false)
+  const [widgetSearch, setWidgetSearch] = useState('')
+  const [showPackMenu, setShowPackMenu] = useState(false)
+  const [alertTestTokens, setAlertTestTokens] = useState<Record<string, number>>({})
   const [message, setMessage] = useState('')
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
   const [cameraError, setCameraError] = useState('')
@@ -370,6 +571,80 @@ function Editor() {
     setMessage('')
   }
 
+  function applyStarterPack(pack: 'gaming' | 'chatting' | 'minimal' | 'vertical') {
+    const accent = ({ gaming: '#8d85ff', chatting: '#70d9c0', minimal: '#d4d6e4', vertical: '#70d9c0' })[pack]
+    const dimensions = pack === 'vertical' ? { width: 1080, height: 1920 } : { width: 1920, height: 1080 }
+    const widget = (kind: WidgetKind, name: string, x: number, y: number, w: number, h: number, settings: Partial<SceneSource> = {}): SceneSource => ({
+      id: newId('widget'), type: 'widget', widgetKind: kind, name, visible: true, x, y, w, h,
+      radius: 8, opacity: 1, shadow: true, widgetAccent: accent, widgetTheme: pack === 'minimal' ? 'minimal' : pack === 'gaming' ? 'neon' : 'glass', widgetShowHeader: true,
+      ...settings,
+    })
+    const text = (name: string, content: string, x: number, y: number, w: number, h: number, fontSize: number, color = '#ffffff'): SceneSource => ({
+      id: newId('text'), type: 'text', name, text: content, visible: true, x, y, w, h, fontSize, color, fontFamily: 'Inter, system-ui, sans-serif', fontWeight: 800, textAlign: 'left',
+    })
+    const camera = (x: number, y: number, w: number, h: number): SceneSource => ({ id: newId('camera'), type: 'camera', name: 'Webcam', visible: true, x, y, w, h, radius: 8, cameraMirror: true, shadow: true })
+    const scene = (name: string, sources: SceneSource[], background: BackgroundConfig = { mode: 'transparent', color: '#171923', color2: '#25233a', angle: 135 }): Scene => ({
+      id: newId('scene'), name, sources, background, width: dimensions.width, height: dimensions.height,
+    })
+    let additions: Scene[] = []
+
+    if (pack === 'gaming') {
+      additions = [
+        scene('Gameplay · kit gamer', [
+          camera(5, 10, 25, 43),
+          widget('webcam-frame', 'Moldura de webcam', 4, 9, 27, 45, { widgetTitle: 'WEBCAM' }),
+          widget('live-badge', 'Selo AO VIVO', 82, 4, 13, 7, { widgetTitle: 'AO VIVO', widgetText: 'TRANSMITINDO' }),
+          widget('events', 'Atividade recente', 72, 14, 23, 31, { widgetTitle: 'ÚLTIMOS EVENTOS', widgetItems: 'Novo seguidor · pixelrider\nNova inscrição · lua_gamer\nApoio · catbits · R$ 10' }),
+          widget('goal', 'Meta de seguidores', 70, 49, 25, 12, { widgetTitle: 'META DE SEGUIDORES', widgetText: 'Próxima meta', widgetValue: '68', widgetTarget: '100' }),
+          widget('ticker', 'Faixa de redes', 5, 91, 90, 6, { widgetText: 'SIGA NAS REDES  •  OBRIGADO POR ESTAR AQUI  •  ' }),
+        ]),
+        scene('Começando · kit gamer', [
+          text('Título principal', 'COMEÇAMOS EM INSTANTES', 12, 28, 76, 13, 48),
+          text('Subtítulo', 'Pegue algo para beber e fique por aqui.', 12, 44, 70, 7, 23, '#bebcda'),
+          widget('countdown', 'Contagem regressiva', 12, 57, 28, 17, { widgetTitle: 'A LIVE COMEÇA EM', widgetSeconds: 300, widgetText: 'Prepare-se' }),
+          widget('socials', 'Redes sociais', 48, 57, 40, 17, { widgetTitle: 'ACOMPANHE TAMBÉM', widgetItems: 'Twitch · @seucanal\nInstagram · @seuperfil\nYouTube · @seucanal' }),
+        ], { mode: 'gradient', color: '#17142b', color2: '#0b111d', angle: 135 }),
+        scene('Intervalo · kit gamer', [
+          text('Mensagem', 'VOLTAMOS JÁ', 12, 32, 56, 13, 54),
+          text('Complemento', 'Faça uma pausa. Em breve estamos de volta.', 12, 48, 70, 7, 22, '#c4c1df'),
+          widget('clock', 'Relógio', 12, 65, 22, 12, { widgetTitle: 'HORA LOCAL' }),
+          widget('music', 'Tocando agora', 40, 65, 35, 13, { widgetTitle: 'TOCANDO AGORA', widgetText: 'Nome da música', widgetValue: 'Artista' }),
+        ], { mode: 'gradient', color: '#17142b', color2: '#0b111d', angle: 135 }),
+      ]
+    } else if (pack === 'chatting') {
+      additions = [
+        scene('Conversa · kit', [
+          camera(5, 10, 29, 47),
+          widget('webcam-frame', 'Moldura da câmera', 4, 9, 31, 49, { widgetTitle: 'AO VIVO' }),
+          widget('chat', 'Chat demonstrativo', 67, 10, 28, 55, { widgetTitle: 'CONVERSA DA LIVE' }),
+          widget('latest', 'Último seguidor', 5, 68, 28, 10, { widgetTitle: 'NOVO POR AQUI', widgetText: 'pixelrider' }),
+          widget('music', 'Música atual', 37, 70, 29, 12, { widgetTitle: 'TOCANDO AGORA' }),
+          widget('socials', 'Redes sociais', 5, 91, 60, 6, { widgetItems: 'Instagram · @seuperfil\nYouTube · @seucanal' }),
+        ]),
+        scene('Começando · conversa', [text('Título', 'VAMOS CONVERSAR', 12, 30, 72, 12, 48), text('Subtítulo', 'Acomode-se e mande um oi no chat.', 12, 46, 70, 8, 24, '#b6dcd4'), widget('countdown', 'Contagem', 12, 62, 26, 16, { widgetSeconds: 300 })], { mode: 'gradient', color: '#102a2a', color2: '#0d111c', angle: 135 }),
+        scene('Intervalo · conversa', [text('Mensagem', 'PAUSA RÁPIDA', 12, 34, 55, 12, 50), widget('clock', 'Relógio', 12, 51, 22, 12, { widgetTitle: 'HORA LOCAL' }), widget('ticker', 'Aviso', 5, 91, 90, 6, { widgetText: 'JÁ VOLTAMOS  •  OBRIGADO PELA COMPANHIA  •  ' })], { mode: 'gradient', color: '#102a2a', color2: '#0d111c', angle: 135 }),
+      ]
+    } else if (pack === 'minimal') {
+      additions = [
+        scene('Ao vivo · minimalista', [camera(7, 12, 23, 40), widget('live-badge', 'Status ao vivo', 84, 5, 11, 6, { widgetTitle: 'AO VIVO', widgetText: '' }), widget('latest', 'Último seguidor', 7, 68, 25, 9, { widgetTitle: 'ÚLTIMO SEGUIDOR', widgetText: 'pixelrider', widgetTheme: 'minimal' }), widget('socials', 'Redes', 7, 91, 53, 6, { widgetTitle: '', widgetItems: 'Twitch · @seucanal\nInstagram · @seuperfil', widgetTheme: 'minimal' })]),
+        scene('Começando · minimalista', [text('Título', 'COMEÇAMOS EM BREVE', 12, 34, 65, 12, 43), widget('countdown', 'Contagem regressiva', 12, 51, 22, 14, { widgetTitle: 'EM', widgetTheme: 'minimal' })], { mode: 'solid', color: '#101218', color2: '#101218', angle: 0 }),
+        scene('Intervalo · minimalista', [text('Mensagem', 'VOLTAMOS JÁ', 12, 38, 50, 12, 54), widget('socials', 'Redes sociais', 12, 56, 45, 14, { widgetItems: 'Twitch · @seucanal\nInstagram · @seuperfil', widgetTheme: 'minimal' })], { mode: 'solid', color: '#101218', color2: '#101218', angle: 0 }),
+      ]
+    } else {
+      additions = [
+        scene('Vertical · ao vivo', [camera(8, 8, 84, 37), widget('webcam-frame', 'Moldura vertical', 7, 7, 86, 39, { widgetTitle: 'WEBCAM' }), widget('live-badge', 'Status ao vivo', 62, 3, 30, 5, { widgetTitle: 'AO VIVO', widgetText: '' }), widget('chat', 'Chat vertical', 8, 49, 84, 23, { widgetTitle: 'CHAT AO VIVO' }), widget('goal', 'Meta vertical', 8, 75, 84, 9, { widgetTitle: 'META DE SEGUIDORES', widgetValue: '68', widgetTarget: '100' }), widget('ticker', 'Faixa vertical', 5, 94, 90, 4, { widgetText: 'SIGA O CANAL  •  OBRIGADO POR ASSISTIR  •  ' })], { mode: 'gradient', color: '#16152b', color2: '#0c1018', angle: 135 }),
+        scene('Vertical · começando', [text('Título vertical', 'COMEÇAMOS EM INSTANTES', 8, 27, 84, 13, 46), widget('countdown', 'Contagem vertical', 8, 45, 84, 15, { widgetSeconds: 300 }), widget('socials', 'Redes verticais', 8, 66, 84, 16, { widgetItems: 'Twitch · @seucanal\nInstagram · @seuperfil' })], { mode: 'gradient', color: '#16152b', color2: '#0c1018', angle: 135 }),
+        scene('Vertical · intervalo', [text('Intervalo vertical', 'VOLTAMOS JÁ', 8, 37, 84, 13, 54), widget('clock', 'Relógio vertical', 8, 55, 45, 13, { widgetTitle: 'HORA LOCAL' }), widget('ticker', 'Aviso vertical', 5, 94, 90, 4, { widgetText: 'JÁ VOLTAMOS  •  FIQUE POR AQUI  •  ' })], { mode: 'gradient', color: '#16152b', color2: '#0c1018', angle: 135 }),
+      ]
+    }
+
+    setProject((current) => ({ ...current, scenes: [...current.scenes, ...additions], activeSceneId: additions[0].id }))
+    setSelectedSourceId(additions[0].sources[0]?.id ?? null)
+    setShowPackMenu(false)
+    setSourceMenuOpen(false)
+    setMessage(`Kit adicionado com ${additions.length} cenas. Você pode editar todos os elementos.`)
+  }
+
   function renameScene(scene: Scene) {
     const name = window.prompt('Nome da cena:', scene.name)
     if (name === null) return
@@ -407,14 +682,14 @@ function Editor() {
     setSelectedSourceId(nextActive.sources[0]?.id ?? null)
   }
 
-  function addSource(type: SourceType) {
+  function addSource(type: Exclude<SourceType, 'widget'>) {
     if (type === 'image') {
       imageInputRef.current?.click()
       setSourceMenuOpen(false)
       return
     }
     const count = activeScene.sources.filter((source) => source.type === type).length + 1
-    const defaults: Record<Exclude<SourceType, 'image'>, Partial<SceneSource>> = {
+    const defaults: Record<Exclude<SourceType, 'image' | 'widget'>, Partial<SceneSource>> = {
       text: { x: 34, y: 38, w: 32, h: 12, text: 'Seu texto', color: '#ffffff', fontSize: 34, fontFamily: 'Inter, system-ui, sans-serif', fontWeight: 750, textAlign: 'left', letterSpacing: -0.5, lineHeight: 1.12 },
       shape: { x: 38, y: 30, w: 20, h: 22, color: '#7772f2', radius: 10, shapeKind: 'rectangle' },
       camera: { x: 35, y: 20, w: 30, h: 45, radius: 5, cameraMirror: true },
@@ -427,6 +702,44 @@ function Editor() {
     updateActiveScene((scene) => ({ ...scene, sources: [...scene.sources, source] }))
     setSelectedSourceId(source.id)
     setSourceMenuOpen(false)
+  }
+
+  function addWidget(kind: WidgetKind) {
+    const presets: Record<WidgetKind, { x: number; y: number; w: number; h: number; title: string; text?: string; value?: string; target?: string; items?: string; seconds?: number; accent: string; theme: WidgetTheme }> = {
+      alert: { x: 35, y: 8, w: 30, h: 13, title: 'ALERTA DE EVENTO', text: 'começou a seguir o canal', value: 'pixelrider', accent: '#8d85ff', theme: 'neon' },
+      chat: { x: 70, y: 12, w: 26, h: 45, title: 'CHAT AO VIVO', items: 'LuaGamer: Oi, chat!\nPixelRider: Boa live!\nnina: Qual é o jogo?\nGui: Cheguei agora', accent: '#8d85ff', theme: 'glass' },
+      events: { x: 70, y: 59, w: 26, h: 29, title: 'ATIVIDADE RECENTE', items: 'Novo seguidor · pixelrider\nNova inscrição · lua_gamer\nApoio · catbits · R$ 10\nRaid · canal_da_nina · 24', accent: '#8d85ff', theme: 'glass' },
+      goal: { x: 59, y: 72, w: 32, h: 13, title: 'META DE SEGUIDORES', text: 'Rumo à próxima meta', value: '68', target: '100', accent: '#8d85ff', theme: 'glass' },
+      latest: { x: 5, y: 59, w: 27, h: 11, title: 'ÚLTIMO SEGUIDOR', text: 'pixelrider', accent: '#70e1c1', theme: 'minimal' },
+      socials: { x: 5, y: 91, w: 67, h: 6, title: 'ME ENCONTRE', items: 'Twitch · @seucanal\nInstagram · @seuperfil\nYouTube · @seucanal', accent: '#8d85ff', theme: 'minimal' },
+      countdown: { x: 34, y: 34, w: 32, h: 20, title: 'COMEÇAMOS EM', text: 'Prepare-se para a transmissão', seconds: 600, accent: '#8d85ff', theme: 'neon' },
+      clock: { x: 40, y: 8, w: 20, h: 12, title: 'HORA LOCAL', accent: '#8d85ff', theme: 'glass' },
+      viewer: { x: 78, y: 4, w: 17, h: 7, title: 'AO VIVO', value: '128', accent: '#ff4e70', theme: 'minimal' },
+      ticker: { x: 5, y: 91, w: 90, h: 6, title: 'AVISO DA LIVE', text: 'SIGA O CANAL  •  ATIVE AS NOTIFICAÇÕES  •  COMPARTILHE A LIVE  •  OBRIGADO POR ASSISTIR  •  ', accent: '#8d85ff', theme: 'solid' },
+      music: { x: 5, y: 76, w: 26, h: 12, title: 'TOCANDO AGORA', text: 'Nome da música', value: 'Artista / álbum', accent: '#70e1c1', theme: 'glass' },
+      poll: { x: 69, y: 52, w: 27, h: 35, title: 'ENQUETE DA LIVE', items: 'Aventura | 42\nRPG | 28\nFPS | 30', accent: '#8d85ff', theme: 'glass' },
+      sponsor: { x: 5, y: 5, w: 27, h: 11, title: 'APOIO', text: 'SUA MARCA AQUI', value: 'Parceiro oficial da live', accent: '#f1c778', theme: 'glass' },
+      'webcam-frame': { x: 4, y: 8, w: 32, h: 50, title: 'WEBCAM', accent: '#8d85ff', theme: 'neon' },
+      'live-badge': { x: 82, y: 4, w: 13, h: 7, title: 'AO VIVO', text: 'TRANSMITINDO', accent: '#ff4e70', theme: 'minimal' },
+    }
+    const preset = presets[kind]
+    const count = activeScene.sources.filter((source) => source.type === 'widget' && source.widgetKind === kind).length + 1
+    const labels: Record<WidgetKind, string> = {
+      alert: 'Alertas de evento', chat: 'Caixa de chat', events: 'Atividade recente', goal: 'Barra de meta', latest: 'Último apoiador', socials: 'Redes sociais', countdown: 'Contagem regressiva', clock: 'Relógio', viewer: 'Status e espectadores', ticker: 'Faixa rolante', music: 'Tocando agora', poll: 'Enquete', sponsor: 'Patrocinador', 'webcam-frame': 'Moldura de webcam', 'live-badge': 'Selo AO VIVO',
+    }
+    const source: SceneSource = {
+      id: newId('widget'), type: 'widget', widgetKind: kind, name: `${labels[kind]} ${count}`,
+      visible: true, x: preset.x, y: preset.y, w: preset.w, h: preset.h,
+      radius: 7, opacity: 1, rotation: 0, shadow: true,
+      widgetTitle: preset.title, widgetText: preset.text, widgetValue: preset.value,
+      widgetTarget: preset.target, widgetItems: preset.items, widgetSeconds: preset.seconds ?? 600,
+      widgetRunning: true, widgetAccent: preset.accent, widgetTheme: preset.theme,
+      widgetShowHeader: true, widgetCompact: false,
+    }
+    updateActiveScene((scene) => ({ ...scene, sources: [...scene.sources, source] }))
+    setSelectedSourceId(source.id)
+    setSourceMenuOpen(false)
+    setMessage(`${labels[kind]} adicionado. Os dados são exemplos editáveis.`)
   }
 
   function onImageSelected(event: ChangeEvent<HTMLInputElement>) {
@@ -611,7 +924,12 @@ function Editor() {
           scenes: parsed.scenes.map((scene) => ({
             ...scene,
             sources: scene.sources.map((source) => ({
-              visible: true, x: 10, y: 10, w: 30, h: 20, ...source,
+              ...source,
+              visible: source.visible ?? true,
+              x: source.x ?? 10,
+              y: source.y ?? 10,
+              w: source.w ?? 30,
+              h: source.h ?? 20,
             })),
           })),
         }
@@ -655,8 +973,18 @@ function Editor() {
         </div>
         <div className="scene-heading">
           <span className="eyebrow">CENAS</span>
-          <button className="icon-button" type="button" onClick={addScene} title="Criar cena" aria-label="Criar cena">+</button>
+          <div className="scene-heading-actions">
+            <button className="kit-button" type="button" onClick={() => setShowPackMenu((open) => !open)}>Kits</button>
+            <button className="icon-button" type="button" onClick={addScene} title="Criar cena" aria-label="Criar cena">+</button>
+          </div>
         </div>
+        {showPackMenu && <div className="starter-pack-menu">
+          <p className="eyebrow">ADICIONAR CONJUNTO DE CENAS</p>
+          <button type="button" onClick={() => applyStarterPack('gaming')}><strong>Gaming neon</strong><small>Gameplay, começando e intervalo</small></button>
+          <button type="button" onClick={() => applyStarterPack('chatting')}><strong>Just chatting</strong><small>Webcam, chat, música e redes</small></button>
+          <button type="button" onClick={() => applyStarterPack('minimal')}><strong>Minimalista</strong><small>Overlay discreto e limpo</small></button>
+          <button type="button" onClick={() => applyStarterPack('vertical')}><strong>Vertical / mobile</strong><small>Cenas 9:16 para conteúdo vertical</small></button>
+        </div>}
         <div className="scene-list">
           {project.scenes.map((scene, index) => (
             <div className={`scene-card-wrap ${scene.id === activeScene.id ? 'active' : ''}`} key={scene.id}>
@@ -726,6 +1054,7 @@ function Editor() {
                   {source.type === 'camera' && (cameraStream
                     ? <video className="camera-video" autoPlay muted playsInline style={{ transform: source.cameraMirror === false ? 'none' : 'scaleX(-1)' }} ref={(element) => { if (element && element.srcObject !== cameraStream) element.srcObject = cameraStream }} />
                     : <div className="camera-placeholder"><span className="camera-symbol">◉</span><strong>{source.name}</strong><small>Clique em “Ativar webcam” nas propriedades</small></div>)}
+                  {source.type === 'widget' && <WidgetContent source={source} testToken={alertTestTokens[source.id] ?? 0} />}
                   {selectedSourceId === source.id && <><span className="selection-label">{source.name}</span><button className="resize-handle" type="button" aria-label={`Redimensionar ${source.name}`} onPointerDown={(event) => beginInteraction(event, source, 'resize')} /></>}
                 </div>
               ))}
@@ -735,13 +1064,17 @@ function Editor() {
           </div>
           <div className="preview-caption"><span><span className="status-dot" /> Arraste para mover · canto inferior para redimensionar</span><span>Proporção {activeScene.width ?? 1920}:{activeScene.height ?? 1080}</span></div>
         </section>
-        <footer className="studio-footer"><span className="footer-tip"><span className="tip-icon">i</span> As alterações são salvas automaticamente neste navegador.</span><span className="footer-version">WEBCAM_OVERLAY · 1.2</span></footer>
+        <footer className="studio-footer"><span className="footer-tip"><span className="tip-icon">i</span> As alterações são salvas automaticamente neste navegador.</span><span className="footer-version">WEBCAM_OVERLAY · 2.0</span></footer>
       </main>
 
       <aside className="inspector-panel">
         <div className="inspector-heading"><div><p className="eyebrow">ORGANIZAÇÃO</p><h2>Fontes</h2></div><button className="icon-button add-button" type="button" onClick={() => setSourceMenuOpen((open) => !open)} title="Adicionar fonte" aria-label="Adicionar fonte">+</button></div>
-        {sourceMenuOpen && <div className="source-menu"><p className="eyebrow">ADICIONAR ELEMENTO</p>
-          {(['text', 'shape', 'camera', 'image', 'browser'] as SourceType[]).map((type) => <button key={type} type="button" onClick={() => addSource(type)}><span className={`source-icon icon-${type}`}>{sourceGlyph(type)}</span><span><strong>{sourceLabel(type)}</strong><small>{{ text: 'Texto com tipografia e efeitos', shape: 'Retângulo, círculo, linha ou pílula', camera: 'Webcam do dispositivo', image: 'Arquivo PNG, JPG ou WebP', browser: 'Página ou widget web incorporado' }[type]}</small></span><span className="menu-arrow">›</span></button>)}
+        {sourceMenuOpen && <div className="source-menu"><p className="eyebrow">ELEMENTOS BÁSICOS</p>
+          {(['text', 'shape', 'camera', 'image', 'browser'] as Exclude<SourceType, 'widget'>[]).map((type) => <button key={type} type="button" onClick={() => addSource(type)}><span className={`source-icon icon-${type}`}>{sourceGlyph(type)}</span><span><strong>{sourceLabel(type)}</strong><small>{{ text: 'Texto com tipografia e efeitos', shape: 'Retângulo, círculo, linha ou pílula', camera: 'Webcam do dispositivo', image: 'Arquivo PNG, JPG ou WebP', browser: 'Página ou widget web incorporado' }[type]}</small></span><span className="menu-arrow">›</span></button>)}
+          <div className="widget-library-title"><p className="eyebrow">WIDGETS PARA STREAM</p><span>15</span></div>
+          <input className="text-input widget-search" value={widgetSearch} onChange={(event) => setWidgetSearch(event.target.value)} placeholder="Buscar widget..." aria-label="Buscar widget" />
+          {WIDGET_OPTIONS.filter((option) => `${option.label} ${option.description}`.toLocaleLowerCase('pt-BR').includes(widgetSearch.toLocaleLowerCase('pt-BR'))).map((option) => <button key={option.kind} type="button" onClick={() => addWidget(option.kind)}><span className="source-icon icon-widget">{option.glyph}</span><span><strong>{option.label}</strong><small>{option.description}</small></span><span className="menu-arrow">›</span></button>)}
+          {WIDGET_OPTIONS.filter((option) => `${option.label} ${option.description}`.toLocaleLowerCase('pt-BR').includes(widgetSearch.toLocaleLowerCase('pt-BR'))).length === 0 && <p className="widget-no-results">Nenhum widget encontrado.</p>}
         </div>}
         <div className="source-list-heading"><span className="eyebrow">CAMADAS DA CENA</span><span className="count-badge">{activeScene.sources.length}</span></div>
         <div className="source-list">
@@ -809,6 +1142,40 @@ function Editor() {
               <button className="wide-action" type="button" onClick={enableCamera}>{cameraStream ? 'Reativar webcam' : 'Ativar webcam'}</button>
               {cameraStream && <button className="wide-action quiet-action" type="button" onClick={() => { cameraStream.getTracks().forEach((track) => track.stop()); setCameraStream(null); setMessage('Webcam desativada.') }}>Desativar webcam</button>}
               {cameraError && <p className="error-note">{cameraError}</p>}
+            </>}
+            {selectedSource.type === 'widget' && <>
+              <div className="widget-inspector-note"><span className="note-icon">i</span><p>Widget em modo de demonstração. Os dados são editáveis, mas ainda não vêm de uma conta conectada.</p></div>
+              <label className="field-label" htmlFor="widget-kind">Tipo de widget</label>
+              <select id="widget-kind" className="text-input" value={selectedSource.widgetKind ?? 'goal'} onChange={(event) => updateSelected({ widgetKind: event.target.value as WidgetKind })}>{WIDGET_OPTIONS.map((option) => <option key={option.kind} value={option.kind}>{option.label}</option>)}</select>
+              <label className="field-label" htmlFor="widget-title">Título / rótulo</label>
+              <input id="widget-title" className="text-input" value={selectedSource.widgetTitle ?? ''} maxLength={90} onChange={(event) => updateSelected({ widgetTitle: event.target.value })} placeholder="Título exibido no widget" />
+              {['alert', 'latest', 'countdown', 'music', 'sponsor', 'ticker', 'goal', 'live-badge'].includes(selectedSource.widgetKind ?? 'goal') && <>
+                <label className="field-label" htmlFor="widget-text">Mensagem / descrição</label>
+                <textarea id="widget-text" className="text-input textarea-input" rows={2} maxLength={300} value={selectedSource.widgetText ?? ''} onChange={(event) => updateSelected({ widgetText: event.target.value })} placeholder="Texto complementar" />
+              </>}
+              {['chat', 'events', 'socials', 'poll'].includes(selectedSource.widgetKind ?? '') && <>
+                <label className="field-label" htmlFor="widget-items">Conteúdo (uma linha por item)</label>
+                <textarea id="widget-items" className="text-input textarea-input widget-items-input" rows={5} maxLength={1200} value={selectedSource.widgetItems ?? ''} onChange={(event) => updateSelected({ widgetItems: event.target.value })} placeholder={selectedSource.widgetKind === 'chat' ? 'Nome: mensagem' : selectedSource.widgetKind === 'poll' ? 'Opção | votos' : 'Tipo · nome · valor'} />
+                <p className="field-hint">Chat: “Nome: mensagem”. Enquete: “Opção | votos”. Eventos e redes: uma entrada por linha.</p>
+              </>}
+              {['goal', 'viewer', 'alert'].includes(selectedSource.widgetKind ?? '') && <>
+                <label className="field-label" htmlFor="widget-value">{selectedSource.widgetKind === 'goal' ? 'Valor atual' : selectedSource.widgetKind === 'viewer' ? 'Espectadores (demo)' : 'Nome de demonstração'}</label>
+                <input id="widget-value" className="text-input" value={selectedSource.widgetValue ?? ''} onChange={(event) => updateSelected({ widgetValue: event.target.value })} placeholder={selectedSource.widgetKind === 'goal' ? '68' : 'Exemplo'} />
+              </>}
+              {selectedSource.widgetKind === 'goal' && <>
+                <label className="field-label" htmlFor="widget-target">Valor da meta</label>
+                <input id="widget-target" className="text-input" type="number" min="1" value={selectedSource.widgetTarget ?? '100'} onChange={(event) => updateSelected({ widgetTarget: event.target.value })} />
+              </>}
+              {selectedSource.widgetKind === 'countdown' && <>
+                <label className="field-label" htmlFor="widget-seconds">Duração inicial (segundos)</label>
+                <input id="widget-seconds" className="text-input" type="number" min="0" max="86400" value={selectedSource.widgetSeconds ?? 600} onChange={(event) => updateSelected({ widgetSeconds: clamp(Number(event.target.value) || 0, 0, 86400) })} />
+                <label className="lock-toggle"><input type="checkbox" checked={selectedSource.widgetRunning !== false} onChange={(event) => updateSelected({ widgetRunning: event.target.checked })} /><span>Executar contagem</span></label>
+              </>}
+              {selectedSource.widgetKind === 'alert' && <button className="wide-action test-alert-button" type="button" onClick={() => setAlertTestTokens((current) => ({ ...current, [selectedSource.id]: (current[selectedSource.id] ?? 0) + 1 }))}>✦ Testar animação do alerta</button>}
+              <label className="field-label" htmlFor="widget-theme">Estilo visual</label>
+              <select id="widget-theme" className="text-input" value={selectedSource.widgetTheme ?? 'glass'} onChange={(event) => updateSelected({ widgetTheme: event.target.value as WidgetTheme })}><option value="glass">Vidro / translúcido</option><option value="neon">Neon / gamer</option><option value="minimal">Minimalista</option><option value="solid">Fundo sólido</option></select>
+              <label className="field-label" htmlFor="widget-accent">Cor de destaque</label>
+              <ColorField id="widget-accent" value={selectedSource.widgetAccent ?? '#8d85ff'} onChange={(widgetAccent) => updateSelected({ widgetAccent })} />
             </>}
             <div className="field-divider" />
             <p className="eyebrow geometry-label">APARÊNCIA</p>
@@ -931,6 +1298,7 @@ function OverlayView() {
       {source.type === 'image' && source.src && <img src={source.src} alt={source.name} draggable={false} style={{ objectFit: source.objectFit ?? 'contain' }} />}
       {source.type === 'browser' && <iframe className="browser-frame" title={source.name} src={getBrowserUrl(source.url)} sandbox="allow-scripts allow-forms allow-popups" referrerPolicy="no-referrer" loading="lazy" tabIndex={-1} />}
       {source.type === 'camera' && (cameraStream ? <video className="camera-video" autoPlay muted playsInline style={{ transform: source.cameraMirror === false ? 'none' : 'scaleX(-1)' }} ref={(element) => { if (element && element.srcObject !== cameraStream) element.srcObject = cameraStream }} /> : <div className="overlay-camera-placeholder" />)}
+      {source.type === 'widget' && <WidgetContent source={source} />}
     </div>)}
   </div>
 }
