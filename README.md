@@ -1,4 +1,4 @@
-# Webcam_overlay — Studio 2.7.0
+# Webcam Overlay
 
 **Um editor visual de cenas e overlays para streamers, feito para facilitar a criação de transmissões personalizadas diretamente no navegador.**
 
