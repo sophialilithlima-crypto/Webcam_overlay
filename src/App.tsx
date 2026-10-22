@@ -12,7 +12,7 @@ type WidgetKind = 'alert' | 'chat' | 'events' | 'goal' | 'latest' | 'socials' | 
 type WidgetTheme = 'glass' | 'neon' | 'minimal' | 'solid'
 type SourceType = 'text' | 'shape' | 'camera' | 'image' | 'video' | 'capture' | 'browser' | 'widget'
 type VideoClip = { id: string; name: string; src: string; start?: number; end?: number; trimEnabled?: boolean }
-type BackgroundConfig = { mode: 'transparent' | 'solid' | 'gradient' | 'image' | 'video' | 'screen'; color: string; color2: string; angle: number; imageSrc?: string; imageFit?: 'cover' | 'contain' | 'stretch'; imagePosition?: string; imageOpacity?: number; videoSrc?: string; videoClips?: VideoClip[]; videoFit?: 'cover' | 'contain' | 'stretch'; videoPosition?: string; videoOpacity?: number; videoStart?: number; videoEnd?: number; videoTrimEnabled?: boolean; videoLoop?: boolean; videoMuted?: boolean; videoVolume?: number; videoPlaybackRate?: number; videoBrightness?: number; videoContrast?: number; videoSaturation?: number; videoHueRotate?: number; overlayColor?: string; overlayOpacity?: number }
+type BackgroundConfig = { mode: 'transparent' | 'solid' | 'gradient' | 'image' | 'video' | 'screen' | 'animated'; color: string; color2: string; angle: number; animatedTheme?: 'aurora' | 'stars' | 'cyber-grid' | 'waves' | 'gradient-flow'; animatedSpeed?: number; animatedIntensity?: number; animatedAccent?: string; imageSrc?: string; imageFit?: 'cover' | 'contain' | 'stretch'; imagePosition?: string; imageOpacity?: number; videoSrc?: string; videoClips?: VideoClip[]; videoFit?: 'cover' | 'contain' | 'stretch'; videoPosition?: string; videoOpacity?: number; videoStart?: number; videoEnd?: number; videoTrimEnabled?: boolean; videoLoop?: boolean; videoMuted?: boolean; videoVolume?: number; videoPlaybackRate?: number; videoBrightness?: number; videoContrast?: number; videoSaturation?: number; videoHueRotate?: number; overlayColor?: string; overlayOpacity?: number }
 type InspectorTab = 'layers' | 'element' | 'background' | 'canvas'
 type ElementSection = 'content' | 'style' | 'transform'
 type SceneSource = {
@@ -298,7 +298,7 @@ function isValidProject(value: unknown): value is Project {
     sceneIds.add(scene.id)
     if (scene.width !== undefined && (!Number.isFinite(scene.width) || scene.width < 320 || scene.width > 3840)) return false
     if (scene.height !== undefined && (!Number.isFinite(scene.height) || scene.height < 320 || scene.height > 3840)) return false
-    if (scene.background !== undefined && (!scene.background || !['transparent', 'solid', 'gradient', 'image', 'video', 'screen'].includes(scene.background.mode))) return false
+    if (scene.background !== undefined && (!scene.background || !['transparent', 'solid', 'gradient', 'image', 'video', 'screen', 'animated'].includes(scene.background.mode))) return false
     if (scene.background?.imageSrc !== undefined && typeof scene.background.imageSrc !== 'string') return false
     if (scene.background?.imageSrc && !isSafeImageSource(scene.background.imageSrc)) return false
     if (scene.background?.videoSrc !== undefined && typeof scene.background.videoSrc !== 'string') return false
@@ -424,7 +424,11 @@ function normalizeProject(parsed: Project): Project {
     })
     const rawBackground = scene.background
     const background: BackgroundConfig = {
-      mode: rawBackground && ['transparent', 'solid', 'gradient', 'image', 'video', 'screen'].includes(rawBackground.mode) ? rawBackground.mode : 'transparent',
+      mode: rawBackground && ['transparent', 'solid', 'gradient', 'image', 'video', 'screen', 'animated'].includes(rawBackground.mode) ? rawBackground.mode : 'transparent',
+      animatedTheme: ['stars', 'cyber-grid', 'waves', 'gradient-flow'].includes(rawBackground?.animatedTheme ?? '') ? rawBackground?.animatedTheme : 'aurora',
+      animatedSpeed: clamp(Number.isFinite(rawBackground?.animatedSpeed) ? Number(rawBackground?.animatedSpeed) : 1, 0.25, 3),
+      animatedIntensity: clamp(Number.isFinite(rawBackground?.animatedIntensity) ? Number(rawBackground?.animatedIntensity) : 0.75, 0, 1),
+      animatedAccent: typeof rawBackground?.animatedAccent === 'string' ? rawBackground.animatedAccent : '#8d85ff',
       color: typeof rawBackground?.color === 'string' ? rawBackground.color : '#171923',
       color2: typeof rawBackground?.color2 === 'string' ? rawBackground.color2 : '#28243c',
       angle: clamp(Number.isFinite(rawBackground?.angle) ? Number(rawBackground?.angle) : 135, 0, 360),
@@ -950,7 +954,7 @@ function sceneBackgroundStyle(scene: Scene, isPreview = false): CSSProperties {
       ? { backgroundColor: 'transparent', backgroundImage: 'repeating-conic-gradient(#262936 0% 25%, #1c1f29 0% 50%)', backgroundSize: '24px 24px' }
       : { backgroundColor: 'transparent', backgroundImage: 'none' }
   }
-  if (mode === 'solid') return { backgroundColor: background?.color ?? '#171923', backgroundImage: 'none' }
+  if (mode === 'solid' || mode === 'animated') return { backgroundColor: background?.color ?? '#171923', backgroundImage: 'none' }
   if (mode === 'gradient') return { backgroundColor: background?.color ?? '#171923', backgroundImage: `linear-gradient(${background?.angle ?? 135}deg, ${background?.color ?? '#25233a'}, ${background?.color2 ?? '#10121a'})` }
   if (mode === 'video' || mode === 'screen') return { backgroundColor: background?.color ?? '#151823', backgroundImage: isPreview ? 'repeating-conic-gradient(#262936 0% 25%, #1c1f29 0% 50%)' : 'none', backgroundSize: '24px 24px' }
   const imageSrc = background?.imageSrc && isSafeImageSource(background.imageSrc) ? background.imageSrc : ''
@@ -1622,6 +1626,7 @@ function App() {
 function Editor() {
   const [project, setProject] = useState<Project>(() => readProject())
   const projectRef = useRef(project)
+  const projectRelaySocketRef = useRef<WebSocket | null>(null)
   projectRef.current = project
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>('source-title')
   const [sourceMenuOpen, setSourceMenuOpen] = useState(false)
@@ -1671,6 +1676,58 @@ function Editor() {
     if (!persistProject(project)) {
       setMessage('O projeto excede o limite seguro de armazenamento deste navegador. Exporte o JSON antes de adicionar mais imagens ou remova assets grandes.')
     }
+  }, [project, interaction])
+
+  useEffect(() => {
+    const isLoopback = ['localhost', '127.0.0.1'].includes(window.location.hostname) && window.location.protocol === 'http:'
+    if (!isLoopback) return
+    let disposed = false
+    let socket: WebSocket | null = null
+    let retryTimer: number | undefined
+    const publishCurrentProject = () => {
+      if (!socket || socket.readyState !== WebSocket.OPEN || interaction) return
+      try {
+        socket.send(JSON.stringify({ type: 'project-sync', action: 'publish', captureKey: 'webcam-overlay-project-sync', project: projectRef.current }))
+      } catch {
+        setMessage('A sincronização local com o OBS falhou. Confira se o relay continua ativo.')
+      }
+    }
+    const connect = () => {
+      if (disposed) return
+      try {
+        socket = new WebSocket('ws://127.0.0.1:4174')
+        projectRelaySocketRef.current = socket
+        socket.onopen = publishCurrentProject
+        socket.onclose = () => {
+          if (projectRelaySocketRef.current === socket) projectRelaySocketRef.current = null
+          if (!disposed) retryTimer = window.setTimeout(connect, 1500)
+        }
+        socket.onerror = () => { /* onclose agenda a reconexão */ }
+      } catch {
+        if (!disposed) retryTimer = window.setTimeout(connect, 1500)
+      }
+    }
+    connect()
+    return () => {
+      disposed = true
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer)
+      if (socket && socket.readyState < WebSocket.CLOSING) socket.close()
+      if (projectRelaySocketRef.current === socket) projectRelaySocketRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
+    if (interaction) return
+    const timeout = window.setTimeout(() => {
+      const socket = projectRelaySocketRef.current
+      if (!socket || socket.readyState !== WebSocket.OPEN) return
+      try {
+        socket.send(JSON.stringify({ type: 'project-sync', action: 'publish', captureKey: 'webcam-overlay-project-sync', project }))
+      } catch {
+        setMessage('Não foi possível atualizar o projeto na Browser Source do OBS.')
+      }
+    }, 120)
+    return () => window.clearTimeout(timeout)
   }, [project, interaction])
 
   useEffect(() => {
@@ -2720,6 +2777,7 @@ function Editor() {
           </div>
           <div className="preview-frame">
             <div className="preview-canvas" ref={stageRef} style={{ ...sceneBackgroundStyle(activeScene, true), aspectRatio: `${activeScene.width ?? 1920} / ${activeScene.height ?? 1080}` }} onPointerDown={() => { setSelectedSourceId(null); setInspectorTab('background') }}>
+              {activeScene.background?.mode === 'animated' && <AnimatedBackgroundLayer background={activeScene.background} />}
               {activeScene.background?.mode === 'video' && <BackgroundVideoLayer background={activeScene.background} />}
               {activeScene.background?.mode === 'screen' && <ScreenCaptureView editor variant="background" captureKey={`background:${activeScene.id}`} />}
               {activeScene.sources.filter((source) => source.visible).map((source, index) => (
@@ -2749,13 +2807,13 @@ function Editor() {
                   {selectedSourceId === source.id && <><span className="selection-label">{source.name}</span><button className="resize-handle" type="button" aria-label={`Redimensionar ${source.name}`} onPointerDown={(event) => beginInteraction(event, source, 'resize')} /></>}
                 </div>
               ))}
-              {activeScene.sources.every((source) => !source.visible) && <div className="canvas-empty"><span>◫</span><strong>Nenhuma fonte visível</strong><small>Ative uma camada ou adicione um elemento.</small></div>}
-              {activeScene.sources.length === 0 && <div className="canvas-empty"><span>＋</span><strong>Sua cena está vazia</strong><small>Adicione uma fonte pelo painel à direita.</small></div>}
+              {activeScene.sources.length > 0 && activeScene.sources.every((source) => !source.visible) && <div className="canvas-empty"><span>◫</span><strong>Nenhuma fonte visível</strong><small>Ative uma camada ou adicione um elemento.</small></div>}
+              {activeScene.sources.length === 0 && activeScene.background?.mode !== 'screen' && <div className="canvas-empty"><span>＋</span><strong>Sua cena está vazia</strong><small>Adicione uma fonte pelo painel à direita.</small></div>}
             </div>
           </div>
           <div className="preview-caption"><span><span className="status-dot" /> Arraste para mover · canto inferior para redimensionar</span><span>Proporção {activeScene.width ?? 1920}:{activeScene.height ?? 1080}</span></div>
         </section>
-        <footer className="studio-footer"><span className="footer-tip"><span className="tip-icon">i</span> As alterações são salvas automaticamente neste navegador.</span><span className="footer-version">WEBCAM_OVERLAY · 2.9.0</span></footer>
+        <footer className="studio-footer"><span className="footer-tip"><span className="tip-icon">i</span> As alterações são salvas automaticamente neste navegador.</span><span className="footer-version">WEBCAM_OVERLAY · 3.0.0</span></footer>
       </main>
 
       <aside className="inspector-panel">
@@ -2838,7 +2896,7 @@ function Editor() {
                   {cameraError && <p className="error-note">{cameraError}</p>}
                 </>}
                 {selectedSource.type === 'capture' && <>
-                  <div className="feature-note"><span className="note-icon">i</span><p>Compartilhe a tela inteira, uma janela específica ou uma aba. Ao iniciar, o navegador abrirá o seletor de compartilhamento e você escolhe a origem. A captura exige HTTPS ou localhost e autorização explícita; ela não é salva no arquivo do projeto. O modo overlay em outra aba do mesmo navegador pode receber o fluxo via BroadcastChannel. Para uma Browser Source do OBS, use o relay WebSocket local iniciado junto de npm run dev.</p></div>
+                  <div className="feature-note"><span className="note-icon">i</span><p>Para iniciar a captura, clique em “Escolher tela ou janela” na prévia. O navegador abrirá o seletor nativo e pedirá que você confirme a tela, janela ou aba. Isso só pode começar por um clique do usuário; clicar em Salvar ou em transmitir no OBS não abre o seletor. Para encaminhar a captura à Browser Source, mantenha npm run dev ativo e use a URL local do modo overlay.</p></div>
                   <p className="field-hint">Inicie a captura no botão da prévia. Mantenha o editor aberto enquanto usar o modo overlay; cada compartilhamento precisa ser iniciado manualmente.</p>
                 </>}
                 {selectedSource.type === 'widget' && <>
@@ -3040,9 +3098,20 @@ function Editor() {
         {inspectorTab === 'background' && <div className="scene-settings-panel background-settings-panel">
           <div className="properties-heading"><div><p className="eyebrow">CENA ATUAL</p><h3>Plano de fundo</h3></div><span className="property-type">{activeScene.name}</span></div>
           <label className="field-label" htmlFor="scene-background-mode">Tipo de fundo</label>
-          <select id="scene-background-mode" className="text-input" value={activeScene.background?.mode ?? 'transparent'} onChange={(event) => updateScene({ background: { ...(activeScene.background ?? { color: '#25233a', color2: '#10121a', angle: 135 }), mode: event.target.value as BackgroundConfig['mode'] } })}><option value="transparent">Transparente (overlay)</option><option value="solid">Cor sólida</option><option value="gradient">Gradiente</option><option value="image">Imagem de fundo</option><option value="video">Vídeo de fundo</option><option value="screen">Captura de tela/janela</option></select>
+          <select id="scene-background-mode" className="text-input" value={activeScene.background?.mode ?? 'transparent'} onChange={(event) => updateScene({ background: { ...(activeScene.background ?? { color: '#25233a', color2: '#10121a', angle: 135 }), mode: event.target.value as BackgroundConfig['mode'] } })}><option value="transparent">Transparente (overlay)</option><option value="solid">Cor sólida</option><option value="gradient">Gradiente</option><option value="image">Imagem de fundo</option><option value="video">Vídeo de fundo</option><option value="screen">Captura de tela/janela</option><option value="animated">Tema animado</option></select>
           {(activeScene.background?.mode === 'solid' || activeScene.background?.mode === 'gradient' || activeScene.background?.mode === 'image' || activeScene.background?.mode === 'video' || activeScene.background?.mode === 'screen') && <><label className="field-label" htmlFor="scene-bg-color">Cor base</label><ColorField id="scene-bg-color" value={activeScene.background?.color ?? '#171923'} onChange={(color) => updateScene({ background: { ...(activeScene.background ?? { mode: 'solid', color2: '#10121a', angle: 135 }), color } })} /></>}
           {activeScene.background?.mode === 'gradient' && <><label className="field-label" htmlFor="scene-bg-color2">Segunda cor</label><ColorField id="scene-bg-color2" value={activeScene.background.color2 ?? '#10121a'} onChange={(color2) => updateScene({ background: { ...activeScene.background!, color2 } })} /><label className="field-label" htmlFor="scene-bg-angle">Ângulo do gradiente</label><div className="range-row"><input id="scene-bg-angle" type="range" min="0" max="360" value={activeScene.background.angle ?? 135} onChange={(event) => updateScene({ background: { ...activeScene.background!, angle: Number(event.target.value) } })} /><span>{activeScene.background.angle ?? 135}°</span></div></>}
+          {activeScene.background?.mode === 'animated' && <>
+            <label className="field-label" htmlFor="animated-theme">Tema animado</label>
+            <select id="animated-theme" className="text-input" value={activeScene.background.animatedTheme ?? 'aurora'} onChange={(event) => updateScene({ background: { ...activeScene.background!, animatedTheme: event.target.value as NonNullable<BackgroundConfig['animatedTheme']> } })}>
+              <option value="aurora">Aurora fluida</option><option value="stars">Espaço estrelado</option><option value="cyber-grid">Grade cyberpunk</option><option value="waves">Ondas luminosas</option><option value="gradient-flow">Gradiente em movimento</option>
+            </select>
+            <div className="two-field-grid"><div><label className="field-label" htmlFor="animated-color-a">Cor principal</label><ColorField id="animated-color-a" value={activeScene.background.color ?? '#17142b'} onChange={(color) => updateScene({ background: { ...activeScene.background!, color } })} /></div><div><label className="field-label" htmlFor="animated-color-b">Cor secundária</label><ColorField id="animated-color-b" value={activeScene.background.color2 ?? '#0b111d'} onChange={(color2) => updateScene({ background: { ...activeScene.background!, color2 } })} /></div></div>
+            <label className="field-label" htmlFor="animated-accent">Cor de destaque</label><ColorField id="animated-accent" value={activeScene.background.animatedAccent ?? '#8d85ff'} onChange={(animatedAccent) => updateScene({ background: { ...activeScene.background!, animatedAccent } })} />
+            <label className="field-label" htmlFor="animated-speed">Velocidade · {Number(activeScene.background.animatedSpeed ?? 1).toFixed(2)}×</label><div className="range-row"><input id="animated-speed" type="range" min="0.25" max="3" step="0.25" value={activeScene.background.animatedSpeed ?? 1} onChange={(event) => updateScene({ background: { ...activeScene.background!, animatedSpeed: Number(event.target.value) } })} /><span>{Number(activeScene.background.animatedSpeed ?? 1).toFixed(2)}×</span></div>
+            <label className="field-label" htmlFor="animated-intensity">Intensidade · {Math.round((activeScene.background.animatedIntensity ?? 0.75) * 100)}%</label><div className="range-row"><input id="animated-intensity" type="range" min="0" max="1" step="0.05" value={activeScene.background.animatedIntensity ?? 0.75} onChange={(event) => updateScene({ background: { ...activeScene.background!, animatedIntensity: Number(event.target.value) } })} /><span>{Math.round((activeScene.background.animatedIntensity ?? 0.75) * 100)}%</span></div>
+            <p className="field-hint">Animações em CSS, sem vídeo de fundo. Isso mantém o tema leve e independente por cena.</p>
+          </>}
           {activeScene.background?.mode === 'image' && <>
             <div className="background-import-card"><strong>{activeScene.background.imageSrc ? 'Imagem definida' : 'Nenhuma imagem selecionada'}</strong><small>Use arquivo local ou URL pública de imagem.</small><button className="wide-action" type="button" onClick={() => backgroundDesignInputRef.current?.click()}>Escolher imagem do computador</button></div>
             <label className="field-label" htmlFor="background-image-url">Ou usar link da imagem</label>
@@ -3089,8 +3158,8 @@ function Editor() {
             </>}
           </>}
           {activeScene.background?.mode === 'screen' && <>
-            <div className="feature-note"><span className="note-icon">i</span><p>Compartilhe a tela inteira, uma janela de aplicativo ou uma aba. Clique em “Selecionar tela ou janela” no centro da pré-visualização para abrir o seletor nativo e conceder a permissão. Esta captura é temporária e não pode ser salva no JSON. O modo overlay em outra aba do mesmo navegador usa BroadcastChannel; uma Browser Source do OBS usa o relay local quando você executa npm run dev. O site hospedado estático não inclui esse servidor auxiliar.</p></div>
-            <p className="field-hint">Mantenha esta aba do editor aberta enquanto o modo overlay estiver usando a captura. Para evitar o efeito de espelho, selecione a janela do jogo/aplicativo em vez do monitor que exibe o próprio editor.</p>
+            <div className="feature-note"><span className="note-icon">i</span><p>Compartilhe a tela inteira, uma janela de aplicativo ou uma aba. Clique em “Escolher tela ou janela” na pré-visualização para abrir o seletor nativo. O navegador exige um clique direto e confirmação manual; isso não acontece quando você clica em Salvar ou em transmitir no OBS. A captura é temporária e não fica no JSON. Para enviar o projeto e a captura à Browser Source, mantenha npm run dev ativo; o site estático não executa o relay local.</p></div>
+            <p className="field-hint">A permissão é solicitada somente quando você clica em “Escolher tela ou janela” na prévia do editor — não ao clicar em salvar nem dentro do OBS. O navegador abre um seletor nativo e você precisa confirmar manualmente. Mantenha o editor e o relay local abertos enquanto a Browser Source recebe a captura. Para evitar o efeito de espelho, selecione a janela do jogo/aplicativo em vez do monitor que exibe o próprio editor.</p>
           </>}
           <p className="field-hint">O fundo é independente dos widgets. O modo transparente é indicado quando o jogo ou aplicativo já é capturado pelo OBS.</p>
         </div>}
@@ -3127,6 +3196,26 @@ function ColorField({ id, value, onChange }: { id: string; value: string; onChan
 
 function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
   return <label className="number-field"><span>{label}</span><div><input type="number" min="0" max="100" step="1" value={Math.round(value * 10) / 10} onChange={(event) => onChange(Number(event.target.value) || 0)} /><small>%</small></div></label>
+}
+
+function AnimatedBackgroundLayer({ background }: { background: BackgroundConfig }) {
+  const theme = background.animatedTheme ?? 'aurora'
+  const speed = clamp(Number.isFinite(background.animatedSpeed) ? Number(background.animatedSpeed) : 1, 0.25, 3)
+  const intensity = clamp(Number.isFinite(background.animatedIntensity) ? Number(background.animatedIntensity) : 0.75, 0, 1)
+  const style = {
+    backgroundColor: background.color ?? '#17142b',
+    '--animated-color-a': background.color ?? '#17142b',
+    '--animated-color-b': background.color2 ?? '#0b111d',
+    '--animated-accent': background.animatedAccent ?? '#8d85ff',
+    '--animated-intensity': intensity,
+    '--animated-duration': `${14 / speed}s`,
+    '--animated-duration-slow': `${24 / speed}s`,
+  } as CSSProperties
+  return <div className={`animated-background-layer animated-theme-${theme}`} style={style} aria-hidden="true">
+    <span className="animated-layer-orb animated-layer-orb-one" />
+    <span className="animated-layer-orb animated-layer-orb-two" />
+    <span className="animated-layer-grain" />
+  </div>
 }
 
 function BackgroundVideoLayer({ background }: { background: BackgroundConfig }) {
@@ -3564,16 +3653,16 @@ function ScreenCaptureView({ editor = false, variant, captureKey }: { editor?: b
   }
 
   const isCapturing = Boolean(visibleStream)
-  return <div className={`screen-capture-view screen-capture-${variant} ${isCapturing ? 'is-capturing' : 'is-idle'}`}>
+  return <div className={`screen-capture-view screen-capture-${variant} ${editor ? 'screen-capture-editor' : 'screen-capture-output'} ${isCapturing ? 'is-capturing' : 'is-idle'}`}>
     {visibleStream ? <>
       <video ref={videoRef} className="screen-capture-video" autoPlay muted playsInline />
       {editor && error && <small className="screen-capture-error" role="status">{error}</small>}
       {editor && <div className="screen-capture-toolbar"><span><i /> Captura ativa · pronta para o modo overlay</span><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={stopCapture}>Parar captura</button></div>}
     </> : <div className="screen-capture-prompt">
       <span className="screen-capture-symbol">▣</span>
-      <strong>Compartilhar tela ou janela</strong>
-      <small>Escolha a tela inteira, uma janela de aplicativo ou uma aba no seletor do navegador.</small>
-      <button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={startCapture}>Selecionar tela ou janela</button>
+      <strong>{editor ? 'Iniciar compartilhamento de tela' : 'Aguardando captura do editor'}</strong>
+      <small>{editor ? 'Ao clicar, o navegador abrirá o seletor. Escolha uma tela, janela ou aba e confirme o compartilhamento.' : 'Inicie a captura na prévia do editor. A Browser Source do OBS recebe esse fluxo pelo relay local.'}</small>
+      {editor && <button type="button" style={{ pointerEvents: 'auto' }} onPointerDown={(event) => event.stopPropagation()} onClick={startCapture}>Escolher tela ou janela</button>}
       {error && <small className="screen-capture-error" role="status">{error}</small>}
       {!editor && <small>Para uma Browser Source do OBS, rode o projeto com npm run dev e use http://127.0.0.1:5173/?mode=overlay. Mantenha o servidor em execução. Em um site hospedado, o relay local não existe: será necessário um relay HTTPS/WSS remoto.</small>}
     </div>}
@@ -3592,14 +3681,49 @@ function OverlayView() {
       if (event.key === STORAGE_KEY && event.newValue) {
         try {
           const parsed: unknown = JSON.parse(event.newValue)
-          if (isValidProject(parsed)) setProject(parsed)
+          if (isValidProject(parsed)) setProject(normalizeProject(parsed))
         } catch {
           // Ignorar uma gravação transitória inválida.
         }
       }
     }
     window.addEventListener('storage', onStorage)
+
+    // OBS Browser Source usa um contexto de navegador separado e não compartilha
+    // necessariamente o localStorage do Chrome. Em desenvolvimento local, a saída
+    // solicita a última composição ao relay e recebe atualizações do editor.
+    const isLoopback = ['localhost', '127.0.0.1'].includes(window.location.hostname) && window.location.protocol === 'http:'
+    let disposed = false
+    let socket: WebSocket | null = null
+    let retryTimer: number | undefined
+    const connect = () => {
+      if (disposed || !isLoopback) return
+      try {
+        socket = new WebSocket('ws://127.0.0.1:4174')
+        socket.onopen = () => {
+          try { socket?.send(JSON.stringify({ type: 'project-sync', action: 'request', captureKey: 'webcam-overlay-project-sync' })) } catch { /* Reconexão será tentada se o socket fechar. */ }
+        }
+        socket.onmessage = (event) => {
+          try {
+            const message = JSON.parse(String(event.data)) as { type?: string; action?: string; project?: unknown }
+            if (message.type !== 'project-sync' || message.action !== 'snapshot' || !isValidProject(message.project)) return
+            const normalized = normalizeProject(message.project)
+            setProject((current) => JSON.stringify(current) === JSON.stringify(normalized) ? current : normalized)
+          } catch {
+            // Ignorar snapshots inválidos ou interrompidos.
+          }
+        }
+        socket.onclose = () => { if (!disposed) retryTimer = window.setTimeout(connect, 1500) }
+        socket.onerror = () => { /* onclose agenda a reconexão */ }
+      } catch {
+        if (!disposed) retryTimer = window.setTimeout(connect, 1500)
+      }
+    }
+    connect()
     return () => {
+      disposed = true
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer)
+      if (socket && socket.readyState < WebSocket.CLOSING) socket.close()
       document.documentElement.classList.remove('overlay-document')
       window.removeEventListener('storage', onStorage)
     }
@@ -3634,6 +3758,7 @@ function OverlayView() {
   if (!activeScene) return null
   return <div className="overlay-output" aria-label={`Overlay: ${activeScene.name}`} style={sceneBackgroundStyle(activeScene)}>
     <ExternalFontLoader project={project} />
+    {activeScene.background?.mode === 'animated' && <AnimatedBackgroundLayer background={activeScene.background} />}
     {activeScene.background?.mode === 'video' && <BackgroundVideoLayer background={activeScene.background} />}
     {activeScene.background?.mode === 'screen' && <ScreenCaptureView variant="background" captureKey={`background:${activeScene.id}`} />}
     {activeScene.sources.filter((source) => source.visible).map((source, index) => <div key={source.id} className={`overlay-object overlay-${source.type} ${source.type === 'shape' ? `shape-${source.shapeKind ?? 'rectangle'}` : ''}`} style={sourceStyle(source, index)}>

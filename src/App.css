@@ -883,7 +883,7 @@ button:focus-visible, a:focus-visible { outline: 2px solid #a29aff; outline-offs
   text-shadow: var(--clock-text-shadow, none);
 }
 
-/* Background video and browser screen-share source (2.9.0). */
+/* Background video and browser screen-share source (3.0.0). */
 .background-media-layer {
   position: absolute;
   z-index: 0;
@@ -1131,4 +1131,159 @@ button:focus-visible, a:focus-visible { outline: 2px solid #a29aff; outline-offs
 .secondary-action:hover {
   border-color: #7770c2 !important;
   background: #25243a !important;
+}
+
+
+/* Temas animados de fundo: CSS leve, personalizável por cena e compatível com a saída OBS. */
+.animated-background-layer {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  isolation: isolate;
+  pointer-events: none;
+  background: linear-gradient(135deg, var(--animated-color-a, #17142b), var(--animated-color-b, #0b111d));
+  contain: paint;
+}
+.animated-background-layer::before,
+.animated-background-layer::after,
+.animated-layer-orb,
+.animated-layer-grain {
+  position: absolute;
+  display: block;
+  content: "";
+  pointer-events: none;
+}
+.animated-background-layer::before,
+.animated-background-layer::after {
+  inset: -20%;
+}
+.animated-layer-orb {
+  width: 58%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  opacity: calc(var(--animated-intensity, .75) * .75);
+  filter: blur(clamp(18px, 5vw, 90px));
+}
+.animated-layer-orb-one {
+  top: -24%;
+  left: -13%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--animated-accent) 75%, transparent), transparent 68%);
+  animation: animated-orb-drift var(--animated-duration-slow, 24s) ease-in-out infinite alternate;
+}
+.animated-layer-orb-two {
+  right: -15%;
+  bottom: -38%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--animated-color-b) 85%, var(--animated-accent)), transparent 68%);
+  animation: animated-orb-drift var(--animated-duration, 14s) ease-in-out infinite alternate-reverse;
+}
+.animated-theme-aurora {
+  background: linear-gradient(135deg, var(--animated-color-a), color-mix(in srgb, var(--animated-color-b) 65%, var(--animated-accent)) 48%, var(--animated-color-b));
+}
+.animated-theme-aurora::before {
+  background:
+    radial-gradient(ellipse at 22% 42%, color-mix(in srgb, var(--animated-accent) 84%, transparent) 0%, transparent 42%),
+    radial-gradient(ellipse at 73% 32%, color-mix(in srgb, var(--animated-color-b) 88%, #5ce1c4) 0%, transparent 38%),
+    radial-gradient(ellipse at 48% 84%, color-mix(in srgb, var(--animated-accent) 42%, transparent) 0%, transparent 44%);
+  filter: blur(28px);
+  opacity: var(--animated-intensity, .75);
+  animation: animated-aurora-flow var(--animated-duration-slow, 24s) ease-in-out infinite alternate;
+}
+.animated-theme-aurora::after {
+  inset: 0;
+  background: linear-gradient(115deg, transparent 15%, color-mix(in srgb, var(--animated-accent) 13%, transparent) 43%, transparent 68%);
+  transform: translateX(-110%);
+  animation: animated-light-sweep calc(var(--animated-duration-slow, 24s) * 1.2) ease-in-out infinite;
+}
+.animated-theme-stars {
+  background: radial-gradient(ellipse at 50% 120%, color-mix(in srgb, var(--animated-accent) 27%, transparent), transparent 65%), linear-gradient(180deg, var(--animated-color-a), var(--animated-color-b));
+}
+.animated-theme-stars::before {
+  inset: 0;
+  background-image:
+    radial-gradient(2px 2px at 7% 18%, #fff 55%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 19% 73%, #fff 55%, transparent 100%),
+    radial-gradient(2px 2px at 31% 38%, color-mix(in srgb, var(--animated-accent) 70%, white) 55%, transparent 100%),
+    radial-gradient(1px 1px at 42% 82%, #fff 55%, transparent 100%),
+    radial-gradient(2px 2px at 54% 13%, #fff 55%, transparent 100%),
+    radial-gradient(1px 1px at 66% 58%, color-mix(in srgb, var(--animated-accent) 70%, white) 55%, transparent 100%),
+    radial-gradient(2px 2px at 77% 29%, #fff 55%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 89% 76%, #fff 55%, transparent 100%);
+  background-size: 100% 100%;
+  opacity: var(--animated-intensity, .75);
+  animation: animated-stars-twinkle var(--animated-duration, 14s) ease-in-out infinite alternate;
+}
+.animated-theme-stars::after {
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 50%, transparent 30%, #03040b80 100%);
+}
+.animated-theme-cyber-grid {
+  background: radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--animated-accent) 18%, transparent), transparent 56%), linear-gradient(180deg, var(--animated-color-a), var(--animated-color-b));
+}
+.animated-theme-cyber-grid::before {
+  inset: -60px;
+  background-image: linear-gradient(color-mix(in srgb, var(--animated-accent) 42%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--animated-accent) 42%, transparent) 1px, transparent 1px);
+  background-size: 42px 42px;
+  opacity: calc(var(--animated-intensity, .75) * .45);
+  transform: perspective(420px) rotateX(54deg) scale(1.5);
+  transform-origin: center bottom;
+  animation: animated-grid-travel var(--animated-duration, 14s) linear infinite;
+}
+.animated-theme-cyber-grid::after {
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--animated-accent) 15%, transparent), transparent);
+  opacity: var(--animated-intensity, .75);
+  animation: animated-scanline calc(var(--animated-duration, 14s) * .8) linear infinite;
+}
+.animated-theme-waves {
+  background: linear-gradient(145deg, var(--animated-color-a), var(--animated-color-b));
+}
+.animated-theme-waves::before {
+  background: repeating-radial-gradient(ellipse at 50% 120%, transparent 0 22px, color-mix(in srgb, var(--animated-accent) 50%, transparent) 23px 24px, transparent 25px 47px);
+  opacity: calc(var(--animated-intensity, .75) * .8);
+  transform: scale(1.25);
+  animation: animated-wave-drift var(--animated-duration-slow, 24s) ease-in-out infinite alternate;
+}
+.animated-theme-waves::after {
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 100%, color-mix(in srgb, var(--animated-accent) 25%, transparent), transparent 68%);
+  animation: animated-wave-glow var(--animated-duration, 14s) ease-in-out infinite alternate;
+}
+.animated-theme-gradient-flow {
+  background: linear-gradient(125deg, var(--animated-color-a), var(--animated-accent), var(--animated-color-b), var(--animated-color-a));
+  background-size: 350% 350%;
+  animation: animated-gradient-flow var(--animated-duration-slow, 24s) ease infinite;
+}
+.animated-theme-gradient-flow::before {
+  background: radial-gradient(ellipse at 25% 25%, color-mix(in srgb, var(--animated-accent) 45%, transparent), transparent 48%), radial-gradient(ellipse at 85% 80%, color-mix(in srgb, var(--animated-color-b) 90%, transparent), transparent 42%);
+  opacity: var(--animated-intensity, .75);
+  animation: animated-aurora-flow var(--animated-duration, 14s) ease-in-out infinite alternate;
+}
+.animated-theme-gradient-flow .animated-layer-orb { display: none; }
+.animated-layer-grain {
+  inset: 0;
+  opacity: calc(var(--animated-intensity, .75) * .06);
+  background-image: radial-gradient(#fff 0.5px, transparent 0.7px);
+  background-size: 5px 5px;
+  mix-blend-mode: overlay;
+}
+@keyframes animated-orb-drift { from { transform: translate3d(-5%, -2%, 0) scale(.88); } to { transform: translate3d(12%, 9%, 0) scale(1.12); } }
+@keyframes animated-aurora-flow { 0% { transform: translate3d(-4%, 3%, 0) rotate(-7deg) scale(1); } 50% { transform: translate3d(5%, -2%, 0) rotate(5deg) scale(1.12); } 100% { transform: translate3d(-1%, 7%, 0) rotate(-3deg) scale(1.04); } }
+@keyframes animated-light-sweep { 0%, 18% { transform: translateX(-115%); } 78%, 100% { transform: translateX(115%); } }
+@keyframes animated-stars-twinkle { from { opacity: calc(var(--animated-intensity, .75) * .45); transform: translateY(0); } to { opacity: var(--animated-intensity, .75); transform: translateY(-8px); } }
+@keyframes animated-grid-travel { from { background-position: 0 0, 0 0; } to { background-position: 0 84px, 84px 0; } }
+@keyframes animated-scanline { from { transform: translateY(-110%); } to { transform: translateY(110%); } }
+@keyframes animated-wave-drift { from { transform: translate3d(-3%, 1%, 0) scale(1.2); } to { transform: translate3d(3%, -3%, 0) scale(1.32); } }
+@keyframes animated-wave-glow { from { opacity: calc(var(--animated-intensity, .75) * .25); } to { opacity: var(--animated-intensity, .75); } }
+@keyframes animated-gradient-flow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+@media (prefers-reduced-motion: reduce) {
+  .animated-background-layer, .animated-background-layer::before, .animated-background-layer::after, .animated-background-layer * { animation-duration: 60s !important; animation-iteration-count: 1 !important; }
+}
+.screen-capture-editor.screen-capture-background .screen-capture-prompt,
+.screen-capture-editor.screen-capture-background .screen-capture-prompt * {
+  pointer-events: auto !important;
+}
+
+.screen-capture-editor.screen-capture-background .screen-capture-toolbar,
+.screen-capture-editor.screen-capture-background .screen-capture-toolbar * {
+  pointer-events: auto !important;
 }
