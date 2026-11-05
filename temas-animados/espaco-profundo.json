@@ -1,0 +1,27 @@
+{
+  "format": "webcam-overlay-animated-theme",
+  "version": 1,
+  "name": "Espaço Profundo",
+  "settings": {
+    "animatedTheme": "stars",
+    "color": "#020617",
+    "color2": "#101832",
+    "angle": 160,
+    "animatedAccent": "#C4B5FD",
+    "animatedSpeed": 0.85,
+    "animatedIntensity": 0.7,
+    "animatedBlur": 10,
+    "animatedGlow": 0.75,
+    "animatedGrain": 0.12,
+    "animatedVignette": 0.48,
+    "animatedDensity": 1.0,
+    "animatedScale": 1.0,
+    "animatedDirection": "alternate",
+    "animatedLayers": "balanced",
+    "animatedBrightness": 1.0,
+    "animatedContrast": 1.05,
+    "animatedSaturation": 1.1,
+    "animatedHueRotate": 0,
+    "animatedBlendMode": "screen"
+  }
+}

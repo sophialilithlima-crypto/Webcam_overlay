@@ -1,0 +1,27 @@
+{
+  "format": "webcam-overlay-animated-theme",
+  "version": 1,
+  "name": "Chuva Matrix",
+  "settings": {
+    "animatedTheme": "matrix-rain",
+    "color": "#020907",
+    "color2": "#071C13",
+    "angle": 180,
+    "animatedAccent": "#56FF95",
+    "animatedSpeed": 1.3,
+    "animatedIntensity": 0.8,
+    "animatedBlur": 12,
+    "animatedGlow": 0.8,
+    "animatedGrain": 0.02,
+    "animatedVignette": 0.35,
+    "animatedDensity": 1.0,
+    "animatedScale": 1.15,
+    "animatedDirection": "normal",
+    "animatedLayers": "rich",
+    "animatedBrightness": 1.0,
+    "animatedContrast": 1.05,
+    "animatedSaturation": 1.1,
+    "animatedHueRotate": 0,
+    "animatedBlendMode": "screen"
+  }
+}

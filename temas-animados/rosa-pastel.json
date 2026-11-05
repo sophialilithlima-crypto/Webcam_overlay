@@ -1,0 +1,27 @@
+{
+  "format": "webcam-overlay-animated-theme",
+  "version": 1,
+  "name": "Rosa Pastel",
+  "settings": {
+    "animatedTheme": "gradient-flow",
+    "color": "#3B1648",
+    "color2": "#17152E",
+    "angle": 125,
+    "animatedAccent": "#FF9BCB",
+    "animatedSpeed": 0.72,
+    "animatedIntensity": 0.5,
+    "animatedBlur": 44,
+    "animatedGlow": 0.65,
+    "animatedGrain": 0.04,
+    "animatedVignette": 0.12,
+    "animatedDensity": 0.95,
+    "animatedScale": 1.02,
+    "animatedDirection": "alternate",
+    "animatedLayers": "soft",
+    "animatedBrightness": 1.0,
+    "animatedContrast": 1.05,
+    "animatedSaturation": 1.1,
+    "animatedHueRotate": 0,
+    "animatedBlendMode": "screen"
+  }
+}

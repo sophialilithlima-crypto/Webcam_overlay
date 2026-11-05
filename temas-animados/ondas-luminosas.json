@@ -1,0 +1,27 @@
+{
+  "format": "webcam-overlay-animated-theme",
+  "version": 1,
+  "name": "Ondas Luminosas",
+  "settings": {
+    "animatedTheme": "waves",
+    "color": "#04172E",
+    "color2": "#061B2E",
+    "angle": 165,
+    "animatedAccent": "#44D7FF",
+    "animatedSpeed": 0.65,
+    "animatedIntensity": 0.7,
+    "animatedBlur": 28,
+    "animatedGlow": 0.8,
+    "animatedGrain": 0.02,
+    "animatedVignette": 0.3,
+    "animatedDensity": 1.2,
+    "animatedScale": 1.1,
+    "animatedDirection": "alternate",
+    "animatedLayers": "rich",
+    "animatedBrightness": 1,
+    "animatedContrast": 1.08,
+    "animatedSaturation": 1.1,
+    "animatedHueRotate": 0,
+    "animatedBlendMode": "screen"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "format": "webcam-overlay-animated-theme",
+  "version": 1,
+  "name": "Partículas Flutuantes",
+  "settings": {
+    "animatedTheme": "particles",
+    "color": "#080D24",
+    "color2": "#161636",
+    "angle": 135,
+    "animatedAccent": "#E0E7FF",
+    "animatedSpeed": 0.9,
+    "animatedIntensity": 0.65,
+    "animatedBlur": 4,
+    "animatedGlow": 0.75,
+    "animatedGrain": 0.02,
+    "animatedVignette": 0.22,
+    "animatedDensity": 1.2,
+    "animatedScale": 1.0,
+    "animatedDirection": "alternate",
+    "animatedLayers": "rich",
+    "animatedBrightness": 1.0,
+    "animatedContrast": 1.05,
+    "animatedSaturation": 1.1,
+    "animatedHueRotate": 0,
+    "animatedBlendMode": "screen"
+  }
+}

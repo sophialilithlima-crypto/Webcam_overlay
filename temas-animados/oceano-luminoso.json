@@ -1,0 +1,27 @@
+{
+  "format": "webcam-overlay-animated-theme",
+  "version": 1,
+  "name": "Oceano Luminoso",
+  "settings": {
+    "animatedTheme": "deep-ocean",
+    "color": "#02152D",
+    "color2": "#032A42",
+    "angle": 180,
+    "animatedAccent": "#38BDF8",
+    "animatedSpeed": 0.72,
+    "animatedIntensity": 0.72,
+    "animatedBlur": 34,
+    "animatedGlow": 0.85,
+    "animatedGrain": 0.06,
+    "animatedVignette": 0.32,
+    "animatedDensity": 1.1,
+    "animatedScale": 1.05,
+    "animatedDirection": "reverse",
+    "animatedLayers": "rich",
+    "animatedBrightness": 1.0,
+    "animatedContrast": 1.05,
+    "animatedSaturation": 1.1,
+    "animatedHueRotate": 0,
+    "animatedBlendMode": "screen"
+  }
+}

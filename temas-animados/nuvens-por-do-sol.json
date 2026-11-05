@@ -1,0 +1,27 @@
+{
+  "format": "webcam-overlay-animated-theme",
+  "version": 1,
+  "name": "Nuvens de Pôr do Sol",
+  "settings": {
+    "animatedTheme": "sunset-clouds",
+    "color": "#30124B",
+    "color2": "#100F2D",
+    "angle": 155,
+    "animatedAccent": "#FF9A76",
+    "animatedSpeed": 0.9,
+    "animatedIntensity": 0.62,
+    "animatedBlur": 60,
+    "animatedGlow": 0.75,
+    "animatedGrain": 0.02,
+    "animatedVignette": 0.18,
+    "animatedDensity": 1.2,
+    "animatedScale": 1.0,
+    "animatedDirection": "alternate",
+    "animatedLayers": "balanced",
+    "animatedBrightness": 1.0,
+    "animatedContrast": 1.05,
+    "animatedSaturation": 1.1,
+    "animatedHueRotate": 0,
+    "animatedBlendMode": "screen"
+  }
+}

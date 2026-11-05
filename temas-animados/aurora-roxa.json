@@ -1,0 +1,27 @@
+{
+  "format": "webcam-overlay-animated-theme",
+  "version": 1,
+  "name": "Aurora Roxa",
+  "settings": {
+    "animatedTheme": "aurora",
+    "color": "#1A0B2E",
+    "color2": "#070B1E",
+    "angle": 135,
+    "animatedAccent": "#C084FC",
+    "animatedSpeed": 0.75,
+    "animatedIntensity": 0.85,
+    "animatedBlur": 30,
+    "animatedGlow": 0.9,
+    "animatedGrain": 0.08,
+    "animatedVignette": 0.3,
+    "animatedDensity": 1.2,
+    "animatedScale": 1.1,
+    "animatedDirection": "alternate",
+    "animatedLayers": "rich",
+    "animatedBrightness": 1.0,
+    "animatedContrast": 1.05,
+    "animatedSaturation": 1.1,
+    "animatedHueRotate": 0,
+    "animatedBlendMode": "screen"
+  }
+}

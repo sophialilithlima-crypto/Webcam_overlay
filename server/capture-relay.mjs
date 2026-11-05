@@ -7,6 +7,14 @@ const PORT = Number(process.env.CAPTURE_RELAY_PORT || 4174)
 const ALLOWED_TYPES = new Set(['request', 'available', 'offer', 'answer', 'ice', 'ended', 'project-sync'])
 const PROJECT_SYNC_KEY = 'webcam-overlay-project-sync'
 const MAX_RELAY_PAYLOAD = 8_000_000
+const MAX_ASSET_BYTES = 50_000_000
+const MAX_TOTAL_ASSET_BYTES = 250_000_000
+const ASSET_ID_PATTERN = /^[a-z0-9-]{5,100}$/i
+const ASSET_TYPES = new Set([
+  'image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif', 'image/svg+xml',
+  'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'video/x-m4v', 'video/mpeg', 'video/x-matroska', 'video/mp2t',
+  'video/3gpp', 'video/x-msvideo', 'video/x-ms-wmv', 'application/octet-stream',
+])
 
 function allowedOrigin(origin) {
   if (!origin || origin === 'null') return true
@@ -19,8 +27,91 @@ function allowedOrigin(origin) {
 }
 
 export async function startCaptureRelay() {
-  const server = createServer((_request, response) => {
-    response.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' })
+  const assets = new Map()
+  let storedAssetBytes = 0
+  const server = createServer(async (request, response) => {
+    const origin = request.headers.origin
+    const corsHeaders = {
+      'access-control-allow-origin': origin && allowedOrigin(origin) ? origin : 'null',
+      'access-control-allow-methods': 'GET, POST, OPTIONS',
+      'access-control-allow-headers': 'Content-Type',
+      'access-control-max-age': '600',
+      'cache-control': 'no-store',
+      'vary': 'Origin',
+      'x-content-type-options': 'nosniff',
+    }
+    const sendJson = (status, payload) => {
+      response.writeHead(status, { ...corsHeaders, 'content-type': 'application/json; charset=utf-8' })
+      response.end(JSON.stringify(payload))
+    }
+    if (request.method === 'OPTIONS') {
+      if (!allowedOrigin(origin)) return sendJson(403, { error: 'Origin not allowed.' })
+      response.writeHead(204, corsHeaders)
+      return response.end()
+    }
+    let url
+    try { url = new URL(request.url ?? '/', `http://${HOST}:${PORT}`) } catch {
+      return sendJson(400, { error: 'Invalid URL.' })
+    }
+    const assetMatch = url.pathname.match(/^\/assets\/([a-z0-9-]{5,100})$/i)
+    if (assetMatch) {
+      const assetId = assetMatch[1]
+      if (request.method === 'GET' || request.method === 'HEAD') {
+        if (origin && !allowedOrigin(origin)) return sendJson(403, { error: 'Origin not allowed.' })
+        const asset = assets.get(assetId)
+        if (!asset) return sendJson(404, { error: 'Asset not found.' })
+        response.writeHead(200, {
+          ...corsHeaders,
+          'content-type': asset.contentType,
+          'content-length': asset.buffer.length,
+          'cross-origin-resource-policy': 'cross-origin',
+          'content-security-policy': asset.contentType === 'image/svg+xml' ? "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox" : "default-src 'none'",
+        })
+        return request.method === 'HEAD' ? response.end() : response.end(asset.buffer)
+      }
+      if (request.method === 'POST') {
+        if (!origin || !allowedOrigin(origin)) return sendJson(403, { error: 'POST requires a local application origin.' })
+        const contentType = String(request.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase()
+        if (!ASSET_TYPES.has(contentType) || (!contentType.startsWith('image/') && !contentType.startsWith('video/'))) {
+          return sendJson(415, { error: 'Only image and video assets are accepted.' })
+        }
+        const declaredLength = Number(request.headers['content-length'] ?? 0)
+        if (Number.isFinite(declaredLength) && declaredLength > MAX_ASSET_BYTES) {
+          request.resume()
+          return sendJson(413, { error: 'Asset exceeds the 50 MB relay limit.' })
+        }
+        try {
+          const chunks = []
+          let length = 0
+          for await (const chunk of request) {
+            length += chunk.length
+            if (length > MAX_ASSET_BYTES) {
+              sendJson(413, { error: 'Asset exceeds the 50 MB relay limit.' })
+              request.destroy()
+              return
+            }
+            chunks.push(chunk)
+          }
+          const buffer = Buffer.concat(chunks, length)
+          const previous = assets.get(assetId)
+          const nextTotal = storedAssetBytes - (previous?.buffer.length ?? 0) + buffer.length
+          if (nextTotal > MAX_TOTAL_ASSET_BYTES) return sendJson(507, { error: 'Relay media cache is full (250 MB).' })
+          assets.set(assetId, { buffer, contentType })
+          storedAssetBytes = nextTotal
+          return sendJson(201, { ok: true, id: assetId, size: buffer.length, contentType })
+        } catch (error) {
+          if (!response.headersSent) return sendJson(400, { error: 'Could not receive asset.' })
+          return
+        }
+      }
+      response.setHeader('allow', 'GET, HEAD, POST, OPTIONS')
+      return sendJson(405, { error: 'Method not allowed.' })
+    }
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      response.setHeader('allow', 'GET, HEAD, OPTIONS')
+      return sendJson(405, { error: 'Method not allowed.' })
+    }
+    response.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store', ...corsHeaders })
     response.end('Webcam_overlay capture relay is running on loopback only.\n')
   })
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_RELAY_PAYLOAD, perMessageDeflate: false })

@@ -1,0 +1,27 @@
+{
+  "format": "webcam-overlay-animated-theme",
+  "version": 1,
+  "name": "Prisma Iridescente",
+  "settings": {
+    "animatedTheme": "prism",
+    "color": "#071A2F",
+    "color2": "#240E35",
+    "angle": 135,
+    "animatedAccent": "#7DE8FF",
+    "animatedSpeed": 1.0,
+    "animatedIntensity": 0.72,
+    "animatedBlur": 28,
+    "animatedGlow": 0.9,
+    "animatedGrain": 0.03,
+    "animatedVignette": 0.2,
+    "animatedDensity": 1.12,
+    "animatedScale": 1.0,
+    "animatedDirection": "alternate",
+    "animatedLayers": "rich",
+    "animatedBrightness": 1.0,
+    "animatedContrast": 1.05,
+    "animatedSaturation": 1.1,
+    "animatedHueRotate": 0,
+    "animatedBlendMode": "screen"
+  }
+}

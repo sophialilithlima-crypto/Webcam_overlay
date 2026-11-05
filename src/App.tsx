@@ -12,7 +12,9 @@ type WidgetKind = 'alert' | 'chat' | 'events' | 'goal' | 'latest' | 'socials' | 
 type WidgetTheme = 'glass' | 'neon' | 'minimal' | 'solid'
 type SourceType = 'text' | 'shape' | 'camera' | 'image' | 'video' | 'capture' | 'browser' | 'widget'
 type VideoClip = { id: string; name: string; src: string; start?: number; end?: number; trimEnabled?: boolean }
-type BackgroundConfig = { mode: 'transparent' | 'solid' | 'gradient' | 'image' | 'video' | 'screen' | 'animated'; color: string; color2: string; angle: number; animatedTheme?: 'aurora' | 'stars' | 'cyber-grid' | 'waves' | 'gradient-flow'; animatedSpeed?: number; animatedIntensity?: number; animatedAccent?: string; imageSrc?: string; imageFit?: 'cover' | 'contain' | 'stretch'; imagePosition?: string; imageOpacity?: number; videoSrc?: string; videoClips?: VideoClip[]; videoFit?: 'cover' | 'contain' | 'stretch'; videoPosition?: string; videoOpacity?: number; videoStart?: number; videoEnd?: number; videoTrimEnabled?: boolean; videoLoop?: boolean; videoMuted?: boolean; videoVolume?: number; videoPlaybackRate?: number; videoBrightness?: number; videoContrast?: number; videoSaturation?: number; videoHueRotate?: number; overlayColor?: string; overlayOpacity?: number }
+type SlideshowImage = { id: string; name: string; src: string };
+type AnimatedThemeName = 'custom' | 'aurora' | 'stars' | 'cyber-grid' | 'waves' | 'gradient-flow' | 'matrix-rain' | 'liquid-lava' | 'bokeh' | 'sunset-clouds' | 'electric-pulse' | 'particles' | 'laser-grid' | 'deep-ocean' | 'prism';
+type BackgroundConfig = { mode: 'transparent' | 'solid' | 'gradient' | 'image' | 'video' | 'screen' | 'animated' | 'slideshow'; color: string; color2: string; angle: number; animatedTheme?: AnimatedThemeName; animatedSpeed?: number; animatedIntensity?: number; animatedAccent?: string; animatedBlur?: number; animatedGlow?: number; animatedGrain?: number; animatedVignette?: number; animatedDensity?: number; animatedScale?: number; animatedDirection?: 'normal' | 'reverse' | 'alternate'; animatedLayers?: 'soft' | 'balanced' | 'rich'; animatedBrightness?: number; animatedContrast?: number; animatedSaturation?: number; animatedHueRotate?: number; animatedBlendMode?: 'normal' | 'screen' | 'multiply' | 'overlay' | 'lighten'; imageSrc?: string; slideshowImages?: SlideshowImage[]; slideshowIntervalSeconds?: number; slideshowTransition?: 'fade' | 'slide' | 'zoom' | 'blur' | 'none'; slideshowTransitionDuration?: number; slideshowLoop?: boolean; slideshowShuffle?: boolean; slideshowFit?: 'cover' | 'contain' | 'stretch'; slideshowPosition?: string; slideshowOpacity?: number; slideshowBrightness?: number; slideshowContrast?: number; slideshowSaturation?: number; slideshowHueRotate?: number; slideshowBlur?: number; slideshowZoom?: number; slideshowKenBurns?: boolean; slideshowOverlayColor?: string; slideshowOverlayOpacity?: number; imageFit?: 'cover' | 'contain' | 'stretch'; imagePosition?: string; imageOpacity?: number; videoSrc?: string; videoClips?: VideoClip[]; videoFit?: 'cover' | 'contain' | 'stretch'; videoPosition?: string; videoOpacity?: number; videoStart?: number; videoEnd?: number; videoTrimEnabled?: boolean; videoLoop?: boolean; videoMuted?: boolean; videoVolume?: number; videoPlaybackRate?: number; videoBrightness?: number; videoContrast?: number; videoSaturation?: number; videoHueRotate?: number; overlayColor?: string; overlayOpacity?: number }
 type InspectorTab = 'layers' | 'element' | 'background' | 'canvas'
 type ElementSection = 'content' | 'style' | 'transform'
 type SceneSource = {
@@ -65,6 +67,7 @@ type SceneSource = {
   url?: string
   cameraMirror?: boolean
   widgetKind?: WidgetKind
+  widgetVariant?: string
   widgetTitle?: string
   widgetText?: string
   widgetValue?: string
@@ -90,7 +93,6 @@ type SceneSource = {
   widgetFontUrl?: string
   widgetShowIcon?: boolean
   widgetAnimation?: 'none' | 'subtle' | 'energetic'
-  widgetCustomCss?: string
   widgetShowBackground?: boolean
   widgetShowBorder?: boolean
   widgetShowShadow?: boolean
@@ -125,6 +127,12 @@ type SceneSource = {
   chatNameColors?: string
   chatBubbleColors?: string
   chatLayout?: 'stacked' | 'inline'
+  chatUsernamePlacement?: 'same-bubble' | 'separate'
+  socialProfiles?: SocialProfile[]
+  goalFreeLayout?: boolean
+  goalPartEditMode?: boolean
+  goalParts?: GoalPart[]
+  frameOverlayImage?: string
   chatUsernamePill?: boolean
   chatUsernamePillColor?: string
   chatUsernamePillOpacity?: number
@@ -203,6 +211,201 @@ const WIDGET_OPTIONS: { kind: WidgetKind; label: string; description: string; gl
   { kind: 'stream-boss', label: 'Chefe da transmissão', description: 'Barra de vida editável para interação da comunidade', glyph: '⚔' },
   { kind: 'leaderboard', label: 'Ranking de apoiadores', description: 'Lista editável de maiores apoiadores', glyph: '♛' },
 ]
+
+type WidgetVariantOption = { value: string; label: string }
+type SocialProfile = { id: string; platform: string; account: string; logoSrc?: string; logoUrl?: string; color?: string }
+type GoalPartKind = 'title' | 'subtitle' | 'current' | 'separator' | 'target' | 'percent' | 'bar' | 'footer' | 'custom-text' | 'icon' | 'shape' | 'image'
+type GoalPart = { id: string; type: GoalPartKind; label?: string; visible: boolean; x: number; y: number; w: number; h: number; color?: string; fontSize?: number; fontWeight?: number; align?: 'left' | 'center' | 'right'; verticalAlign?: 'top' | 'center' | 'bottom'; backgroundColor?: string; radius?: number; padding?: number; src?: string; shapeKind?: 'rectangle' | 'circle' | 'pill'; opacity?: number; rotation?: number; borderColor?: string; borderWidth?: number; fontFamily?: string; objectFit?: 'contain' | 'cover' | 'fill'; italic?: boolean; letterSpacing?: number; textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize'; shadowEnabled?: boolean; shadowColor?: string; gradientEnabled?: boolean; gradientColor?: string; gradientAngle?: number }
+
+// Variantes são presets visuais do mesmo widget: mantêm os mesmos dados e controles.
+const WIDGET_VARIANTS: Record<WidgetKind, WidgetVariantOption[]> = {
+  alert: [
+    { value: 'default', label: 'Clássico' }, { value: 'banner', label: 'Banner horizontal' },
+    { value: 'centered', label: 'Centralizado' }, { value: 'minimal', label: 'Minimalista' },
+    { value: 'neon', label: 'Neon' }, { value: 'outline', label: 'Contorno' }, { value: 'compact', label: 'Compacto' },
+  ],
+  chat: [
+    { value: 'default', label: 'Mensagens empilhadas' }, { value: 'plain', label: 'Só texto · sem balões' },
+    { value: 'inline', label: 'Nome e mensagem na mesma linha' }, { value: 'compact', label: 'Compacto' },
+    { value: 'soft-bubbles', label: 'Balões suaves' }, { value: 'neon', label: 'Neon' }, { value: 'outline', label: 'Contorno' },
+  ],
+  events: [
+    { value: 'default', label: 'Lista clássica' }, { value: 'cards', label: 'Cartões' },
+    { value: 'timeline', label: 'Linha do tempo' }, { value: 'horizontal', label: 'Faixa horizontal' },
+    { value: 'compact', label: 'Compacto' }, { value: 'minimal', label: 'Minimalista' },
+  ],
+  goal: [
+    { value: 'default', label: 'Barra clássica' }, { value: 'minimal', label: 'Minimalista' },
+    { value: 'segmented', label: 'Barra segmentada' }, { value: 'milestones', label: 'Marcos de progresso' },
+    { value: 'ring', label: 'Anel circular' }, { value: 'vertical', label: 'Barra vertical' },
+    { value: 'stacked', label: 'Valores empilhados' }, { value: 'neon', label: 'Neon luminoso' },
+    { value: 'outline', label: 'Contorno' },
+  ],
+  latest: [
+    { value: 'default', label: 'Cartão clássico' }, { value: 'badge', label: 'Selo compacto' },
+    { value: 'minimal', label: 'Só texto' }, { value: 'horizontal', label: 'Faixa horizontal' },
+    { value: 'neon', label: 'Neon' }, { value: 'outline', label: 'Contorno' },
+  ],
+  socials: [
+    { value: 'default', label: 'Lista horizontal' }, { value: 'chips', label: 'Etiquetas / chips' },
+    { value: 'vertical', label: 'Lista vertical' }, { value: 'compact', label: 'Compacto' },
+    { value: 'minimal', label: 'Minimalista' }, { value: 'outline', label: 'Contorno' },
+  ],
+  countdown: [
+    { value: 'default', label: 'Clássico' }, { value: 'digital', label: 'Painel digital' },
+    { value: 'minimal', label: 'Somente números' }, { value: 'pill', label: 'Pílula' },
+    { value: 'poster', label: 'Cartaz central' }, { value: 'neon', label: 'Neon' },
+  ],
+  clock: [
+    { value: 'default', label: 'Relógio clássico' }, { value: 'digital', label: 'Digital monoespaçado' },
+    { value: 'minimal', label: 'Somente números' }, { value: 'pill', label: 'Pílula' }, { value: 'outline', label: 'Contorno' },
+  ],
+  viewer: [
+    { value: 'default', label: 'Status e contagem' }, { value: 'pill', label: 'Selo arredondado' },
+    { value: 'counter', label: 'Contador em destaque' }, { value: 'minimal', label: 'Minimalista' },
+    { value: 'neon', label: 'Neon pulsante' }, { value: 'outline', label: 'Contorno' },
+  ],
+  ticker: [
+    { value: 'default', label: 'Faixa rolante' }, { value: 'headline', label: 'Manchete' },
+    { value: 'compact', label: 'Compacta' }, { value: 'neon', label: 'Neon' },
+    { value: 'minimal', label: 'Sem fundo' }, { value: 'outline', label: 'Contorno' },
+  ],
+  music: [
+    { value: 'default', label: 'Cartão de música' }, { value: 'compact', label: 'Compacto' },
+    { value: 'minimal', label: 'Minimalista' }, { value: 'feature', label: 'Capa em destaque' },
+    { value: 'neon', label: 'Neon' }, { value: 'outline', label: 'Contorno' },
+  ],
+  poll: [
+    { value: 'default', label: 'Barras de votação' }, { value: 'cards', label: 'Cartões por opção' },
+    { value: 'compact', label: 'Compacta' }, { value: 'horizontal', label: 'Opções lado a lado' },
+    { value: 'minimal', label: 'Minimalista' }, { value: 'neon', label: 'Neon' },
+  ],
+  sponsor: [
+    { value: 'default', label: 'Marca clássica' }, { value: 'badge', label: 'Selo de patrocinador' },
+    { value: 'horizontal', label: 'Faixa horizontal' }, { value: 'minimal', label: 'Somente texto' },
+    { value: 'neon', label: 'Neon' }, { value: 'outline', label: 'Contorno' },
+  ],
+  'webcam-frame': [
+    { value: 'default', label: 'Cantos decorativos' }, { value: 'corners', label: 'Cantos finos' },
+    { value: 'neon', label: 'Moldura neon' }, { value: 'minimal', label: 'Moldura discreta' }, { value: 'solid', label: 'Borda completa' },
+    { value: 'double', label: 'Borda dupla' }, { value: 'gradient', label: 'Borda gradiente' },
+    { value: 'pixel', label: 'Pixel / retrô' }, { value: 'hud', label: 'HUD gamer' }, { value: 'label-top', label: 'Etiqueta superior' },
+    { value: 'bottom-bar', label: 'Faixa inferior' }, { value: 'soft-glow', label: 'Brilho suave' },
+  ],
+  'live-badge': [
+    { value: 'default', label: 'Selo completo' }, { value: 'pill', label: 'Pílula' },
+    { value: 'minimal', label: 'Somente indicador e título' }, { value: 'dot-only', label: 'Somente ponto' },
+    { value: 'outline', label: 'Contorno' }, { value: 'neon', label: 'Neon' },
+  ],
+  'tip-jar': [
+    { value: 'default', label: 'Jarra e progresso' }, { value: 'progress', label: 'Barra de progresso' },
+    { value: 'compact', label: 'Compacto' }, { value: 'minimal', label: 'Somente valores' },
+    { value: 'neon', label: 'Neon' }, { value: 'outline', label: 'Contorno' },
+  ],
+  'stream-boss': [
+    { value: 'default', label: 'Barra de vida clássica' }, { value: 'health', label: 'Vida em destaque' },
+    { value: 'arcade', label: 'Arcade' }, { value: 'compact', label: 'Compacto' },
+    { value: 'minimal', label: 'Minimalista' }, { value: 'neon', label: 'Neon' },
+  ],
+  leaderboard: [
+    { value: 'default', label: 'Ranking numerado' }, { value: 'cards', label: 'Cartões por pessoa' },
+    { value: 'podium', label: 'Pódio para os três primeiros' }, { value: 'compact', label: 'Compacto' },
+    { value: 'minimal', label: 'Minimalista' }, { value: 'neon', label: 'Neon' },
+  ],
+}
+
+function parseLocalizedNumber(value: string | undefined, fallback: number): number {
+  if (!value) return fallback
+  let normalized = value.trim().replace(/[^0-9.,-]/g, '')
+  if (!normalized) return fallback
+  if (normalized.includes(',')) normalized = normalized.replace(/\./g, '').replace(',', '.')
+  else if (/^-?\d{1,3}(?:\.\d{3})+$/.test(normalized)) normalized = normalized.replace(/\./g, '')
+  const parsed = Number.parseFloat(normalized)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function createDefaultGoalParts(): GoalPart[] {
+  // Ponto de partida parecido com overlays de live: o progresso ocupa o fundo da faixa e os números ficam independentes sobre ele.
+  return [
+    { id: 'goal-bar', type: 'bar', label: 'Fundo e progresso', visible: true, x: 0, y: 0, w: 100, h: 100, fontSize: 12, color: '#ffffff', fontWeight: 700, align: 'left', radius: 0 },
+    { id: 'goal-title', type: 'title', label: 'Título da meta', visible: true, x: 1.5, y: 0, w: 47, h: 100, fontSize: 13, color: '#ffffff', fontWeight: 900, align: 'left', italic: true, letterSpacing: -0.35, textTransform: 'uppercase' },
+    { id: 'goal-current', type: 'current', label: 'Valor atual', visible: true, x: 49.5, y: 0, w: 18, h: 100, fontSize: 14, color: '#ffffff', fontWeight: 850, align: 'right' },
+    { id: 'goal-separator', type: 'separator', label: '/', visible: true, x: 68, y: 0, w: 3, h: 100, fontSize: 13, color: '#d4d4dc', fontWeight: 700, align: 'center' },
+    { id: 'goal-target', type: 'target', label: 'Meta', visible: true, x: 72, y: 0, w: 26.5, h: 100, fontSize: 14, color: '#ffffff', fontWeight: 850, align: 'right' },
+    { id: 'goal-percent', type: 'percent', label: 'Percentual', visible: false, x: 79, y: 36, w: 21, h: 18, fontSize: 11, color: '#ffffff', fontWeight: 800, align: 'right' },
+    { id: 'goal-footer', type: 'footer', label: 'Texto auxiliar', visible: false, x: 0, y: 79, w: 100, h: 18, fontSize: 9, color: '#b8b8c4', fontWeight: 500, align: 'left' },
+  ]
+}
+
+function socialProfilesFromItems(items: string): SocialProfile[] {
+  const lines = items.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+  return lines.map((line, index) => {
+    const separator = line.search(/[·|]/)
+    const platform = (separator >= 0 ? line.slice(0, separator) : line.split(/\s+/)[0]).trim() || `Rede ${index + 1}`
+    const account = (separator >= 0 ? line.slice(separator + 1) : line.slice(platform.length)).trim() || '@seuperfil'
+    return { id: `social-${index + 1}`, platform, account }
+  })
+}
+
+function getSocialProfiles(source: SceneSource): SocialProfile[] {
+  if (Array.isArray(source.socialProfiles)) return source.socialProfiles
+  const legacy = socialProfilesFromItems(source.widgetItems ?? '')
+  return legacy.length ? legacy : [
+    { id: 'social-twitch', platform: 'Twitch', account: '@seucanal' },
+    { id: 'social-instagram', platform: 'Instagram', account: '@seuperfil' },
+    { id: 'social-youtube', platform: 'YouTube', account: '@seucanal' },
+  ]
+}
+
+function parseNamedColors(value: string | undefined): Record<string, string> {
+  const output: Record<string, string> = {}
+  for (const entry of (value ?? '').split(/\r?\n/)) {
+    const match = entry.match(/^\s*([^=:#]+)\s*=\s*(#[0-9a-fA-F]{3,8})\s*$/)
+    if (match) output[match[1].trim().toLowerCase()] = match[2]
+  }
+  return output
+}
+
+function getChatUserNames(items: string | undefined): string[] {
+  const lines = (items ?? '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+  const sample = lines.length ? lines : ['LuaGamer: Oi, chat!', 'PixelRider: Boa live!', 'nina: Qual é o jogo?', 'Gui: Cheguei agora']
+  return [...new Set(sample.map((line) => {
+    const separator = line.indexOf(':')
+    return separator >= 0 ? line.slice(0, separator).trim() : ''
+  }).filter(Boolean))].slice(0, 24)
+}
+
+const SOCIAL_LOGO_CATALOG: Record<string, { slug: string; color: string }> = {
+  twitch: { slug: 'twitch', color: '9146FF' }, instagram: { slug: 'instagram', color: 'E4405F' },
+  youtube: { slug: 'youtube', color: 'FF0033' }, tiktok: { slug: 'tiktok', color: 'FFFFFF' },
+  discord: { slug: 'discord', color: '5865F2' }, kick: { slug: 'kick', color: '53FC18' },
+  facebook: { slug: 'facebook', color: '0866FF' }, x: { slug: 'x', color: 'FFFFFF' }, twitter: { slug: 'x', color: 'FFFFFF' },
+  spotify: { slug: 'spotify', color: '1DB954' }, reddit: { slug: 'reddit', color: 'FF4500' },
+  patreon: { slug: 'patreon', color: 'FF424D' }, github: { slug: 'github', color: 'FFFFFF' }, steam: { slug: 'steam', color: 'FFFFFF' },
+  threads: { slug: 'threads', color: 'FFFFFF' }, linkedin: { slug: 'linkedin', color: '0A66C2' },
+  pinterest: { slug: 'pinterest', color: 'BD081C' }, telegram: { slug: 'telegram', color: '26A5E4' },
+  whatsapp: { slug: 'whatsapp', color: '25D366' }, trovo: { slug: 'trovo', color: '1476FF' },
+}
+
+function suggestedSocialLogoUrl(platform: string): string | null {
+  const normalized = platform.toLowerCase().replace(/[^a-z0-9]/g, '')
+  const match = Object.entries(SOCIAL_LOGO_CATALOG).find(([name]) => normalized === name || normalized.includes(name))?.[1]
+  return match ? `https://cdn.simpleicons.org/${match.slug}/${match.color}` : null
+}
+
+function socialGlyph(platform: string): string {
+  const value = platform.toLowerCase()
+  if (value.includes('twitch')) return '▣'
+  if (value.includes('instagram')) return '◎'
+  if (value.includes('youtube')) return '▶'
+  if (value.includes('tiktok')) return '♪'
+  if (value.includes('discord')) return '◈'
+  if (value === 'x' || value.includes('twitter')) return '𝕏'
+  if (value.includes('kick')) return 'K'
+  if (value.includes('facebook')) return 'f'
+  if (value.includes('spotify')) return '♫'
+  return platform.trim().charAt(0).toUpperCase() || '↗'
+}
 
 function makeDefaultProject(): Project {
   return {
@@ -298,9 +501,15 @@ function isValidProject(value: unknown): value is Project {
     sceneIds.add(scene.id)
     if (scene.width !== undefined && (!Number.isFinite(scene.width) || scene.width < 320 || scene.width > 3840)) return false
     if (scene.height !== undefined && (!Number.isFinite(scene.height) || scene.height < 320 || scene.height > 3840)) return false
-    if (scene.background !== undefined && (!scene.background || !['transparent', 'solid', 'gradient', 'image', 'video', 'screen', 'animated'].includes(scene.background.mode))) return false
+    if (scene.background !== undefined && (!scene.background || !['transparent', 'solid', 'gradient', 'image', 'video', 'screen', 'animated', 'slideshow'].includes(scene.background.mode))) return false
     if (scene.background?.imageSrc !== undefined && typeof scene.background.imageSrc !== 'string') return false
     if (scene.background?.imageSrc && !isSafeImageSource(scene.background.imageSrc)) return false
+    if (scene.background?.slideshowImages !== undefined && (!Array.isArray(scene.background.slideshowImages) || scene.background.slideshowImages.length > 20000 || scene.background.slideshowImages.some((image) => !image || typeof image.id !== 'string' || !image.id || typeof image.name !== 'string' || typeof image.src !== 'string' || !isSafeImageSource(image.src)))) return false
+    if (scene.background?.slideshowIntervalSeconds !== undefined && (!Number.isFinite(scene.background.slideshowIntervalSeconds) || scene.background.slideshowIntervalSeconds < 1 || scene.background.slideshowIntervalSeconds > 3600)) return false
+    if (scene.background?.slideshowTransitionDuration !== undefined && (!Number.isFinite(scene.background.slideshowTransitionDuration) || scene.background.slideshowTransitionDuration < 0 || scene.background.slideshowTransitionDuration > 10)) return false
+    if (scene.background?.slideshowLoop !== undefined && typeof scene.background.slideshowLoop !== 'boolean') return false
+    if (scene.background?.slideshowShuffle !== undefined && typeof scene.background.slideshowShuffle !== 'boolean') return false
+    if (scene.background?.slideshowKenBurns !== undefined && typeof scene.background.slideshowKenBurns !== 'boolean') return false
     if (scene.background?.videoSrc !== undefined && typeof scene.background.videoSrc !== 'string') return false
     if (scene.background?.videoSrc && !isSafeVideoSource(scene.background.videoSrc)) return false
     if (scene.background?.videoClips !== undefined && (!Array.isArray(scene.background.videoClips) || scene.background.videoClips.length < 1 || scene.background.videoClips.length > 40 || scene.background.videoClips.some((clip) => !clip || typeof clip.id !== 'string' || !clip.id || typeof clip.name !== 'string' || typeof clip.src !== 'string' || !isSafeVideoSource(clip.src) || (clip.start !== undefined && (!Number.isFinite(clip.start) || clip.start < 0 || clip.start > 3600)) || (clip.end !== undefined && (!Number.isFinite(clip.end) || clip.end < 0 || clip.end > 3600)) || (clip.trimEnabled !== undefined && typeof clip.trimEnabled !== 'boolean')))) return false
@@ -399,7 +608,10 @@ function normalizeProject(parsed: Project): Project {
         text: typeof source.text === 'string' ? source.text.slice(0, 2000) : undefined,
         widgetTitle: typeof source.widgetTitle === 'string' ? source.widgetTitle.slice(0, 90) : undefined,
         widgetText: typeof source.widgetText === 'string' ? source.widgetText.slice(0, 300) : undefined,
-        widgetItems: typeof source.widgetItems === 'string' ? source.widgetItems.slice(0, 1200) : undefined,
+        widgetItems: typeof source.widgetItems === 'string' ? source.widgetItems.slice(0, 3000) : undefined,
+        ...(Array.isArray(source.socialProfiles) ? { socialProfiles: source.socialProfiles.filter((profile) => profile && typeof profile.id === 'string' && typeof profile.platform === 'string' && typeof profile.account === 'string').slice(0, 30).map((profile) => ({ id: profile.id.slice(0, 100), platform: profile.platform.slice(0, 60), account: profile.account.slice(0, 100), ...(typeof profile.logoSrc === 'string' && profile.logoSrc.length < MAX_IMAGE_BYTES * 1.5 && isSafeImageSource(profile.logoSrc) ? { logoSrc: profile.logoSrc } : {}), ...(typeof profile.logoUrl === 'string' && isSafeImageSource(profile.logoUrl) ? { logoUrl: profile.logoUrl.slice(0, 1000) } : {}), ...(typeof profile.color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(profile.color) ? { color: profile.color } : {}) })) } : {}),
+        ...(Array.isArray(source.goalParts) ? { goalParts: source.goalParts.filter((part) => part && typeof part.id === 'string' && ['title','subtitle','current','separator','target','percent','bar','footer','custom-text','icon','shape','image'].includes(part.type)).slice(0, 100).map((part) => ({ ...part, id: part.id.slice(0, 80), label: typeof part.label === 'string' ? part.label.slice(0, 300) : '', visible: part.visible !== false, x: clamp(Number(part.x) || 0, 0, 99), y: clamp(Number(part.y) || 0, 0, 99), w: clamp(Number(part.w) || 10, 1, 100 - clamp(Number(part.x) || 0, 0, 99)), h: clamp(Number(part.h) || 10, 1, 100 - clamp(Number(part.y) || 0, 0, 99)), fontSize: clamp(Number(part.fontSize) || 13, 6, 80), fontWeight: clamp(Number(part.fontWeight) || 700, 100, 900), color: typeof part.color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(part.color) ? part.color : '#ffffff', ...(typeof part.src === 'string' && part.src.length <= MAX_IMAGE_BYTES * 1.5 && isSafeImageSource(part.src) ? { src: part.src } : {}), ...(typeof part.shapeKind === 'string' && ['rectangle','circle','pill'].includes(part.shapeKind) ? { shapeKind: part.shapeKind as GoalPart['shapeKind'] } : {}), opacity: clamp(Number.isFinite(part.opacity) ? Number(part.opacity) : 1, 0, 1), rotation: clamp(Number.isFinite(part.rotation) ? Number(part.rotation) : 0, -180, 180), borderWidth: clamp(Number.isFinite(part.borderWidth) ? Number(part.borderWidth) : 0, 0, 12), ...(typeof part.borderColor === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(part.borderColor) ? { borderColor: part.borderColor } : {}), ...(typeof part.fontFamily === 'string' ? { fontFamily: part.fontFamily.slice(0, 120) } : {}), ...(typeof part.objectFit === 'string' && ['contain','cover','fill'].includes(part.objectFit) ? { objectFit: part.objectFit as GoalPart['objectFit'] } : {}), ...(typeof part.verticalAlign === 'string' && ['top','center','bottom'].includes(part.verticalAlign) ? { verticalAlign: part.verticalAlign as GoalPart['verticalAlign'] } : {}), italic: part.italic === true, letterSpacing: clamp(Number.isFinite(part.letterSpacing) ? Number(part.letterSpacing) : 0, -5, 30), ...(typeof part.textTransform === 'string' && ['none','uppercase','lowercase','capitalize'].includes(part.textTransform) ? { textTransform: part.textTransform as GoalPart['textTransform'] } : {}), shadowEnabled: part.shadowEnabled === true, ...(typeof part.shadowColor === 'string' && /^#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?$/.test(part.shadowColor) ? { shadowColor: part.shadowColor } : {}), gradientEnabled: part.gradientEnabled === true, ...(typeof part.gradientColor === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(part.gradientColor) ? { gradientColor: part.gradientColor } : {}), gradientAngle: clamp(Number.isFinite(part.gradientAngle) ? Number(part.gradientAngle) : 135, 0, 360) })) } : {}),
+        ...(typeof source.frameOverlayImage === 'string' && source.frameOverlayImage.length < MAX_IMAGE_BYTES * 1.5 && isSafeImageSource(source.frameOverlayImage) ? { frameOverlayImage: source.frameOverlayImage } : {}),
         ...(source.type === 'widget' ? {
           widgetShowBackground: source.widgetShowBackground ?? !['chat', 'clock'].includes(source.widgetKind ?? ''),
           widgetShowBorder: source.widgetShowBorder ?? !['chat', 'clock'].includes(source.widgetKind ?? ''),
@@ -411,6 +623,7 @@ function normalizeProject(parsed: Project): Project {
             chatBubbleColor: source.chatBubbleColor ?? '#e979b2',
             chatBubbleOpacity: clamp(Number.isFinite(source.chatBubbleOpacity) ? Number(source.chatBubbleOpacity) : 0.88, 0, 1),
             chatShowInput: source.chatShowInput ?? false,
+            chatUsernamePlacement: source.chatUsernamePlacement ?? 'separate',
           } : {}),
           ...(source.widgetKind === 'clock' ? {
             clockShowDate: source.clockShowDate ?? false,
@@ -424,14 +637,45 @@ function normalizeProject(parsed: Project): Project {
     })
     const rawBackground = scene.background
     const background: BackgroundConfig = {
-      mode: rawBackground && ['transparent', 'solid', 'gradient', 'image', 'video', 'screen', 'animated'].includes(rawBackground.mode) ? rawBackground.mode : 'transparent',
-      animatedTheme: ['stars', 'cyber-grid', 'waves', 'gradient-flow'].includes(rawBackground?.animatedTheme ?? '') ? rawBackground?.animatedTheme : 'aurora',
+      mode: rawBackground && ['transparent', 'solid', 'gradient', 'image', 'video', 'screen', 'animated', 'slideshow'].includes(rawBackground.mode) ? rawBackground.mode : 'transparent',
+      animatedTheme: (['custom', 'stars', 'cyber-grid', 'waves', 'gradient-flow', 'matrix-rain', 'liquid-lava', 'bokeh', 'sunset-clouds', 'electric-pulse', 'particles', 'laser-grid', 'deep-ocean', 'prism'].includes(rawBackground?.animatedTheme ?? '') ? rawBackground?.animatedTheme : 'aurora') as AnimatedThemeName,
       animatedSpeed: clamp(Number.isFinite(rawBackground?.animatedSpeed) ? Number(rawBackground?.animatedSpeed) : 1, 0.25, 3),
       animatedIntensity: clamp(Number.isFinite(rawBackground?.animatedIntensity) ? Number(rawBackground?.animatedIntensity) : 0.75, 0, 1),
       animatedAccent: typeof rawBackground?.animatedAccent === 'string' ? rawBackground.animatedAccent : '#8d85ff',
+      animatedBlur: clamp(Number.isFinite(rawBackground?.animatedBlur) ? Number(rawBackground?.animatedBlur) : 26, 0, 80),
+      animatedGlow: clamp(Number.isFinite(rawBackground?.animatedGlow) ? Number(rawBackground?.animatedGlow) : 0.7, 0, 1),
+      animatedGrain: clamp(Number.isFinite(rawBackground?.animatedGrain) ? Number(rawBackground?.animatedGrain) : 0.08, 0, 0.3),
+      animatedVignette: clamp(Number.isFinite(rawBackground?.animatedVignette) ? Number(rawBackground?.animatedVignette) : 0.25, 0, 1),
+      animatedDensity: clamp(Number.isFinite(rawBackground?.animatedDensity) ? Number(rawBackground?.animatedDensity) : 1, 0.25, 3),
+      animatedScale: clamp(Number.isFinite(rawBackground?.animatedScale) ? Number(rawBackground?.animatedScale) : 1, 0.5, 2),
+      animatedDirection: rawBackground?.animatedDirection === 'reverse' || rawBackground?.animatedDirection === 'normal' ? rawBackground.animatedDirection : 'alternate',
+      animatedLayers: rawBackground?.animatedLayers === 'soft' || rawBackground?.animatedLayers === 'rich' ? rawBackground.animatedLayers : 'balanced',
+      animatedBrightness: clamp(Number.isFinite(rawBackground?.animatedBrightness) ? Number(rawBackground?.animatedBrightness) : 1, 0, 2),
+      animatedContrast: clamp(Number.isFinite(rawBackground?.animatedContrast) ? Number(rawBackground?.animatedContrast) : 1, 0, 2),
+      animatedSaturation: clamp(Number.isFinite(rawBackground?.animatedSaturation) ? Number(rawBackground?.animatedSaturation) : 1, 0, 3),
+      animatedHueRotate: clamp(Number.isFinite(rawBackground?.animatedHueRotate) ? Number(rawBackground?.animatedHueRotate) : 0, 0, 360),
+      animatedBlendMode: ['screen', 'multiply', 'overlay', 'lighten'].includes(rawBackground?.animatedBlendMode ?? '') ? rawBackground?.animatedBlendMode as BackgroundConfig['animatedBlendMode'] : 'normal',
       color: typeof rawBackground?.color === 'string' ? rawBackground.color : '#171923',
       color2: typeof rawBackground?.color2 === 'string' ? rawBackground.color2 : '#28243c',
       angle: clamp(Number.isFinite(rawBackground?.angle) ? Number(rawBackground?.angle) : 135, 0, 360),
+      slideshowImages: Array.isArray(rawBackground?.slideshowImages) ? rawBackground.slideshowImages.filter((image) => image && typeof image.id === 'string' && typeof image.name === 'string' && typeof image.src === 'string' && isSafeImageSource(image.src)).map((image) => ({ id: image.id.slice(0, 100), name: image.name.slice(0, 180), src: image.src })) : [],
+      slideshowIntervalSeconds: clamp(Number.isFinite(rawBackground?.slideshowIntervalSeconds) ? Number(rawBackground?.slideshowIntervalSeconds) : 10, 1, 3600),
+      slideshowTransition: (['slide', 'zoom', 'blur', 'none'].includes(rawBackground?.slideshowTransition ?? '') ? rawBackground?.slideshowTransition : 'fade') as NonNullable<BackgroundConfig['slideshowTransition']>,
+      slideshowTransitionDuration: clamp(Number.isFinite(rawBackground?.slideshowTransitionDuration) ? Number(rawBackground?.slideshowTransitionDuration) : 1.2, 0, 10),
+      slideshowLoop: rawBackground?.slideshowLoop !== false,
+      slideshowShuffle: rawBackground?.slideshowShuffle === true,
+      slideshowFit: rawBackground?.slideshowFit === 'contain' || rawBackground?.slideshowFit === 'stretch' ? rawBackground.slideshowFit : 'cover',
+      slideshowPosition: typeof rawBackground?.slideshowPosition === 'string' ? rawBackground.slideshowPosition.slice(0, 40) : 'center center',
+      slideshowOpacity: clamp(Number.isFinite(rawBackground?.slideshowOpacity) ? Number(rawBackground?.slideshowOpacity) : 1, 0, 1),
+      slideshowBrightness: clamp(Number.isFinite(rawBackground?.slideshowBrightness) ? Number(rawBackground?.slideshowBrightness) : 1, 0, 2),
+      slideshowContrast: clamp(Number.isFinite(rawBackground?.slideshowContrast) ? Number(rawBackground?.slideshowContrast) : 1, 0, 2),
+      slideshowSaturation: clamp(Number.isFinite(rawBackground?.slideshowSaturation) ? Number(rawBackground?.slideshowSaturation) : 1, 0, 2),
+      slideshowHueRotate: clamp(Number.isFinite(rawBackground?.slideshowHueRotate) ? Number(rawBackground?.slideshowHueRotate) : 0, 0, 360),
+      slideshowBlur: clamp(Number.isFinite(rawBackground?.slideshowBlur) ? Number(rawBackground?.slideshowBlur) : 0, 0, 20),
+      slideshowZoom: clamp(Number.isFinite(rawBackground?.slideshowZoom) ? Number(rawBackground?.slideshowZoom) : 1, 0.8, 1.5),
+      slideshowKenBurns: rawBackground?.slideshowKenBurns === true,
+      slideshowOverlayColor: typeof rawBackground?.slideshowOverlayColor === 'string' ? rawBackground.slideshowOverlayColor : '#000000',
+      slideshowOverlayOpacity: clamp(Number.isFinite(rawBackground?.slideshowOverlayOpacity) ? Number(rawBackground?.slideshowOverlayOpacity) : 0, 0, 1),
       imageSrc: typeof rawBackground?.imageSrc === 'string' && isSafeImageSource(rawBackground.imageSrc) ? rawBackground.imageSrc : undefined,
       imageFit: rawBackground?.imageFit === 'contain' || rawBackground?.imageFit === 'stretch' ? rawBackground.imageFit : 'cover',
       imagePosition: typeof rawBackground?.imagePosition === 'string' ? rawBackground.imagePosition.slice(0, 40) : 'center center',
@@ -439,18 +683,18 @@ function normalizeProject(parsed: Project): Project {
       videoSrc: typeof rawBackground?.videoSrc === 'string' && isSafeVideoSource(rawBackground.videoSrc) ? rawBackground.videoSrc : undefined,
       videoFit: rawBackground?.videoFit === 'contain' || rawBackground?.videoFit === 'stretch' ? rawBackground.videoFit : 'cover',
       videoPosition: typeof rawBackground?.videoPosition === 'string' ? rawBackground.videoPosition.slice(0, 40) : 'center center',
-      videoOpacity: clamp(Number.isFinite(rawBackground?.videoOpacity) ? Number(rawBackground.videoOpacity) : 1, 0, 1),
-      videoStart: clamp(Number.isFinite(rawBackground?.videoStart) ? Number(rawBackground.videoStart) : 0, 0, 3600),
-      videoEnd: clamp(Number.isFinite(rawBackground?.videoEnd) ? Number(rawBackground.videoEnd) : 0, 0, 3600),
+      videoOpacity: clamp(Number.isFinite(rawBackground?.videoOpacity) ? Number(rawBackground?.videoOpacity) : 1, 0, 1),
+      videoStart: clamp(Number.isFinite(rawBackground?.videoStart) ? Number(rawBackground?.videoStart) : 0, 0, 3600),
+      videoEnd: clamp(Number.isFinite(rawBackground?.videoEnd) ? Number(rawBackground?.videoEnd) : 0, 0, 3600),
       videoTrimEnabled: rawBackground?.videoTrimEnabled === true,
       videoLoop: rawBackground?.videoLoop !== false,
       videoMuted: rawBackground?.videoMuted !== false,
-      videoVolume: clamp(Number.isFinite(rawBackground?.videoVolume) ? Number(rawBackground.videoVolume) : 0.8, 0, 1),
-      videoPlaybackRate: clamp(Number.isFinite(rawBackground?.videoPlaybackRate) ? Number(rawBackground.videoPlaybackRate) : 1, 0.25, 2),
-      videoBrightness: clamp(Number.isFinite(rawBackground?.videoBrightness) ? Number(rawBackground.videoBrightness) : 1, 0, 2),
-      videoContrast: clamp(Number.isFinite(rawBackground?.videoContrast) ? Number(rawBackground.videoContrast) : 1, 0, 2),
-      videoSaturation: clamp(Number.isFinite(rawBackground?.videoSaturation) ? Number(rawBackground.videoSaturation) : 1, 0, 2),
-      videoHueRotate: clamp(Number.isFinite(rawBackground?.videoHueRotate) ? Number(rawBackground.videoHueRotate) : 0, 0, 360),
+      videoVolume: clamp(Number.isFinite(rawBackground?.videoVolume) ? Number(rawBackground?.videoVolume) : 0.8, 0, 1),
+      videoPlaybackRate: clamp(Number.isFinite(rawBackground?.videoPlaybackRate) ? Number(rawBackground?.videoPlaybackRate) : 1, 0.25, 2),
+      videoBrightness: clamp(Number.isFinite(rawBackground?.videoBrightness) ? Number(rawBackground?.videoBrightness) : 1, 0, 2),
+      videoContrast: clamp(Number.isFinite(rawBackground?.videoContrast) ? Number(rawBackground?.videoContrast) : 1, 0, 2),
+      videoSaturation: clamp(Number.isFinite(rawBackground?.videoSaturation) ? Number(rawBackground?.videoSaturation) : 1, 0, 2),
+      videoHueRotate: clamp(Number.isFinite(rawBackground?.videoHueRotate) ? Number(rawBackground?.videoHueRotate) : 0, 0, 360),
       overlayColor: typeof rawBackground?.overlayColor === 'string' ? rawBackground.overlayColor : '#000000',
       overlayOpacity: clamp(Number.isFinite(rawBackground?.overlayOpacity) ? Number(rawBackground?.overlayOpacity) : 0, 0, 1),
     }
@@ -591,8 +835,10 @@ function saveVideoBlob(blob: Blob, name: string): Promise<string> {
         mp4: 'video/mp4', m4v: 'video/mp4', webm: 'video/webm', ogv: 'video/ogg', ogg: 'video/ogg',
         mov: 'video/quicktime', '3gp': 'video/3gpp', mkv: 'video/x-matroska', avi: 'video/x-msvideo',
         wmv: 'video/x-ms-wmv', mpeg: 'video/mpeg', mpg: 'video/mpeg', ts: 'video/mp2t', m2ts: 'video/mp2t',
+        png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', svg: 'image/svg+xml', avif: 'image/avif',
       }
-      const mediaBlob = blob.type.startsWith('video/') ? blob : new Blob([blob], { type: guessedMime[extension] ?? 'video/mp4' })
+      const inferred = guessedMime[extension] ?? 'application/octet-stream'
+      const mediaBlob = blob.type.startsWith('video/') || blob.type.startsWith('image/') ? blob : new Blob([blob], { type: inferred })
       db = await openVideoDatabase()
       const id = newId('asset')
       const transaction = db.transaction(VIDEO_STORE_NAME, 'readwrite')
@@ -701,8 +947,8 @@ function deleteVideoBlob(reference: string): Promise<void> {
 }
 
 function dataUrlToBlob(dataUrl: string): Blob {
-  const match = dataUrl.match(/^data:(video\/[a-z0-9.+-]+);base64,([\s\S]*)$/i)
-  if (!match) throw new Error('O vídeo incorporado não tem um formato de dados válido.')
+  const match = dataUrl.match(/^data:((?:video|image)\/[a-z0-9.+-]+);base64,([\s\S]*)$/i)
+  if (!match) throw new Error('A mídia incorporada não tem um formato de dados válido.')
   const binary = atob(match[2])
   const bytes = new Uint8Array(binary.length)
   for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
@@ -718,13 +964,80 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   })
 }
 
+function localAssetIdForReference(reference: string): string {
+  // Stable, path-safe identifier for a media data URL; content itself is stored only in the loopback relay.
+  let first = 0x811c9dc5
+  let second = 0x9e3779b9
+  for (let index = 0; index < reference.length; index += 1) {
+    const code = reference.charCodeAt(index)
+    first = Math.imul(first ^ code, 0x01000193) >>> 0
+    second = Math.imul(second ^ (code + index), 0x85ebca6b) >>> 0
+  }
+  return `asset-${first.toString(36)}-${second.toString(36)}-${reference.length.toString(36)}`
+}
+
+async function prepareProjectForRelay(project: Project, uploadedRefs: Set<string>, pendingUploads: Map<string, Promise<boolean>>): Promise<Project> {
+  const snapshot = JSON.parse(JSON.stringify(project)) as Project
+  const relayReference = async (reference: string | undefined, label: string): Promise<string | undefined> => {
+    if (!reference) return reference
+    const isIndexedAsset = reference.startsWith('idb-video://')
+    const isDataAsset = /^data:(?:image|video)\//i.test(reference)
+    if (!isIndexedAsset && !isDataAsset) return reference
+    const assetId = isIndexedAsset ? reference.slice('idb-video://'.length) : localAssetIdForReference(reference)
+    if (!/^[a-z0-9-]{5,100}$/i.test(assetId)) throw new Error(`Identificador inválido para a mídia “${label}”.`)
+    if (!uploadedRefs.has(assetId)) {
+      let upload = pendingUploads.get(assetId)
+      if (!upload) {
+        upload = (async () => {
+          const blob = isIndexedAsset ? await getVideoBlob(reference) : dataUrlToBlob(reference)
+          if (!blob) throw new Error(`A mídia “${label}” não foi encontrada no armazenamento local. Reimporte o arquivo no editor.`)
+          const response = await fetch(`http://127.0.0.1:4174/assets/${assetId}`, {
+            method: 'POST', headers: { 'Content-Type': blob.type || 'application/octet-stream' }, body: blob,
+          })
+          if (!response.ok) throw new Error(`O relay do OBS recusou “${label}” (HTTP ${response.status}).`)
+          return true
+        })().finally(() => pendingUploads.delete(assetId))
+        pendingUploads.set(assetId, upload)
+      }
+      await upload
+      uploadedRefs.add(assetId)
+    }
+    return `http://127.0.0.1:4174/assets/${assetId}`
+  }
+  for (const scene of snapshot.scenes) {
+    const background = scene.background
+    if (background?.imageSrc) background.imageSrc = (await relayReference(background.imageSrc, `Imagem de fundo · ${scene.name}`)) ?? background.imageSrc
+    if (background?.slideshowImages) {
+      background.slideshowImages = await Promise.all(background.slideshowImages.map(async (image) => ({ ...image, src: (await relayReference(image.src, image.name)) ?? image.src })))
+    }
+    if (background?.videoClips) {
+      background.videoClips = await Promise.all(background.videoClips.map(async (clip) => ({ ...clip, src: (await relayReference(clip.src, `${scene.name} · ${clip.name}`)) ?? clip.src })))
+      background.videoSrc = background.videoClips[0]?.src ?? background.videoSrc
+    } else if (background?.videoSrc) {
+      background.videoSrc = (await relayReference(background.videoSrc, `Fundo · ${scene.name}`)) ?? background.videoSrc
+    }
+    scene.sources = await Promise.all(scene.sources.map(async (source) => {
+      let next = { ...source }
+      if (source.src) next.src = (await relayReference(source.src, source.name)) ?? source.src
+      if (source.widgetBackgroundImage) next.widgetBackgroundImage = (await relayReference(source.widgetBackgroundImage, `${source.name} · imagem de fundo`)) ?? source.widgetBackgroundImage
+      if (source.videoClips?.length) {
+        next.videoClips = await Promise.all(source.videoClips.map(async (clip) => ({ ...clip, src: (await relayReference(clip.src, `${source.name} · ${clip.name}`)) ?? clip.src })))
+        next.src = next.videoClips[0]?.src ?? next.src
+      }
+      return next
+    }))
+  }
+  return snapshot
+}
+
 async function storeEmbeddedVideos(project: Project): Promise<Project> {
   const scenes: Scene[] = []
   const createdReferences: string[] = []
   const storeDataReference = async (reference: string | undefined, label: string): Promise<string | undefined> => {
-    if (!reference?.startsWith('data:video/')) return reference
+    if (!reference || !/^data:(?:video|image)\//i.test(reference)) return reference
     const blob = dataUrlToBlob(reference)
-    if (blob.size > MAX_VIDEO_BYTES) throw new Error(`“${label}” excede o limite de ${Math.round(MAX_VIDEO_BYTES / 1_000_000)} MB por vídeo.`)
+    const isImage = blob.type.startsWith('image/')
+    if (blob.size > (isImage ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES)) throw new Error(`“${label}” excede o limite de ${Math.round((isImage ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES) / 1_000_000)} MB por arquivo.`)
     const stored = await saveVideoBlob(blob, label)
     createdReferences.push(stored)
     return stored
@@ -733,6 +1046,11 @@ async function storeEmbeddedVideos(project: Project): Promise<Project> {
     for (const scene of project.scenes) {
       const sources: SceneSource[] = []
       let background = scene.background ? { ...scene.background } : undefined
+      if (background?.slideshowImages?.length) {
+        const slideshowImages: SlideshowImage[] = []
+        for (const image of background.slideshowImages) slideshowImages.push({ ...image, src: (await storeDataReference(image.src, `Carrossel · ${image.name}`)) ?? image.src })
+        background = { ...background, slideshowImages }
+      }
       if (background?.videoClips?.length) {
         const clips: VideoClip[] = []
         for (const clip of background.videoClips) {
@@ -828,13 +1146,19 @@ async function downloadProject(project: Project) {
   const exportReference = async (reference: string | undefined, label: string): Promise<string | undefined> => {
     if (!reference?.startsWith('idb-video://')) return reference
     const blob = await getVideoBlob(reference)
-    if (!blob) throw new Error(`O vídeo “${label}” não foi encontrado no armazenamento local. Importe-o novamente antes de exportar.`)
-    if (blob.size > MAX_VIDEO_BYTES) throw new Error(`O vídeo “${label}” excede o limite portátil por arquivo.`)
+    if (!blob) throw new Error(`A mídia “${label}” não foi encontrada no armazenamento local. Importe-a novamente antes de exportar.`)
+    const isImage = blob.type.startsWith('image/')
+    if (blob.size > (isImage ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES)) throw new Error(`A mídia “${label}” excede o limite portátil por arquivo.`)
     return blobToDataUrl(blob)
   }
   for (const scene of project.scenes) {
     const sources: SceneSource[] = []
     let background = scene.background ? { ...scene.background } : undefined
+    if (background?.slideshowImages?.length) {
+      const slideshowImages: SlideshowImage[] = []
+      for (const image of background.slideshowImages) slideshowImages.push({ ...image, src: (await exportReference(image.src, image.name)) ?? image.src })
+      background = { ...background, slideshowImages }
+    }
     if (background?.videoClips?.length) {
       const clips: VideoClip[] = []
       for (const clip of background.videoClips) clips.push({ ...clip, src: (await exportReference(clip.src, clip.name)) ?? clip.src })
@@ -916,7 +1240,8 @@ function getBrowserUrl(url: string | undefined) {
 }
 
 function isSafeImageSource(source: string): boolean {
-  if (/^data:image\/(png|jpeg|webp|gif|svg\+xml);/i.test(source)) return source.length <= MAX_LOCAL_PROJECT_CHARS
+  if (/^idb-video:\/\/[a-z0-9-]{5,100}$/i.test(source)) return true
+  if (/^data:image\/(png|jpeg|webp|gif|svg\+xml|avif);/i.test(source)) return source.length <= MAX_LOCAL_PROJECT_CHARS
   try {
     const parsed = new URL(source)
     return (parsed.protocol === 'https:' || parsed.protocol === 'http:') && parsed.href.length < 2000
@@ -954,7 +1279,7 @@ function sceneBackgroundStyle(scene: Scene, isPreview = false): CSSProperties {
       ? { backgroundColor: 'transparent', backgroundImage: 'repeating-conic-gradient(#262936 0% 25%, #1c1f29 0% 50%)', backgroundSize: '24px 24px' }
       : { backgroundColor: 'transparent', backgroundImage: 'none' }
   }
-  if (mode === 'solid' || mode === 'animated') return { backgroundColor: background?.color ?? '#171923', backgroundImage: 'none' }
+  if (mode === 'solid' || mode === 'animated' || mode === 'slideshow') return { backgroundColor: background?.color ?? '#171923', backgroundImage: 'none' }
   if (mode === 'gradient') return { backgroundColor: background?.color ?? '#171923', backgroundImage: `linear-gradient(${background?.angle ?? 135}deg, ${background?.color ?? '#25233a'}, ${background?.color2 ?? '#10121a'})` }
   if (mode === 'video' || mode === 'screen') return { backgroundColor: background?.color ?? '#151823', backgroundImage: isPreview ? 'repeating-conic-gradient(#262936 0% 25%, #1c1f29 0% 50%)' : 'none', backgroundSize: '24px 24px' }
   const imageSrc = background?.imageSrc && isSafeImageSource(background.imageSrc) ? background.imageSrc : ''
@@ -1011,20 +1336,6 @@ function externalFontFamilyFromUrl(urlValue: string, sourceId: string): { family
   }
 }
 
-function customWidgetDeclarations(source: SceneSource): CSSProperties {
-  const allowed = new Set(['color', 'background', 'background-color', 'border', 'border-radius', 'border-color', 'border-width', 'border-style', 'padding', 'gap', 'font-family', 'font-size', 'font-weight', 'line-height', 'letter-spacing', 'text-shadow', 'box-shadow', 'text-transform', 'text-align', 'filter', 'backdrop-filter'])
-  const result: Record<string, string> = {}
-  for (const declaration of (source.widgetCustomCss ?? '').split(';')) {
-    const colon = declaration.indexOf(':')
-    if (colon < 1) continue
-    const property = declaration.slice(0, colon).trim().toLowerCase()
-    const value = declaration.slice(colon + 1).trim()
-    if (!allowed.has(property) || !value || /[{}<>]/.test(value) || /url\s*\(|expression\s*\(/i.test(value) || value.length > 120) continue
-    result[property.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase())] = value
-  }
-  return result as CSSProperties
-}
-
 function ExternalFontLoader({ project }: { project: Project }) {
   useEffect(() => {
     const sources = project.scenes.flatMap((scene) => scene.sources).filter((source) => (source.type === 'text' && source.fontUrl?.trim()) || (source.type === 'widget' && source.widgetFontUrl?.trim()))
@@ -1069,7 +1380,7 @@ function ExternalFontLoader({ project }: { project: Project }) {
   return null
 }
 
-function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testToken?: number }) {
+function WidgetContent({ source, testToken = 0, editorMode = false, selectedGoalPartId }: { source: SceneSource; testToken?: number; editorMode?: boolean; selectedGoalPartId?: string | null }) {
   const kind = source.widgetKind ?? 'goal'
   const accent = source.widgetAccent ?? source.color ?? '#8d85ff'
   const transparentRoot = source.widgetShowBackground === false || ((kind === 'chat' || kind === 'clock') && source.widgetShowBackground === undefined)
@@ -1082,8 +1393,14 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
   const defaultBlur = (source.widgetTheme ?? 'glass') === 'glass' ? 8 : 0
   const showBorder = source.widgetShowBorder ?? !(kind === 'chat' || kind === 'clock')
   const showShadow = source.widgetShowShadow ?? !(kind === 'chat' || kind === 'clock')
+  // Calculate goal progress before building the style object that consumes it.
+  // Keeping these values above widgetAppearance avoids TS2448/TS2454 during build.
+  const currentValue = Math.max(0, parseLocalizedNumber(source.widgetValue ?? '68', 0))
+  const targetValue = Math.max(1, parseLocalizedNumber(source.widgetTarget ?? '100', 100))
+  const progress = Math.min(100, Math.max(0, (currentValue / targetValue) * 100))
   const widgetAppearance = {
     '--widget-accent': accent,
+    '--goal-progress': `${progress}%`,
     '--widget-text-color': source.widgetTextColor ?? '#f2f3fb',
     '--widget-title-color': source.widgetTitleColor ?? '#ffffff',
     '--widget-subtitle-color': source.widgetSubtitleColor ?? source.widgetTextColor ?? '#a7acbe',
@@ -1133,8 +1450,9 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
     borderWidth: showBorder ? undefined : 0,
     textAlign: source.widgetTextAlign ?? 'left',
   } as CSSProperties
-  const widgetRootStyle = { ...widgetAppearance, ...customWidgetDeclarations(source) } as CSSProperties
+  const widgetRootStyle = widgetAppearance as CSSProperties
   const widgetMotion = `widget-motion-${source.widgetAnimation ?? 'subtle'}`
+  const widgetVariant = (source.widgetVariant ?? 'default').replace(/[^a-z0-9-]/gi, '') || 'default'
   const showHeader = source.widgetShowHeader !== false
   const [remaining, setRemaining] = useState(source.widgetSeconds ?? 600)
   const [now, setNow] = useState(() => new Date())
@@ -1164,29 +1482,27 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
   }, [kind, testToken])
 
   const lines = (source.widgetItems ?? '').split('\n').map((line) => line.trim()).filter(Boolean)
-  const currentValue = Number.parseFloat((source.widgetValue ?? '68').replace(/[^\d.]/g, '')) || 0
-  const targetValue = Math.max(1, Number.parseFloat((source.widgetTarget ?? '100').replace(/[^\d.]/g, '')) || 100)
-  const progress = Math.min(100, Math.max(0, (currentValue / targetValue) * 100))
   const time = remaining >= 3600
     ? `${String(Math.floor(remaining / 3600)).padStart(2, '0')}:${String(Math.floor((remaining % 3600) / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`
     : `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`
 
   if (kind === 'webcam-frame') {
-    return <div className={`stream-widget webcam-frame-widget widget-theme-${source.widgetTheme ?? 'neon'} ${widgetMotion} ${source.widgetShowIcon === false ? 'widget-no-icon' : ''}`} style={widgetRootStyle}>
+    return <div className={`stream-widget webcam-frame-widget widget-theme-${source.widgetTheme ?? 'neon'} widget-variant-${widgetVariant} ${widgetMotion} ${source.widgetShowIcon === false ? 'widget-no-icon' : ''}`} style={widgetRootStyle}>
       <div className="webcam-frame-corner corner-tl" /><div className="webcam-frame-corner corner-tr" />
       <div className="webcam-frame-corner corner-bl" /><div className="webcam-frame-corner corner-br" />
+      {source.frameOverlayImage && isSafeImageSource(source.frameOverlayImage) && <img className="webcam-frame-art" src={source.frameOverlayImage} alt="" draggable={false} />}
       <span className="webcam-frame-label">{source.widgetTitle || 'WEBCAM'}</span>
     </div>
   }
 
   if (kind === 'live-badge') {
-    return <div className={`stream-widget live-badge-widget widget-theme-${source.widgetTheme ?? 'minimal'} ${widgetMotion} ${source.widgetShowIcon === false ? 'widget-no-icon' : ''}`} style={widgetRootStyle}>
+    return <div className={`stream-widget live-badge-widget widget-theme-${source.widgetTheme ?? 'minimal'} widget-variant-${widgetVariant} ${widgetMotion} ${source.widgetShowIcon === false ? 'widget-no-icon' : ''}`} style={widgetRootStyle}>
       <span className="live-badge-dot" />
       <span className="live-badge-copy"><strong>{source.widgetTitle || 'AO VIVO'}</strong><small>{source.widgetText || 'TRANSMITINDO'}</small></span>
     </div>
   }
 
-  return <div className={`stream-widget widget-${kind} widget-theme-${source.widgetTheme ?? 'glass'} ${widgetMotion} ${source.widgetCompact ? 'widget-compact' : ''} ${source.widgetShowIcon === false ? 'widget-no-icon' : ''} ${transparentRoot ? 'widget-no-background' : ''} ${!showBorder ? 'widget-no-border' : ''} ${!showShadow ? 'widget-no-shadow' : ''} ${alertVisible ? 'alert-triggered' : ''}`} style={widgetRootStyle}>
+  return <div className={`stream-widget widget-${kind} widget-theme-${source.widgetTheme ?? 'glass'} widget-variant-${widgetVariant} ${widgetMotion} ${source.widgetCompact ? 'widget-compact' : ''} ${source.widgetShowIcon === false ? 'widget-no-icon' : ''} ${transparentRoot ? 'widget-no-background' : ''} ${!showBorder ? 'widget-no-border' : ''} ${!showShadow ? 'widget-no-shadow' : ''} ${source.goalFreeLayout && kind === 'goal' ? 'goal-free-enabled' : ''} ${alertVisible ? 'alert-triggered' : ''}`} style={widgetRootStyle}>
     {kind === 'alert' && <>
       <div className="widget-alert-icon">✦</div>
       <div className="widget-alert-content"><span className="widget-kicker">{alertVisible ? 'NOVO EVENTO!' : (source.widgetTitle || 'ALERTA DE EVENTO')}</span><strong>{alertVisible ? (source.widgetValue || 'pixelrider') : (source.widgetValue || 'Novo seguidor')}</strong><small>{source.widgetText || 'começou a seguir o canal'}</small></div>
@@ -1227,12 +1543,15 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
           borderRadius: source.chatUsernamePill === false ? 0 : clamp(source.chatUsernamePillRadius ?? 999, 0, 100),
           padding: source.chatUsernamePill === false ? 0 : `${clamp(source.chatUsernamePillPaddingY ?? 3, 0, 30)}px ${clamp(source.chatUsernamePillPaddingX ?? 8, 0, 40)}px`,
         }
-        return <div className={`chat-message ${source.chatLayout === 'inline' ? 'chat-layout-inline' : 'chat-layout-stacked'}`} key={`${line}-${index}`} style={{ alignSelf: source.widgetTextAlign === 'right' ? 'flex-end' : source.widgetTextAlign === 'center' ? 'center' : 'flex-start', alignItems: source.widgetTextAlign === 'right' ? 'flex-end' : source.widgetTextAlign === 'center' ? 'center' : 'flex-start' }}>
-          <div className="chat-username-row">
+        const usernameInsideBubble = source.chatUsernamePlacement === 'same-bubble'
+        const embeddedUsernameStyle: CSSProperties = { color: nameColor, fontSize: `${clamp(source.chatUsernameFontSize ?? 12, 6, 60)}px`, fontFamily: source.chatUsernameFontFamily?.trim() || source.widgetFontFamily || 'inherit', fontWeight: clamp(source.chatUsernameFontWeight ?? 800, 100, 900), background: 'transparent', border: 0, padding: 0, borderRadius: 0, marginRight: '0.12em' }
+        return <div className={`chat-message ${source.chatLayout === 'inline' ? 'chat-layout-inline' : 'chat-layout-stacked'} ${usernameInsideBubble ? 'chat-name-inside-bubble' : ''}`} key={`${line}-${index}`} style={{ alignSelf: source.widgetTextAlign === 'right' ? 'flex-end' : source.widgetTextAlign === 'center' ? 'center' : 'flex-start', alignItems: source.widgetTextAlign === 'right' ? 'flex-end' : source.widgetTextAlign === 'center' ? 'center' : 'flex-start' }}>
+          {!usernameInsideBubble && <div className="chat-username-row">
             {source.chatShowBadges && <span className="chat-demo-badge" aria-hidden="true">✦</span>}
             <strong className="chat-username-pill" style={usernamePillStyle}>{username}</strong>
-          </div>
+          </div>}
           <div className={`chat-message-bubble ${source.chatBubbleEnabled === false ? 'chat-message-plain' : ''}`} style={messageStyle}>
+            {usernameInsideBubble && <strong className="chat-username-in-bubble" style={embeddedUsernameStyle}>{username}</strong>}
             <span>{message}</span>
             {source.chatShowTimestamp && <time style={{ color: source.chatTimestampColor ?? '#f7d6e7' }}>12:{String((index * 7 + 14) % 60).padStart(2, '0')}</time>}
           </div>
@@ -1249,13 +1568,37 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
       })}</div>
     </>}
 
-    {kind === 'goal' && <>
+    {kind === 'goal' && (source.goalFreeLayout ? <div className={`goal-free-layout ${editorMode && source.goalPartEditMode ? 'goal-parts-editing' : ''}`}>
+      {(Array.isArray(source.goalParts) ? source.goalParts : createDefaultGoalParts()).filter((part) => part.visible !== false).map((part) => {
+        const partStyle: CSSProperties = {
+          left: `${clamp(part.x, 0, 100)}%`, top: `${clamp(part.y, 0, 100)}%`, width: `${clamp(part.w, 1, 100)}%`, height: `${clamp(part.h, 1, 100)}%`,
+          color: part.color ?? '#ffffff', fontSize: `${clamp(part.fontSize ?? (part.type === 'title' ? 13 : 14), 6, 80)}px`, fontWeight: clamp(part.fontWeight ?? 700, 100, 900),
+          textAlign: part.align ?? 'left', backgroundColor: part.type === 'shape' ? (part.color ?? part.backgroundColor ?? '#7776ff') : (part.backgroundColor ?? 'transparent'), backgroundImage: part.gradientEnabled && part.type !== 'shape' ? `linear-gradient(${clamp(part.gradientAngle ?? 135, 0, 360)}deg, ${part.backgroundColor ?? '#222222'}, ${part.gradientColor ?? '#6c5ce7'})` : undefined, borderRadius: part.type === 'shape' ? (part.shapeKind === 'circle' ? '50%' : part.shapeKind === 'pill' ? '999px' : `${clamp(part.radius ?? 0, 0, 50)}px`) : `${clamp(part.radius ?? 0, 0, 50)}px`, padding: `${clamp(part.padding ?? 0, 0, 30)}px`, boxSizing: 'border-box', opacity: clamp(part.opacity ?? 1, 0, 1), transform: part.rotation ? `rotate(${clamp(part.rotation, -180, 180)}deg)` : undefined, border: part.type !== 'shape' && part.borderWidth ? `${clamp(part.borderWidth, 0, 12)}px solid ${part.borderColor ?? '#ffffff'}` : undefined, fontFamily: part.fontFamily?.trim() || undefined, fontStyle: part.italic ? 'italic' : 'normal', letterSpacing: `${clamp(part.letterSpacing ?? 0, -5, 30)}px`, textTransform: part.textTransform ?? 'none', textShadow: part.shadowEnabled ? `0 2px 8px ${hexToRgba(part.shadowColor ?? '#000000', 0.6)}` : undefined,
+          display: 'flex', alignItems: part.type === 'bar' ? 'stretch' : part.verticalAlign === 'top' ? 'flex-start' : part.verticalAlign === 'bottom' ? 'flex-end' : 'center', justifyContent: part.align === 'center' ? 'center' : part.align === 'right' ? 'flex-end' : 'flex-start',
+        }
+        const partLabel = part.type === 'title' ? (source.widgetTitle || 'META DA LIVE')
+          : part.type === 'subtitle' ? (source.widgetText || 'Rumo à próxima meta')
+          : part.type === 'current' ? (source.widgetValue ?? '68')
+          : part.type === 'separator' ? (part.label || '/')
+          : part.type === 'target' ? (source.widgetTarget ?? '100')
+          : part.type === 'percent' ? `${Math.round(progress)}%`
+          : part.type === 'footer' ? (part.label && part.label !== 'Texto auxiliar' ? part.label : (progress >= 100 ? 'Meta alcançada!' : `${Math.max(0, targetValue - currentValue)} para alcançar a meta`))
+          : part.type === 'custom-text' ? (part.label || 'Novo texto')
+          : part.type === 'icon' ? (part.label || '♥') : ''
+        return <div key={part.id} className={`goal-free-part goal-free-part-${part.type} ${editorMode && source.goalPartEditMode && selectedGoalPartId === part.id ? 'goal-free-part-selected' : ''}`} style={partStyle}>
+          {part.type === 'bar' ? <span className="goal-free-track" style={{ borderRadius: `${clamp(part.radius ?? 4, 0, 50)}px`, background: source.widgetTrackColor ?? '#292b35' }}><span style={{ width: `${progress}%`, background: source.widgetFillColor ?? source.widgetAccent ?? '#8d85ff', borderRadius: `${clamp(part.radius ?? 4, 0, 50)}px` }} /></span>
+            : part.type === 'image' ? (part.src && isSafeImageSource(part.src) ? <img src={part.src} alt={part.label || 'Imagem da barra de meta'} draggable={false} style={{ width: '100%', height: '100%', objectFit: part.objectFit ?? 'contain', pointerEvents: 'none' }} /> : <span className="goal-part-image-placeholder">Escolher imagem</span>)
+            : part.type === 'shape' ? <span aria-hidden="true" style={{ display: 'block', width: '100%', height: '100%', background: part.gradientEnabled ? `linear-gradient(${clamp(part.gradientAngle ?? 135, 0, 360)}deg, ${part.color ?? '#7776ff'}, ${part.gradientColor ?? '#ffffff'})` : (part.color ?? '#7776ff'), border: `${clamp(part.borderWidth ?? 0, 0, 12)}px solid ${part.borderColor ?? '#ffffff'}`, borderRadius: part.shapeKind === 'circle' ? '50%' : part.shapeKind === 'pill' ? '999px' : `${clamp(part.radius ?? 0, 0, 50)}px`, boxSizing: 'border-box' }} />
+            : partLabel}
+        </div>
+      })}
+    </div> : <>
       {showHeader && <div className="widget-header"><strong>{source.widgetTitle || 'META DA LIVE'}</strong></div>}
       {source.widgetText && <p className="widget-muted-line">{source.widgetText}</p>}
       <div className="goal-numbers"><strong>{source.widgetValue ?? '68'}</strong><span>/ {source.widgetTarget ?? '100'}</span><b>{Math.round(progress)}%</b></div>
       <div className="goal-track"><span style={{ width: `${progress}%` }} /></div>
       <small className="goal-footnote">{progress >= 100 ? 'Meta alcançada!' : `${Math.max(0, targetValue - currentValue)} para alcançar a meta`}</small>
-    </>}
+    </>)}
 
     {kind === 'latest' && <>
       <div className="latest-icon">☆</div><div className="latest-copy"><span className="widget-kicker">{source.widgetTitle || 'ÚLTIMO SEGUIDOR'}</span><strong>{source.widgetText || 'pixelrider'}</strong></div>
@@ -1263,11 +1606,12 @@ function WidgetContent({ source, testToken = 0 }: { source: SceneSource; testTok
 
     {kind === 'socials' && <>
       {showHeader && source.widgetTitle && <div className="widget-header"><strong>{source.widgetTitle}</strong><span className="widget-header-pill">PERFIS</span></div>}
-      <div className="social-list">{(lines.length ? lines : ['Twitch  @seucanal', 'Instagram  @seuperfil', 'YouTube  @seucanal']).map((line, index) => {
-        const separator = line.search(/[·|]/)
-        const label = separator >= 0 ? line.slice(0, separator).trim() : line.split(/\s+/)[0]
-        const account = separator >= 0 ? line.slice(separator + 1).trim() : line.slice(label.length).trim()
-        return <div className="social-item" key={`${line}-${index}`}><span>{['T', '◎', '▶', '♪'][index % 4]}</span><strong>{label}</strong><small>{account || '@seuperfil'}</small></div>
+      <div className="social-list">{getSocialProfiles(source).map((profile) => {
+        const logo = profile.logoSrc || profile.logoUrl || ''
+        return <div className="social-item" key={profile.id}>
+          <span className="social-logo-box" style={{ color: profile.color ?? accent, borderColor: `${profile.color ?? accent}66` }}>{logo && isSafeImageSource(logo) ? <img className="social-logo-image" src={logo} alt={`${profile.platform} logo`} draggable={false} /> : socialGlyph(profile.platform)}</span>
+          <strong>{profile.platform}</strong><small>{profile.account}</small>
+        </div>
       })}</div>
     </>}
 
@@ -1584,10 +1928,10 @@ function VideoSourceControls({ source, onChange, onAddClips }: { source: SceneSo
 
 
 const WIDGET_STYLE_KEYS = [
-  'widgetTheme', 'widgetAccent', 'widgetShowHeader', 'widgetCompact', 'widgetBackgroundColor',
+  'widgetTheme', 'widgetVariant', 'widgetAccent', 'widgetShowHeader', 'widgetCompact', 'widgetBackgroundColor',
   'widgetBackgroundOpacity', 'widgetTextColor', 'widgetTitleColor', 'widgetBorderColor',
   'widgetBorderWidth', 'widgetRadius', 'widgetPadding', 'widgetGap', 'widgetFontFamily',
-  'widgetFontUrl', 'widgetShowIcon', 'widgetAnimation', 'widgetCustomCss', 'widgetShowBackground',
+  'widgetFontUrl', 'widgetShowIcon', 'widgetAnimation', 'widgetShowBackground',
   'widgetShowBorder', 'widgetShowShadow', 'widgetBackdropBlur', 'widgetFontSize', 'widgetFontWeight',
   'widgetLineHeight', 'widgetLetterSpacing', 'widgetTitleSize', 'widgetTitleLetterSpacing', 'widgetTextAlign',
   'widgetBackgroundImage', 'widgetBackgroundImageFit', 'widgetBackgroundImageOpacity', 'widgetBackgroundImagePosition',
@@ -1597,7 +1941,7 @@ const WIDGET_STYLE_KEYS = [
   'chatUsernameColorMode', 'chatUsernameColor', 'chatNameColors', 'chatBubbleColors', 'chatLayout', 'chatUsernamePill',
   'chatUsernamePillColor', 'chatUsernamePillOpacity', 'chatUsernamePillRadius', 'chatUsernamePillPaddingX', 'chatUsernamePillPaddingY', 'chatUsernamePillBorderColor', 'chatUsernamePillBorderWidth', 'chatBubbleShadow', 'chatUsernameFontFamily', 'chatMessageFontFamily', 'chatUsernameFontWeight', 'chatMessageLineHeight', 'chatMessageColor', 'chatTimestampColor',
   'chatUsernameFontSize', 'chatMessageFontSize', 'chatLineGap', 'chatShowInput', 'chatShowTimestamp',
-  'chatTextShadow', 'chatShowBadges', 'clockShowDate', 'clockShowSeconds', 'clock24h', 'clockDateFormat',
+  'chatTextShadow', 'chatShowBadges', 'chatUsernamePlacement', 'socialProfiles', 'goalFreeLayout', 'goalPartEditMode', 'goalParts', 'frameOverlayImage', 'clockShowDate', 'clockShowSeconds', 'clock24h', 'clockDateFormat',
   'clockColor', 'clockDateColor', 'clockTextShadow', 'widgetTitle', 'widgetText', 'widgetValue', 'widgetTarget', 'widgetItems', 'widgetMaxItems',
 ] as const
 
@@ -1627,8 +1971,10 @@ function Editor() {
   const [project, setProject] = useState<Project>(() => readProject())
   const projectRef = useRef(project)
   const projectRelaySocketRef = useRef<WebSocket | null>(null)
+  const relayUploadedAssetRefsRef = useRef<Set<string>>(new Set())
+  const relayPendingAssetUploadsRef = useRef<Map<string, Promise<boolean>>>(new Map())
   projectRef.current = project
-  const [selectedSourceId, setSelectedSourceId] = useState<string | null>('source-title')
+  const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null)
   const [sourceMenuOpen, setSourceMenuOpen] = useState(false)
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('layers')
   const [elementSection, setElementSection] = useState<ElementSection>('content')
@@ -1639,9 +1985,17 @@ function Editor() {
   const [showPackMenu, setShowPackMenu] = useState(false)
   const [alertTestTokens, setAlertTestTokens] = useState<Record<string, number>>({})
   const [message, setMessage] = useState('')
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'editing' | 'error'>('saved')
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
+  const [relayStatus, setRelayStatus] = useState<'connecting' | 'connected' | 'offline' | 'external'>('connecting')
+  const [showCompositionGuides, setShowCompositionGuides] = useState(false)
+  const [showSafeArea, setShowSafeArea] = useState(false)
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
   const [cameraError, setCameraError] = useState('')
   const [interaction, setInteraction] = useState<Interaction | null>(null)
+  const [selectedGoalPartId, setSelectedGoalPartId] = useState<string | null>(null)
+  const [pendingGoalPartImageId, setPendingGoalPartImageId] = useState<string | null>(null)
+  const [frameOverlayUrlDraft, setFrameOverlayUrlDraft] = useState('')
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [openSceneMenuId, setOpenSceneMenuId] = useState<string | null>(null)
   const [canUndo, setCanUndo] = useState(false)
@@ -1659,6 +2013,29 @@ function Editor() {
   const importInputRef = useRef<HTMLInputElement>(null)
   const widgetStyleInputRef = useRef<HTMLInputElement>(null)
   const widgetBackgroundInputRef = useRef<HTMLInputElement>(null)
+  const frameOverlayInputRef = useRef<HTMLInputElement>(null)
+  const goalPartImageInputRef = useRef<HTMLInputElement>(null)
+  const animatedThemeInputRef = useRef<HTMLInputElement>(null)
+  const slideshowInputRef = useRef<HTMLInputElement>(null)
+  const slideshowImportModeRef = useRef<'append' | 'replace'>('append')
+  const slideshowTargetSceneRef = useRef<string | null>(null)
+
+  // O evento nativo `cancel` não está exposto como prop JSX em algumas versões dos tipos React.
+  // Registramos o listener diretamente no input para limpar o destino se o seletor de arquivos for cancelado.
+  useEffect(() => {
+    const videoInput = videoInputRef.current
+    const backgroundInput = backgroundVideoInputRef.current
+    const clearVideoTarget = () => { videoPlaylistTargetRef.current = null }
+    const clearBackgroundTarget = () => { backgroundPlaylistAppendTargetRef.current = null }
+
+    videoInput?.addEventListener('cancel', clearVideoTarget)
+    backgroundInput?.addEventListener('cancel', clearBackgroundTarget)
+
+    return () => {
+      videoInput?.removeEventListener('cancel', clearVideoTarget)
+      backgroundInput?.removeEventListener('cancel', clearBackgroundTarget)
+    }
+  }, [])
 
   const activeScene = useMemo(
     () => project.scenes.find((scene) => scene.id === project.activeSceneId) ?? project.scenes[0],
@@ -1667,43 +2044,75 @@ function Editor() {
   const selectedSource = activeScene?.sources.find((source) => source.id === selectedSourceId) ?? null
 
   useEffect(() => {
+    if (!selectedGoalPartId) return
+    const isSelectedGoal = selectedSource?.type === 'widget' && selectedSource.widgetKind === 'goal' && selectedSource.goalFreeLayout === true
+    const goalParts = selectedSource && Array.isArray(selectedSource.goalParts) ? selectedSource.goalParts : []
+    if (!isSelectedGoal || !goalParts.some((part) => part.id === selectedGoalPartId)) setSelectedGoalPartId(null)
+  }, [selectedSource?.id, selectedSource?.type, selectedSource?.widgetKind, selectedSource?.goalFreeLayout, selectedSource?.goalParts, selectedGoalPartId])
+
+  useEffect(() => {
     setWidgetBackgroundUrlDraft(selectedSource?.type === 'widget' && selectedSource.widgetBackgroundImage?.startsWith('http') ? selectedSource.widgetBackgroundImage : '')
   }, [selectedSource?.id, selectedSource?.widgetBackgroundImage])
 
   useEffect(() => {
+    setFrameOverlayUrlDraft(selectedSource?.type === 'widget' && selectedSource.widgetKind === 'webcam-frame' && selectedSource.frameOverlayImage?.startsWith('http') ? selectedSource.frameOverlayImage : '')
+  }, [selectedSource?.id, selectedSource?.frameOverlayImage])
+
+  useEffect(() => {
     // Evita gravar no localStorage a cada movimento do mouse enquanto o usuário arrasta.
-    if (interaction) return
-    if (!persistProject(project)) {
+    if (interaction) {
+      setSaveStatus('editing')
+      return
+    }
+    if (persistProject(project)) {
+      setSaveStatus('saved')
+      setLastSavedAt(new Date())
+    } else {
+      setSaveStatus('error')
       setMessage('O projeto excede o limite seguro de armazenamento deste navegador. Exporte o JSON antes de adicionar mais imagens ou remova assets grandes.')
     }
   }, [project, interaction])
 
   useEffect(() => {
     const isLoopback = ['localhost', '127.0.0.1'].includes(window.location.hostname) && window.location.protocol === 'http:'
-    if (!isLoopback) return
+    if (!isLoopback) {
+      setRelayStatus('external')
+      return
+    }
+    setRelayStatus('connecting')
     let disposed = false
     let socket: WebSocket | null = null
     let retryTimer: number | undefined
     const publishCurrentProject = () => {
       if (!socket || socket.readyState !== WebSocket.OPEN || interaction) return
-      try {
-        socket.send(JSON.stringify({ type: 'project-sync', action: 'publish', captureKey: 'webcam-overlay-project-sync', project: projectRef.current }))
-      } catch {
-        setMessage('A sincronização local com o OBS falhou. Confira se o relay continua ativo.')
-      }
+      relayUploadedAssetRefsRef.current.clear()
+      void prepareProjectForRelay(projectRef.current, relayUploadedAssetRefsRef.current, relayPendingAssetUploadsRef.current).then((relayProject) => {
+        if (!socket || socket.readyState !== WebSocket.OPEN || disposed) return
+        socket.send(JSON.stringify({ type: 'project-sync', action: 'publish', captureKey: 'webcam-overlay-project-sync', project: relayProject }))
+      }).catch((error: unknown) => {
+        setMessage(`A sincronização local com o OBS falhou: ${error instanceof Error ? error.message : 'erro ao preparar mídia'}`)
+      })
     }
     const connect = () => {
       if (disposed) return
+      setRelayStatus('connecting')
       try {
         socket = new WebSocket('ws://127.0.0.1:4174')
         projectRelaySocketRef.current = socket
-        socket.onopen = publishCurrentProject
+        socket.onopen = () => {
+          setRelayStatus('connected')
+          publishCurrentProject()
+        }
         socket.onclose = () => {
           if (projectRelaySocketRef.current === socket) projectRelaySocketRef.current = null
-          if (!disposed) retryTimer = window.setTimeout(connect, 1500)
+          if (!disposed) {
+            setRelayStatus('offline')
+            retryTimer = window.setTimeout(connect, 1500)
+          }
         }
-        socket.onerror = () => { /* onclose agenda a reconexão */ }
+        socket.onerror = () => setRelayStatus('offline')
       } catch {
+        setRelayStatus('offline')
         if (!disposed) retryTimer = window.setTimeout(connect, 1500)
       }
     }
@@ -1721,11 +2130,12 @@ function Editor() {
     const timeout = window.setTimeout(() => {
       const socket = projectRelaySocketRef.current
       if (!socket || socket.readyState !== WebSocket.OPEN) return
-      try {
-        socket.send(JSON.stringify({ type: 'project-sync', action: 'publish', captureKey: 'webcam-overlay-project-sync', project }))
-      } catch {
-        setMessage('Não foi possível atualizar o projeto na Browser Source do OBS.')
-      }
+      void prepareProjectForRelay(project, relayUploadedAssetRefsRef.current, relayPendingAssetUploadsRef.current).then((relayProject) => {
+        if (socket.readyState !== WebSocket.OPEN) return
+        socket.send(JSON.stringify({ type: 'project-sync', action: 'publish', captureKey: 'webcam-overlay-project-sync', project: relayProject }))
+      }).catch((error: unknown) => {
+        setMessage(`Não foi possível atualizar o projeto na Browser Source do OBS: ${error instanceof Error ? error.message : 'erro ao preparar mídia'}`)
+      })
     }, 120)
     return () => window.clearTimeout(timeout)
   }, [project, interaction])
@@ -1801,6 +2211,123 @@ function Editor() {
     }))
   }
 
+  function updateGoalPart(partId: string, changes: Partial<GoalPart>) {
+    if (!selectedSource || selectedSource.type !== 'widget' || selectedSource.widgetKind !== 'goal') return
+    const parts = Array.isArray(selectedSource.goalParts) ? selectedSource.goalParts : createDefaultGoalParts()
+    updateSelected({ goalParts: parts.map((part) => part.id === partId ? { ...part, ...changes } : part) })
+  }
+
+  function addGoalPart(type: GoalPartKind) {
+    if (!selectedSource || selectedSource.type !== 'widget' || selectedSource.widgetKind !== 'goal') return
+    const parts = Array.isArray(selectedSource.goalParts) ? selectedSource.goalParts : createDefaultGoalParts()
+    if (parts.length >= 100) { setMessage('Esta barra já tem 100 partes. Remova uma parte antes de adicionar outra.'); return }
+    const id = `goal-part-${Date.now().toString(36)}`
+    const labels: Record<GoalPartKind, string> = { title: 'Título', subtitle: 'Descrição', current: 'Valor atual', separator: '/', target: 'Valor da meta', percent: 'Percentual', bar: 'Barra de progresso', footer: 'Texto auxiliar', 'custom-text': 'Novo texto', icon: '♥', shape: 'Forma', image: 'Imagem' }
+    const part: GoalPart = { id, type, label: labels[type], visible: true, x: type === 'bar' ? 10 : 32, y: type === 'bar' ? 58 : 35, w: type === 'bar' ? 80 : type === 'image' || type === 'shape' ? 20 : 35, h: type === 'bar' ? 14 : type === 'image' || type === 'shape' ? 22 : 18, fontSize: 13, color: type === 'shape' ? '#7776ff' : '#ffffff', fontWeight: 700, align: 'left', radius: 4, padding: 0, shapeKind: 'rectangle', opacity: 1, rotation: 0, objectFit: 'contain' }
+    updateSelected({ goalFreeLayout: true, goalPartEditMode: true, goalParts: [...parts, part] })
+    setSelectedGoalPartId(id)
+    if (type === 'image') { setPendingGoalPartImageId(id); goalPartImageInputRef.current?.click() }
+  }
+
+  function removeGoalPart(partId: string) {
+    if (!selectedSource || selectedSource.type !== 'widget' || selectedSource.widgetKind !== 'goal') return
+    const parts = Array.isArray(selectedSource.goalParts) ? selectedSource.goalParts : createDefaultGoalParts()
+    const remaining = parts.filter((part) => part.id !== partId)
+    updateSelected({ goalParts: remaining })
+    if (selectedGoalPartId === partId) setSelectedGoalPartId(remaining[0]?.id ?? null)
+  }
+
+  function moveGoalPart(partId: string, direction: -1 | 1) {
+    if (!selectedSource || selectedSource.type !== 'widget' || selectedSource.widgetKind !== 'goal') return
+    const parts = [...(Array.isArray(selectedSource.goalParts) ? selectedSource.goalParts : createDefaultGoalParts())]
+    const index = parts.findIndex((part) => part.id === partId)
+    const destination = index + direction
+    if (index < 0 || destination < 0 || destination >= parts.length) return
+    const [part] = parts.splice(index, 1)
+    parts.splice(destination, 0, part)
+    updateSelected({ goalParts: parts })
+  }
+
+  function duplicateGoalPart(partId: string) {
+    if (!selectedSource || selectedSource.type !== 'widget' || selectedSource.widgetKind !== 'goal') return
+    const parts = [...(Array.isArray(selectedSource.goalParts) ? selectedSource.goalParts : createDefaultGoalParts())]
+    const original = parts.find((part) => part.id === partId)
+    if (!original || parts.length >= 100) { if (parts.length >= 100) setMessage('Esta barra já tem 100 partes. Remova uma parte antes de duplicar.'); return }
+    const copy: GoalPart = { ...original, id: `goal-part-${Date.now().toString(36)}`, label: `${original.label || original.type} cópia`, x: clamp(original.x + 2, 0, 100 - original.w), y: clamp(original.y + 2, 0, 100 - original.h) }
+    const index = parts.findIndex((part) => part.id === partId)
+    parts.splice(index + 1, 0, copy)
+    updateSelected({ goalParts: parts, goalFreeLayout: true, goalPartEditMode: true })
+    setSelectedGoalPartId(copy.id)
+  }
+
+  async function onGoalPartImageSelected(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget
+    const file = input.files?.[0]
+    input.value = ''
+    const partId = pendingGoalPartImageId
+    setPendingGoalPartImageId(null)
+    if (!file || !partId) return
+    if (!file.type.startsWith('image/')) { setMessage('Escolha um arquivo de imagem para usar na barra de meta.'); return }
+    if (file.size > MAX_IMAGE_BYTES) { setMessage('A imagem da barra deve ter até 1,5 MB.'); return }
+    try {
+      const src = await parseLocalImageData(file)
+      if (!isSafeImageSource(src)) throw new Error('Imagem inválida')
+      const activeSource = projectRef.current.scenes.find((scene) => scene.id === projectRef.current.activeSceneId)?.sources.find((source) => source.id === selectedSourceId)
+      if (!activeSource || activeSource.widgetKind !== 'goal') return
+      const parts = Array.isArray(activeSource.goalParts) ? activeSource.goalParts : createDefaultGoalParts()
+      const updatedParts = parts.map((part) => part.id === partId ? { ...part, src, label: file.name.slice(0, 120) } : part)
+      const candidateProject: Project = { ...projectRef.current, scenes: projectRef.current.scenes.map((scene) => scene.id !== projectRef.current.activeSceneId ? scene : { ...scene, sources: scene.sources.map((item) => item.id === activeSource.id ? { ...item, goalParts: updatedParts, goalFreeLayout: true } : item) }) }
+      if (JSON.stringify(candidateProject).length > MAX_LOCAL_PROJECT_CHARS) { setMessage('Esta imagem ultrapassaria o limite de armazenamento local. Use uma imagem menor ou remova assets antigos.'); return }
+      setProject(candidateProject)
+      setMessage(`Imagem “${file.name}” adicionada à barra de meta.`)
+    } catch {
+      setMessage('Não foi possível importar essa imagem para a barra de meta.')
+    }
+  }
+
+  function updateChatNamedColor(field: 'name' | 'bubble', username: string, color: string) {
+    if (!selectedSource) return
+    const property = field === 'name' ? 'chatNameColors' : 'chatBubbleColors'
+    const map = parseNamedColors(selectedSource[property])
+    map[username.toLowerCase()] = color
+    const visibleNames = Object.keys(map)
+    const encoded = visibleNames.map((name) => `${name}=${map[name]}`).join('\n')
+    updateSelected({ [property]: encoded } as Partial<SceneSource>)
+  }
+
+  function updateSocialProfiles(next: SocialProfile[]) {
+    if (!selectedSource || selectedSource.type !== 'widget' || selectedSource.widgetKind !== 'socials') return
+    const clean = next.slice(0, 30).map((profile, index) => ({ ...profile, id: profile.id || `social-${index + 1}`, platform: profile.platform.slice(0, 60), account: profile.account.slice(0, 100) }))
+    updateSelected({ socialProfiles: clean, widgetItems: clean.map((profile) => `${profile.platform} · ${profile.account}`).join('\n') })
+  }
+
+  function updateSocialProfile(index: number, changes: Partial<SocialProfile>) {
+    if (!selectedSource || selectedSource.type !== 'widget' || selectedSource.widgetKind !== 'socials') return
+    const profiles = getSocialProfiles(selectedSource)
+    updateSocialProfiles(profiles.map((profile, profileIndex) => profileIndex === index ? { ...profile, ...changes } : profile))
+  }
+
+  function addSocialProfile() {
+    if (!selectedSource || selectedSource.type !== 'widget' || selectedSource.widgetKind !== 'socials') return
+    const profiles = getSocialProfiles(selectedSource)
+    updateSocialProfiles([...profiles, { id: `social-${Date.now().toString(36)}`, platform: 'Nova rede', account: '@seuperfil' }])
+  }
+
+  function removeSocialProfile(index: number) {
+    if (!selectedSource || selectedSource.type !== 'widget' || selectedSource.widgetKind !== 'socials') return
+    updateSocialProfiles(getSocialProfiles(selectedSource).filter((_, profileIndex) => profileIndex !== index))
+  }
+
+  function moveSocialProfile(index: number, direction: -1 | 1) {
+    if (!selectedSource || selectedSource.type !== 'widget' || selectedSource.widgetKind !== 'socials') return
+    const profiles = [...getSocialProfiles(selectedSource)]
+    const destination = index + direction
+    if (destination < 0 || destination >= profiles.length) return
+    const [moved] = profiles.splice(index, 1)
+    profiles.splice(destination, 0, moved)
+    updateSocialProfiles(profiles)
+  }
+
   function alignSelected(alignment: 'left' | 'center-x' | 'right' | 'top' | 'center-y' | 'bottom') {
     if (!selectedSource || selectedSource.locked) return
     const positions: Record<typeof alignment, Partial<SceneSource>> = {
@@ -1816,7 +2343,7 @@ function Editor() {
 
   function selectScene(scene: Scene) {
     setProject((current) => ({ ...current, activeSceneId: scene.id }))
-    setSelectedSourceId(scene.sources[0]?.id ?? null)
+    clearSelection('layers')
     setInspectorTab('layers')
     setElementSection('content')
     setInteraction(null)
@@ -1828,8 +2355,7 @@ function Editor() {
   function addScene() {
     const scene: Scene = { id: newId('scene'), name: `Cena ${project.scenes.length + 1}`, sources: [], background: { mode: 'transparent', color: '#171923', color2: '#28243c', angle: 135, imageFit: 'cover', imagePosition: 'center center', imageOpacity: 1, overlayColor: '#000000', overlayOpacity: 0 }, width: activeScene?.width ?? 1920, height: activeScene?.height ?? 1080 }
     setProject((current) => ({ ...current, scenes: [...current.scenes, scene], activeSceneId: scene.id }))
-    setSelectedSourceId(null)
-    setInspectorTab('layers')
+    clearSelection('layers')
     setElementSection('content')
     setInteraction(null)
     setSourceMenuOpen(false)
@@ -1922,7 +2448,7 @@ function Editor() {
     }
 
     setProject((current) => ({ ...current, scenes: [...current.scenes, ...additions], activeSceneId: additions[0].id }))
-    setSelectedSourceId(additions[0].sources[0]?.id ?? null)
+    clearSelection('layers')
     setShowPackMenu(false)
     setSourceMenuOpen(false)
     setMessage(`Kit adicionado com ${additions.length} cenas. Você pode editar todos os elementos.`)
@@ -1948,7 +2474,7 @@ function Editor() {
       background: scene.background ? { ...scene.background } : undefined,
     }
     setProject((current) => ({ ...current, scenes: [...current.scenes, copy], activeSceneId: copy.id }))
-    setSelectedSourceId(copy.sources[0]?.id ?? null)
+    clearSelection('layers')
     setInspectorTab('layers')
     setOpenSceneMenuId(null)
     setMessage('Cena duplicada.')
@@ -1963,7 +2489,7 @@ function Editor() {
     const remaining = project.scenes.filter((item) => item.id !== scene.id)
     const nextActive = scene.id === project.activeSceneId ? remaining[0] : activeScene
     setProject((current) => ({ ...current, scenes: remaining, activeSceneId: nextActive.id }))
-    setSelectedSourceId(nextActive.sources[0]?.id ?? null)
+    clearSelection('layers')
     setInspectorTab('layers')
   }
 
@@ -1991,8 +2517,8 @@ function Editor() {
       ...defaults[type],
     } as SceneSource)
     updateActiveScene((scene) => ({ ...scene, sources: [...scene.sources, source] }))
-    setSelectedSourceId(source.id)
-    setInspectorTab('element')
+    selectSource(source.id, 'element')
+    setElementSection('content')
     setElementSection('content')
     setSourceMenuOpen(false)
   }
@@ -2039,8 +2565,7 @@ function Editor() {
       ...(kind === 'clock' ? { clockShowDate: false, clockShowSeconds: true, clock24h: true, clockColor: '#ffffff', clockTextShadow: false, widgetFontSize: 48, widgetFontWeight: 800 } : {}),
     })
     updateActiveScene((scene) => ({ ...scene, sources: [...scene.sources, source] }))
-    setSelectedSourceId(source.id)
-    setInspectorTab('element')
+    selectSource(source.id, 'element')
     setElementSection('content')
     setSourceMenuOpen(false)
     setMessage(`${labels[kind]} adicionado. Os dados são exemplos editáveis.`)
@@ -2105,7 +2630,7 @@ function Editor() {
         return
       }
       setProject(nextProject)
-      if (currentProject.activeSceneId === targetSceneId && additions.length) { setSelectedSourceId(additions[additions.length - 1].id); setInspectorTab('element'); setElementSection('content') }
+      if (currentProject.activeSceneId === targetSceneId && additions.length) { selectSource(additions[additions.length - 1].id, 'element'); setElementSection('content') }
       const ignoredNote = ignoredCount ? ` ${ignoredCount} arquivo(s) sem suporte foram ignorados.` : ''
       setMessage(`${loaded.length} ${loaded.length === 1 ? 'elemento importado' : 'elementos importados'}. O posicionamento automático evitou sobreposições quando havia espaço.${ignoredNote}`)
     } catch {
@@ -2199,7 +2724,7 @@ function Editor() {
           id: newId('video-sequence'), type: 'video', name: `Sequência de vídeos (${importedClips.length} clipes)`, visible: true,
           x: 30, y: 30, w: 40, h: 24, src: importedClips[0].src, videoClips: importedClips,
           objectFit: 'contain', objectPosition: 'center center', radius: 6, rotation: 0, opacity: 1, shadow: false,
-          videoStart: 0, videoEnd: 0, videoTrimEnabled: false, videoLoop: scene.background?.videoLoop ?? true, videoMuted: scene.background?.videoMuted ?? true, videoVolume: scene.background?.videoVolume ?? 0.8, videoPlaybackRate: scene.background?.videoPlaybackRate ?? 1,
+          videoStart: 0, videoEnd: 0, videoTrimEnabled: false, videoLoop: targetScene.background?.videoLoop ?? true, videoMuted: targetScene.background?.videoMuted ?? true, videoVolume: targetScene.background?.videoVolume ?? 0.8, videoPlaybackRate: targetScene.background?.videoPlaybackRate ?? 1,
         }
         additions = [placeWithoutOverlap(targetScene.sources, base)]
       } else {
@@ -2233,8 +2758,7 @@ function Editor() {
       setProject(nextProject)
       const selectedId = appendTargetId ?? additions[0]?.id
       if (selectedId) {
-        setSelectedSourceId(selectedId)
-        setInspectorTab('element')
+        selectSource(selectedId, 'element')
         setElementSection('content')
       }
       const ignoredNote = ignoredCount ? ` ${ignoredCount} arquivo(s) sem suporte foram ignorados.` : ''
@@ -2272,6 +2796,64 @@ function Editor() {
       setMessage(`Imagem “${file.name}” definida como plano de fundo da cena.`)
     } catch {
       setMessage('Não foi possível importar essa imagem de fundo.')
+    }
+  }
+
+  async function onSlideshowImagesSelected(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget
+    const files = Array.from(input.files ?? [])
+    input.value = ''
+    if (!files.length) return
+    const mode = slideshowImportModeRef.current
+    const targetSceneId = slideshowTargetSceneRef.current ?? activeScene.id
+    slideshowTargetSceneRef.current = null
+    slideshowImportModeRef.current = 'append'
+    const supported = files.filter((file) => /^(image\/(png|jpeg|webp|gif|svg\+xml|avif))$/i.test(file.type) || /\.(png|jpe?g|webp|gif|svg|avif)$/i.test(file.name))
+    if (!supported.length) { setMessage('Escolha imagens PNG, JPG, WebP, GIF, SVG ou AVIF.'); return }
+    const tooLarge = supported.find((file) => file.size > MAX_IMAGE_BYTES)
+    if (tooLarge) { setMessage(`“${tooLarge.name}” ultrapassa 1,5 MB. Comprima ou redimensione essa imagem antes de importá-la.`); return }
+    const created: string[] = []
+    try {
+      setMessage(`Importando ${supported.length} imagem(ns) para o carrossel…`)
+      const imported: SlideshowImage[] = []
+      for (const file of supported) {
+        const src = await saveVideoBlob(file, `Carrossel · ${file.name}`)
+        created.push(src)
+        imported.push({ id: newId('slide'), name: file.name.slice(0, 180), src })
+      }
+      const current = projectRef.current
+      const target = current.scenes.find((scene) => scene.id === targetSceneId)
+      if (!target) throw new Error('A cena de destino não existe mais.')
+      const existingBackground = target.background
+      const existingImages = mode === 'append' && existingBackground?.mode === 'slideshow' ? (existingBackground.slideshowImages ?? []) : []
+      const nextImages = [...existingImages, ...imported]
+      const background: BackgroundConfig = {
+        ...(existingBackground ?? { color: '#10131b', color2: '#24233b', angle: 135 }),
+        mode: 'slideshow', slideshowImages: nextImages,
+        slideshowIntervalSeconds: existingBackground?.slideshowIntervalSeconds ?? 10,
+        slideshowTransition: existingBackground?.slideshowTransition ?? 'fade',
+        slideshowTransitionDuration: existingBackground?.slideshowTransitionDuration ?? 1.2,
+        slideshowLoop: existingBackground?.slideshowLoop ?? true,
+        slideshowShuffle: existingBackground?.slideshowShuffle ?? false,
+        slideshowFit: existingBackground?.slideshowFit ?? 'cover',
+        slideshowPosition: existingBackground?.slideshowPosition ?? 'center center',
+        slideshowOpacity: existingBackground?.slideshowOpacity ?? 1,
+        slideshowBrightness: existingBackground?.slideshowBrightness ?? 1,
+        slideshowContrast: existingBackground?.slideshowContrast ?? 1,
+        slideshowSaturation: existingBackground?.slideshowSaturation ?? 1,
+        slideshowHueRotate: existingBackground?.slideshowHueRotate ?? 0,
+        slideshowBlur: existingBackground?.slideshowBlur ?? 0,
+        slideshowZoom: existingBackground?.slideshowZoom ?? 1,
+        slideshowKenBurns: existingBackground?.slideshowKenBurns ?? false,
+        slideshowOverlayColor: existingBackground?.slideshowOverlayColor ?? '#000000',
+        slideshowOverlayOpacity: existingBackground?.slideshowOverlayOpacity ?? 0,
+      }
+      setProject((previous) => ({ ...previous, scenes: previous.scenes.map((scene) => scene.id === targetSceneId ? { ...scene, background } : scene) }))
+      setInspectorTab('background')
+      setMessage(`${supported.length} imagem(ns) ${mode === 'append' && existingImages.length ? 'adicionada(s)' : 'importada(s)'} ao carrossel. Total: ${nextImages.length}. A quantidade depende do armazenamento disponível no navegador.`)
+    } catch (error) {
+      await Promise.allSettled(created.map(deleteVideoBlob))
+      setMessage(`Não foi possível importar as imagens: ${error instanceof Error ? error.message : 'armazenamento indisponível'}`)
     }
   }
 
@@ -2333,6 +2915,99 @@ function Editor() {
     } catch (error) {
       setMessage(`Não foi possível importar o vídeo de fundo: ${error instanceof Error ? error.message : 'erro de armazenamento'}`)
     }
+  }
+
+  function exportAnimatedTheme() {
+    const background = activeScene.background ?? { mode: 'animated' as const, color: '#17142b', color2: '#0b111d', angle: 135 }
+    const animatedThemeFile = {
+      format: 'webcam-overlay-animated-theme',
+      version: 1,
+      name: `${activeScene.name} · Tema animado`,
+      settings: {
+        animatedTheme: background.animatedTheme ?? 'aurora',
+        color: background.color ?? '#17142b',
+        color2: background.color2 ?? '#0b111d',
+        angle: background.angle ?? 135,
+        animatedAccent: background.animatedAccent ?? '#8d85ff',
+        animatedSpeed: background.animatedSpeed ?? 1,
+        animatedIntensity: background.animatedIntensity ?? 0.75,
+        animatedBlur: background.animatedBlur ?? 26, animatedGlow: background.animatedGlow ?? 0.7,
+        animatedGrain: background.animatedGrain ?? 0.08, animatedVignette: background.animatedVignette ?? 0.25,
+        animatedDensity: background.animatedDensity ?? 1, animatedScale: background.animatedScale ?? 1,
+        animatedDirection: background.animatedDirection ?? 'alternate', animatedLayers: background.animatedLayers ?? 'balanced',
+        animatedBrightness: background.animatedBrightness ?? 1, animatedContrast: background.animatedContrast ?? 1,
+        animatedSaturation: background.animatedSaturation ?? 1, animatedHueRotate: background.animatedHueRotate ?? 0, animatedBlendMode: background.animatedBlendMode ?? 'normal',
+      },
+    }
+    const blob = new Blob([JSON.stringify(animatedThemeFile, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `${safeFileName(activeScene.name)}-tema-animado.json`
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    setMessage('Tema animado exportado. Você pode importá-lo em outra cena ou projeto Webcam_overlay.')
+  }
+
+  function importAnimatedTheme(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget
+    const file = input.files?.[0]
+    input.value = ''
+    if (!file) return
+    if (file.size > 512_000) {
+      setMessage('O arquivo de tema deve ter no máximo 500 KB.')
+      return
+    }
+    if (!file.name.toLowerCase().endsWith('.json')) {
+      setMessage('Importe um arquivo de tema animado JSON exportado pelo Webcam_overlay. Para mídia animada, use as opções GIF/WebP ou vídeo logo abaixo.')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result)) as { format?: unknown; version?: unknown; name?: unknown; settings?: unknown }
+        if (parsed.format !== 'webcam-overlay-animated-theme' || parsed.version !== 1 || !parsed.settings || typeof parsed.settings !== 'object' || Array.isArray(parsed.settings)) {
+          throw new Error('formato inválido')
+        }
+        const settings = parsed.settings as Record<string, unknown>
+        const allowedThemes = ['custom', 'aurora', 'stars', 'cyber-grid', 'waves', 'gradient-flow', 'matrix-rain', 'liquid-lava', 'bokeh', 'sunset-clouds', 'electric-pulse', 'particles', 'laser-grid', 'deep-ocean', 'prism'] as const
+        type ImportedThemeName = typeof allowedThemes[number]
+        const importedTheme = allowedThemes.includes(settings.animatedTheme as ImportedThemeName)
+          ? settings.animatedTheme as ImportedThemeName
+          : 'aurora'
+        const safeColor = (value: unknown, fallback: string) => typeof value === 'string' && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim()) ? value.trim() : fallback
+        const numberSetting = (value: unknown, fallback: number, min: number, max: number) => typeof value === 'number' && Number.isFinite(value) ? clamp(value, min, max) : fallback
+        const current = activeScene.background ?? { mode: 'animated' as const, color: '#17142b', color2: '#0b111d', angle: 135 }
+        updateScene({ background: {
+          ...current,
+          mode: 'animated',
+          animatedTheme: importedTheme,
+          color: safeColor(settings.color, '#17142b'),
+          color2: safeColor(settings.color2, '#0b111d'),
+          animatedAccent: safeColor(settings.animatedAccent, '#8d85ff'),
+          angle: numberSetting(settings.angle, 135, 0, 360),
+          animatedSpeed: numberSetting(settings.animatedSpeed, 1, 0.25, 3),
+          animatedIntensity: numberSetting(settings.animatedIntensity, 0.75, 0, 1),
+          animatedBlur: numberSetting(settings.animatedBlur, 26, 0, 80), animatedGlow: numberSetting(settings.animatedGlow, 0.7, 0, 1),
+          animatedGrain: numberSetting(settings.animatedGrain, 0.08, 0, 0.3), animatedVignette: numberSetting(settings.animatedVignette, 0.25, 0, 1),
+          animatedDensity: numberSetting(settings.animatedDensity, 1, 0.25, 3), animatedScale: numberSetting(settings.animatedScale, 1, 0.5, 2),
+          animatedDirection: ['normal', 'reverse', 'alternate'].includes(String(settings.animatedDirection)) ? settings.animatedDirection as BackgroundConfig['animatedDirection'] : 'alternate',
+          animatedLayers: ['soft', 'balanced', 'rich'].includes(String(settings.animatedLayers)) ? settings.animatedLayers as BackgroundConfig['animatedLayers'] : 'balanced',
+          animatedBrightness: numberSetting(settings.animatedBrightness, 1, 0, 2), animatedContrast: numberSetting(settings.animatedContrast, 1, 0, 2),
+          animatedSaturation: numberSetting(settings.animatedSaturation, 1, 0, 3), animatedHueRotate: numberSetting(settings.animatedHueRotate, 0, 0, 360),
+          animatedBlendMode: ['normal', 'screen', 'multiply', 'overlay', 'lighten'].includes(String(settings.animatedBlendMode)) ? settings.animatedBlendMode as BackgroundConfig['animatedBlendMode'] : 'normal',
+        } })
+        setInspectorTab('background')
+        const themeName = typeof parsed.name === 'string' ? parsed.name.slice(0, 80) : importedTheme
+        setMessage(`Tema animado “${themeName}” importado. As cores, velocidade e intensidade foram aplicadas à cena atual.`)
+      } catch {
+        setMessage('Não foi possível importar o tema. Use um JSON exportado pela opção “Exportar tema animado” do Webcam_overlay.')
+      }
+    }
+    reader.onerror = () => setMessage('Não foi possível ler o arquivo de tema selecionado.')
+    reader.readAsText(file)
   }
 
   function applyBackgroundVideoUrl() {
@@ -2426,6 +3101,35 @@ function Editor() {
     }
   }
 
+  function applyFrameOverlayUrl() {
+    if (!selectedSource || selectedSource.type !== 'widget' || selectedSource.widgetKind !== 'webcam-frame') return
+    const candidate = frameOverlayUrlDraft.trim()
+    if (candidate && (!isSafeImageSource(candidate) || candidate.startsWith('data:'))) {
+      setMessage('Informe uma URL de imagem HTTP ou HTTPS válida.')
+      return
+    }
+    updateSelected({ frameOverlayImage: candidate || undefined })
+    setMessage(candidate ? 'Imagem da moldura aplicada.' : 'Imagem personalizada da moldura removida.')
+  }
+
+  async function onFrameOverlaySelected(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget
+    const file = input.files?.[0]
+    input.value = ''
+    if (!file || !selectedSource || selectedSource.type !== 'widget' || selectedSource.widgetKind !== 'webcam-frame') return
+    if (!file.type.startsWith('image/')) { setMessage('Escolha uma imagem transparente PNG, WebP, SVG ou outro formato aceito pelo navegador.'); return }
+    if (file.size > MAX_IMAGE_BYTES) { setMessage('A moldura importada deve ter até 1,5 MB.'); return }
+    try {
+      const src = await parseLocalImageData(file)
+      if (!isSafeImageSource(src)) throw new Error('Imagem inválida')
+      updateSelected({ frameOverlayImage: src })
+      setFrameOverlayUrlDraft('')
+      setMessage(`Moldura “${file.name}” importada.`)
+    } catch {
+      setMessage('Não foi possível importar essa imagem de moldura.')
+    }
+  }
+
   function importWidgetStyle(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0]
     event.currentTarget.value = ''
@@ -2448,13 +3152,45 @@ function Editor() {
           if (!(key in incoming)) continue
           const value = incoming[key]
           if (typeof value === 'string') {
-            if (key === 'widgetBackgroundImage' && value && !isSafeImageSource(value)) continue
-            if (key === 'widgetCustomCss' && value.length > 1200) continue
-            ;(updates as Record<string, unknown>)[key] = value.slice(0, key === 'widgetBackgroundImage' ? MAX_LOCAL_PROJECT_CHARS : 3000)
+            if (['widgetBackgroundImage', 'frameOverlayImage'].includes(key) && value && !isSafeImageSource(value)) continue
+            ;(updates as Record<string, unknown>)[key] = value.slice(0, ['widgetBackgroundImage', 'frameOverlayImage'].includes(key) ? MAX_LOCAL_PROJECT_CHARS : 3000)
           } else if (typeof value === 'number' && Number.isFinite(value)) {
             ;(updates as Record<string, unknown>)[key] = value
           } else if (typeof value === 'boolean') {
             ;(updates as Record<string, unknown>)[key] = value
+          } else if (Array.isArray(value) && key === 'socialProfiles') {
+            const profiles = value.filter((item): item is SocialProfile => !!item && typeof item === 'object' && typeof (item as SocialProfile).platform === 'string' && typeof (item as SocialProfile).account === 'string').slice(0, 30).map((item, index) => ({
+              id: typeof item.id === 'string' ? item.id.slice(0, 100) : `social-import-${index + 1}`,
+              platform: item.platform.slice(0, 60), account: item.account.slice(0, 100),
+              ...(typeof item.logoSrc === 'string' && item.logoSrc.length <= MAX_IMAGE_BYTES * 1.5 && isSafeImageSource(item.logoSrc) ? { logoSrc: item.logoSrc } : {}),
+              ...(typeof item.logoUrl === 'string' && /^https?:\/\//i.test(item.logoUrl) ? { logoUrl: item.logoUrl.slice(0, 1000) } : {}),
+              ...(typeof item.color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(item.color) ? { color: item.color } : {}),
+            }))
+            ;(updates as Record<string, unknown>)[key] = profiles
+          } else if (Array.isArray(value) && key === 'goalParts') {
+            const allowed: GoalPartKind[] = ['title', 'subtitle', 'current', 'separator', 'target', 'percent', 'bar', 'footer', 'custom-text', 'icon', 'shape', 'image']
+            const parts = value.filter((item): item is GoalPart => !!item && typeof item === 'object' && allowed.includes((item as GoalPart).type)).slice(0, 100).map((part, index) => ({
+              id: typeof part.id === 'string' ? part.id.slice(0, 80) : `goal-part-import-${index + 1}`,
+              type: part.type, label: typeof part.label === 'string' ? part.label.slice(0, 300) : '',
+              visible: part.visible !== false, x: clamp(Number(part.x) || 0, 0, 99), y: clamp(Number(part.y) || 0, 0, 99),
+              w: clamp(Number(part.w) || 10, 1, 100 - clamp(Number(part.x) || 0, 0, 99)), h: clamp(Number(part.h) || 10, 1, 100 - clamp(Number(part.y) || 0, 0, 99)),
+              ...(typeof part.color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(part.color) ? { color: part.color } : {}),
+              ...(Number.isFinite(part.fontSize) ? { fontSize: clamp(Number(part.fontSize), 6, 80) } : {}),
+              ...(Number.isFinite(part.fontWeight) ? { fontWeight: clamp(Number(part.fontWeight), 100, 900) } : {}),
+              ...(typeof part.align === 'string' && ['left','center','right'].includes(part.align) ? { align: part.align as GoalPart['align'] } : {}),
+              ...(typeof part.backgroundColor === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(part.backgroundColor) ? { backgroundColor: part.backgroundColor } : {}),
+              ...(Number.isFinite(part.radius) ? { radius: clamp(Number(part.radius), 0, 50) } : {}),
+              ...(Number.isFinite(part.padding) ? { padding: clamp(Number(part.padding), 0, 30) } : {}),
+              ...(typeof part.src === 'string' && part.src.length <= MAX_IMAGE_BYTES * 1.5 && isSafeImageSource(part.src) ? { src: part.src } : {}),
+              ...(typeof part.shapeKind === 'string' && ['rectangle','circle','pill'].includes(part.shapeKind) ? { shapeKind: part.shapeKind as GoalPart['shapeKind'] } : {}),
+              opacity: clamp(Number.isFinite(part.opacity) ? Number(part.opacity) : 1, 0, 1), rotation: clamp(Number.isFinite(part.rotation) ? Number(part.rotation) : 0, -180, 180),
+              borderWidth: clamp(Number.isFinite(part.borderWidth) ? Number(part.borderWidth) : 0, 0, 12),
+              ...(typeof part.borderColor === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(part.borderColor) ? { borderColor: part.borderColor } : {}),
+              ...(typeof part.fontFamily === 'string' ? { fontFamily: part.fontFamily.slice(0, 120) } : {}),
+              ...(typeof part.objectFit === 'string' && ['contain','cover','fill'].includes(part.objectFit) ? { objectFit: part.objectFit as GoalPart['objectFit'] } : {}),
+              ...(typeof part.verticalAlign === 'string' && ['top','center','bottom'].includes(part.verticalAlign) ? { verticalAlign: part.verticalAlign as GoalPart['verticalAlign'] } : {}), italic: part.italic === true, letterSpacing: clamp(Number.isFinite(part.letterSpacing) ? Number(part.letterSpacing) : 0, -5, 30), ...(typeof part.textTransform === 'string' && ['none','uppercase','lowercase','capitalize'].includes(part.textTransform) ? { textTransform: part.textTransform as GoalPart['textTransform'] } : {}), shadowEnabled: part.shadowEnabled === true, ...(typeof part.shadowColor === 'string' && /^#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?$/.test(part.shadowColor) ? { shadowColor: part.shadowColor } : {}), gradientEnabled: part.gradientEnabled === true, ...(typeof part.gradientColor === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(part.gradientColor) ? { gradientColor: part.gradientColor } : {}), gradientAngle: clamp(Number.isFinite(part.gradientAngle) ? Number(part.gradientAngle) : 135, 0, 360),
+            }))
+            ;(updates as Record<string, unknown>)[key] = parts
           }
         }
         updateSelected(updates)
@@ -2476,13 +3212,13 @@ function Editor() {
 
   function deleteSource(sourceId: string) {
     updateActiveScene((scene) => ({ ...scene, sources: scene.sources.filter((source) => source.id !== sourceId) }))
-    if (selectedSourceId === sourceId) { setSelectedSourceId(null); setInspectorTab('layers') }
+    if (selectedSourceId === sourceId) clearSelection('layers')
   }
 
   function duplicateSource(source: SceneSource) {
     const copy: SceneSource = placeWithoutOverlap(activeScene.sources, { ...source, id: newId('source'), name: `${source.name} (cópia)`.slice(0, 70), x: clamp(source.x + 3, 0, 100 - source.w), y: clamp(source.y + 3, 0, 100 - source.h) })
     updateActiveScene((scene) => ({ ...scene, sources: [...scene.sources, copy] }))
-    setSelectedSourceId(copy.id)
+    selectSource(copy.id, 'element')
     setInspectorTab('element')
     setElementSection('content')
     setMessage('Fonte duplicada.')
@@ -2499,8 +3235,7 @@ function Editor() {
       const editingText = Boolean(target && (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target.isContentEditable))
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
         event.preventDefault()
-        if (persistProject(project)) setMessage('Projeto salvo neste navegador.')
-        else setMessage('Não foi possível salvar: o projeto excede o limite seguro de armazenamento. Exporte o JSON ou remova imagens grandes.')
+        saveProject()
         return
       }
       if (editingText) return
@@ -2542,6 +3277,13 @@ function Editor() {
     return () => window.removeEventListener('keydown', handleShortcuts)
   }, [project, selectedSource, activeScene, selectedSourceId])
 
+  function toggleSourceLock(sourceId: string) {
+    updateActiveScene((scene) => ({
+      ...scene,
+      sources: scene.sources.map((source) => source.id === sourceId ? { ...source, locked: !source.locked } : source),
+    }))
+  }
+
   function moveLayer(sourceId: string, direction: -1 | 1) {
     updateActiveScene((scene) => {
       const index = scene.sources.findIndex((source) => source.id === sourceId)
@@ -2571,8 +3313,14 @@ function Editor() {
   }
 
   function saveProject() {
-    if (persistProject(project)) setMessage('Projeto salvo neste navegador.')
-    else setMessage('Não foi possível salvar: o projeto excede o limite seguro de armazenamento. Exporte o JSON ou remova imagens grandes.')
+    if (persistProject(project)) {
+      setSaveStatus('saved')
+      setLastSavedAt(new Date())
+      setMessage('Projeto salvo neste navegador.')
+    } else {
+      setSaveStatus('error')
+      setMessage('Não foi possível salvar: o projeto excede o limite seguro de armazenamento. Exporte o JSON ou remova imagens grandes.')
+    }
   }
 
   function undo() {
@@ -2581,8 +3329,7 @@ function Editor() {
     redoStackRef.current.push(project)
     historySnapshotRef.current = previous
     setProject(previous)
-    const nextScene = previous.scenes.find((scene) => scene.id === previous.activeSceneId) ?? previous.scenes[0]
-    setSelectedSourceId(nextScene?.sources[0]?.id ?? null)
+    clearSelection('layers')
     setCanUndo(undoStackRef.current.length > 0)
     setCanRedo(true)
     setMessage('Última alteração desfeita.')
@@ -2594,8 +3341,7 @@ function Editor() {
     undoStackRef.current.push(project)
     historySnapshotRef.current = next
     setProject(next)
-    const nextScene = next.scenes.find((scene) => scene.id === next.activeSceneId) ?? next.scenes[0]
-    setSelectedSourceId(nextScene?.sources[0]?.id ?? null)
+    clearSelection('layers')
     setCanUndo(true)
     setCanRedo(redoStackRef.current.length > 0)
     setMessage('Alteração reaplicada.')
@@ -2622,8 +3368,7 @@ function Editor() {
           return
         }
         setProject(repaired)
-        const active = repaired.scenes.find((scene) => scene.id === repaired.activeSceneId)
-        setSelectedSourceId(active?.sources[0]?.id ?? null)
+        clearSelection('layers')
         setInteraction(null)
         undoStackRef.current = []
         redoStackRef.current = []
@@ -2658,8 +3403,8 @@ function Editor() {
     if (backgroundDesignInputRef.current) backgroundDesignInputRef.current.value = ''
     if (backgroundVideoInputRef.current) backgroundVideoInputRef.current.value = ''
     if (importInputRef.current) importInputRef.current.value = ''
-    const initialScene = next.scenes.find((scene) => scene.id === next.activeSceneId) ?? next.scenes[0]
-    setSelectedSourceId(initialScene?.sources.find((source) => source.id === 'source-title')?.id ?? initialScene?.sources[0]?.id ?? null)
+    setSelectedSourceId(null)
+    setSelectedGoalPartId(null)
     undoStackRef.current = []
     redoStackRef.current = []
     historySnapshotRef.current = next
@@ -2683,13 +3428,37 @@ function Editor() {
     })
   }
 
+  function clearSelection(nextTab: InspectorTab = 'layers') {
+    setSelectedSourceId(null)
+    setSelectedGoalPartId(null)
+    setInteraction(null)
+    setInspectorTab(nextTab)
+  }
+
+  function selectSource(sourceId: string, nextTab: InspectorTab = 'element') {
+    // A source selection always clears any previously selected sub-part of a goal widget.
+    setSelectedSourceId(sourceId)
+    setSelectedGoalPartId(null)
+    setInspectorTab(nextTab)
+  }
+
+  function isGoalPartSelectionFor(source: SceneSource): boolean {
+    return Boolean(
+      selectedGoalPartId &&
+      selectedSourceId === source.id &&
+      source.type === 'widget' &&
+      source.widgetKind === 'goal' &&
+      source.goalFreeLayout === true
+    )
+  }
+
   function beginInteraction(event: ReactPointerEvent<HTMLElement>, source: SceneSource, mode: Interaction['mode']) {
+    // Stop the canvas background handler even for locked sources.
+    event.stopPropagation()
+    selectSource(source.id, 'element')
+    setElementSection('content')
     if (source.locked) return
     event.preventDefault()
-    event.stopPropagation()
-    setSelectedSourceId(source.id)
-    setInspectorTab('element')
-    setElementSection('content')
     setInteraction({
       sourceId: source.id, mode,
       pointerX: event.clientX, pointerY: event.clientY,
@@ -2752,6 +3521,9 @@ function Editor() {
           <div className="topbar-title"><p className="eyebrow">ÁREA DE TRABALHO</p><h2>{activeScene.name}</h2></div>
           <div className="topbar-actions">
             <span className="resolution-badge">{activeScene.width ?? 1920} × {activeScene.height ?? 1080}</span>
+            <span className={`status-pill save-status save-${saveStatus}`} title={lastSavedAt ? `Último salvamento local: ${lastSavedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : 'O projeto é salvo automaticamente neste navegador.'}>
+              <i />{saveStatus === 'saved' ? 'Salvo' : saveStatus === 'editing' ? 'Editando' : 'Falha ao salvar'}
+            </span>
             <button className="history-button" type="button" disabled={!canUndo} onClick={undo} title="Desfazer (Ctrl+Z)" aria-label="Desfazer">↶</button>
             <button className="history-button" type="button" disabled={!canRedo} onClick={redo} title="Refazer (Ctrl+Y)" aria-label="Refazer">↷</button>
             <div className="export-wrapper">
@@ -2762,6 +3534,7 @@ function Editor() {
                 <button type="button" onClick={() => { imageInputRef.current?.click(); setShowExportMenu(false) }}>Importar imagem / GIF…</button>
                 <button type="button" onClick={() => { videoInputRef.current?.click(); setShowExportMenu(false) }}>Importar vídeo(s) MP4 / WebM / MOV / MKV…</button>
                 <button type="button" onClick={() => { backgroundDesignInputRef.current?.click(); setShowExportMenu(false) }}>Definir imagem de fundo</button>
+                <button type="button" onClick={() => { slideshowImportModeRef.current = 'replace'; slideshowTargetSceneRef.current = activeScene.id; slideshowInputRef.current?.click(); setShowExportMenu(false) }}>Criar carrossel de imagens…</button>
                 <button className="menu-danger" type="button" onClick={() => { setShowExportMenu(false); resetEverything() }}>Redefinir tudo…</button>
                 <a href={`${window.location.pathname}?mode=overlay`} target="_blank" rel="noreferrer" onClick={() => setShowExportMenu(false)}>Abrir modo overlay ↗</a>
               </div>}
@@ -2773,25 +3546,30 @@ function Editor() {
         <section className="preview-section">
           <div className="preview-heading">
             <div><span className="eyebrow">TELA DE COMPOSIÇÃO</span><h3>Pré-visualização</h3></div>
-            <span className="local-badge"><i /> EDITOR</span>
+            <div className="preview-tools">
+              <button type="button" className={`view-toggle ${showCompositionGuides ? 'active' : ''}`} aria-pressed={showCompositionGuides} onClick={() => setShowCompositionGuides((value) => !value)} title="Exibir linhas de centro e terços">Guias</button>
+              <button type="button" className={`view-toggle ${showSafeArea ? 'active' : ''}`} aria-pressed={showSafeArea} onClick={() => setShowSafeArea((value) => !value)} title="Exibir margens de segurança">Área segura</button>
+              <span className="local-badge"><i /> EDITOR</span>
+            </div>
           </div>
           <div className="preview-frame">
-            <div className="preview-canvas" ref={stageRef} style={{ ...sceneBackgroundStyle(activeScene, true), aspectRatio: `${activeScene.width ?? 1920} / ${activeScene.height ?? 1080}` }} onPointerDown={() => { setSelectedSourceId(null); setInspectorTab('background') }}>
+            <div className="preview-canvas" ref={stageRef} style={{ ...sceneBackgroundStyle(activeScene, true), aspectRatio: `${activeScene.width ?? 1920} / ${activeScene.height ?? 1080}` }} onPointerDown={(event) => { if (!(event.target as HTMLElement).closest('.canvas-object')) clearSelection('background') }} onClick={(event) => { if (!(event.target as HTMLElement).closest('.canvas-object')) clearSelection('background') }}>
               {activeScene.background?.mode === 'animated' && <AnimatedBackgroundLayer background={activeScene.background} />}
+              {activeScene.background?.mode === 'slideshow' && <BackgroundSlideshowLayer background={activeScene.background} />}
               {activeScene.background?.mode === 'video' && <BackgroundVideoLayer background={activeScene.background} />}
               {activeScene.background?.mode === 'screen' && <ScreenCaptureView editor variant="background" captureKey={`background:${activeScene.id}`} />}
               {activeScene.sources.filter((source) => source.visible).map((source, index) => (
                 <div
-                  className={`canvas-object object-${source.type} ${source.type === 'shape' ? `shape-${source.shapeKind ?? 'rectangle'}` : ''} ${source.locked ? 'locked' : ''} ${selectedSourceId === source.id ? 'is-selected' : ''}`}
+                  className={`canvas-object object-${source.type} ${source.type === 'shape' ? `shape-${source.shapeKind ?? 'rectangle'}` : ''} ${source.locked ? 'locked' : ''} ${selectedSourceId === source.id && !isGoalPartSelectionFor(source) ? 'is-selected' : ''}`}
                   key={source.id}
                   style={sourceStyle(source, index)}
                   onPointerDown={(event) => beginInteraction(event, source, 'move')}
-                  onClick={(event) => { event.stopPropagation(); setSelectedSourceId(source.id); setInspectorTab('element') }}
+                  onClick={(event) => { event.stopPropagation(); selectSource(source.id, 'element') }}
                   role="button"
                   tabIndex={0}
                   aria-label={`Selecionar e mover ${source.name}`}
                   onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedSourceId(source.id); setInspectorTab('element') }
+                    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectSource(source.id, 'element') }
                   }}
                 >
                   {source.type === 'text' && <span className="object-text" style={{ textTransform: source.textTransform ?? 'none', textDecoration: source.textDecoration ?? 'none', textShadow: source.textShadowEnabled === false ? 'none' : undefined }}>{source.text || source.name}</span>}
@@ -2803,29 +3581,38 @@ function Editor() {
                   {source.type === 'camera' && (cameraStream
                     ? <video className="camera-video" autoPlay muted playsInline style={{ transform: source.cameraMirror === false ? 'none' : 'scaleX(-1)' }} ref={(element) => { if (element && element.srcObject !== cameraStream) element.srcObject = cameraStream }} />
                     : <div className="camera-placeholder"><span className="camera-symbol">◉</span><strong>{source.name}</strong><small>Clique em “Ativar webcam” nas propriedades</small></div>)}
-                  {source.type === 'widget' && <WidgetContent source={source} testToken={alertTestTokens[source.id] ?? 0} />}
-                  {selectedSourceId === source.id && <><span className="selection-label">{source.name}</span><button className="resize-handle" type="button" aria-label={`Redimensionar ${source.name}`} onPointerDown={(event) => beginInteraction(event, source, 'resize')} /></>}
+                  {source.type === 'widget' && <WidgetContent source={source} testToken={alertTestTokens[source.id] ?? 0} editorMode selectedGoalPartId={isGoalPartSelectionFor(source) ? selectedGoalPartId : null} />}
+                  {selectedSourceId === source.id && !isGoalPartSelectionFor(source) && <><span className="selection-label">{source.name}</span><button className="resize-handle" type="button" aria-label={`Redimensionar ${source.name}`} onPointerDown={(event) => beginInteraction(event, source, 'resize')} /></>}
                 </div>
               ))}
+              {showCompositionGuides && <div className="composition-guides" aria-hidden="true">
+                <span className="guide guide-v guide-third-one" /><span className="guide guide-v guide-center" /><span className="guide guide-v guide-third-two" />
+                <span className="guide guide-h guide-third-one" /><span className="guide guide-h guide-center" /><span className="guide guide-h guide-third-two" />
+              </div>}
+              {showSafeArea && <div className="safe-area-guides" aria-hidden="true"><span>ÁREA SEGURA · 5%</span></div>}
               {activeScene.sources.length > 0 && activeScene.sources.every((source) => !source.visible) && <div className="canvas-empty"><span>◫</span><strong>Nenhuma fonte visível</strong><small>Ative uma camada ou adicione um elemento.</small></div>}
               {activeScene.sources.length === 0 && activeScene.background?.mode !== 'screen' && <div className="canvas-empty"><span>＋</span><strong>Sua cena está vazia</strong><small>Adicione uma fonte pelo painel à direita.</small></div>}
             </div>
           </div>
           <div className="preview-caption"><span><span className="status-dot" /> Arraste para mover · canto inferior para redimensionar</span><span>Proporção {activeScene.width ?? 1920}:{activeScene.height ?? 1080}</span></div>
         </section>
-        <footer className="studio-footer"><span className="footer-tip"><span className="tip-icon">i</span> As alterações são salvas automaticamente neste navegador.</span><span className="footer-version">WEBCAM_OVERLAY · 3.0.0</span></footer>
+        <footer className="studio-footer">
+          <span className="footer-tip"><span className="tip-icon">i</span>{saveStatus === 'error' ? 'Não foi possível salvar. Exporte um backup do projeto.' : saveStatus === 'editing' ? 'Alterações em andamento; o salvamento ocorre ao concluir o movimento.' : `Salvo automaticamente neste navegador${lastSavedAt ? ` às ${lastSavedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : ''}.`}</span>
+          <span className={`footer-connection relay-${relayStatus}`} title="Estado do serviço local usado para sincronizar o editor com a Browser Source."><i />{relayStatus === 'connected' ? 'Relay local ativo' : relayStatus === 'connecting' ? 'Conectando relay…' : relayStatus === 'offline' ? 'Relay local desconectado' : 'Hospedagem externa'}</span>
+          <span className="footer-version">WEBCAM_OVERLAY · 3.3.0</span>
+        </footer>
       </main>
 
       <aside className="inspector-panel">
         <div className="inspector-heading">
-          <div><p className="eyebrow">ESTÚDIO</p><h2>Inspetor</h2></div>
-          {inspectorTab === 'layers' && <button className="icon-button add-button" type="button" onClick={() => setSourceMenuOpen((open) => !open)} title="Adicionar fonte" aria-label="Adicionar fonte">+</button>}
+          <div><p className="eyebrow">PROPRIEDADES</p><h2>Editar</h2></div>
+          {inspectorTab === 'layers' && <button className="icon-button add-button" type="button" onClick={() => { clearSelection('layers'); setSourceMenuOpen((open) => !open) }} title="Adicionar fonte" aria-label="Adicionar fonte">+</button>}
         </div>
         <nav className="inspector-tabs" aria-label="Painéis do inspetor">
-          <button type="button" className={inspectorTab === 'layers' ? 'active' : ''} onClick={() => { setInspectorTab('layers'); setSourceMenuOpen(false) }}>Camadas</button>
+          <button type="button" className={inspectorTab === 'layers' ? 'active' : ''} onClick={() => { clearSelection('layers'); setSourceMenuOpen(false) }}>Camadas</button>
           <button type="button" className={inspectorTab === 'element' ? 'active' : ''} disabled={!selectedSource} onClick={() => { setInspectorTab('element'); setElementSection('content') }}>Elemento</button>
-          <button type="button" className={inspectorTab === 'background' ? 'active' : ''} onClick={() => { setInspectorTab('background'); setSourceMenuOpen(false); setBackgroundUrlInput(activeScene.background?.imageSrc?.startsWith('http') ? activeScene.background.imageSrc : ''); setBackgroundVideoUrlInput(activeScene.background?.videoSrc?.startsWith('http') ? activeScene.background.videoSrc : '') }}>Fundo</button>
-          <button type="button" className={inspectorTab === 'canvas' ? 'active' : ''} onClick={() => { setInspectorTab('canvas'); setSourceMenuOpen(false) }}>Tela</button>
+          <button type="button" className={inspectorTab === 'background' ? 'active' : ''} onClick={() => { clearSelection('background'); setSourceMenuOpen(false); setBackgroundUrlInput(activeScene.background?.imageSrc?.startsWith('http') ? activeScene.background.imageSrc : ''); setBackgroundVideoUrlInput(activeScene.background?.videoSrc?.startsWith('http') ? activeScene.background.videoSrc : '') }}>Fundo</button>
+          <button type="button" className={inspectorTab === 'canvas' ? 'active' : ''} onClick={() => { clearSelection('canvas'); setSourceMenuOpen(false) }}>Tela</button>
         </nav>
 
         {inspectorTab === 'layers' && <>
@@ -2841,25 +3628,26 @@ function Editor() {
             {activeScene.sources.length === 0 && <div className="empty-state"><span>＋</span><strong>Cena vazia</strong><p>Adicione texto, imagens, webcam, formas ou widgets usando o botão +.</p></div>}
             {[...activeScene.sources].map((source, index) => ({ source, index })).reverse().map(({ source, index }) => (
               <div className={`source-row ${selectedSourceId === source.id ? 'selected' : ''}`} key={source.id}>
-                <button className="source-select" type="button" onClick={() => { setSelectedSourceId(source.id); setInspectorTab('element'); setElementSection('content') }}><span className={`source-icon icon-${source.type}`}>{sourceGlyph(source.type)}</span><span className="source-name">{source.name}</span></button>
+                <button className="source-select" type="button" onClick={() => { selectSource(source.id, 'element'); setElementSection('content') }}><span className={`source-icon icon-${source.type}`}>{sourceGlyph(source.type)}</span><span className="source-name">{source.name}</span></button>
                 <button className="tiny-action layer-action" type="button" title="Subir camada" aria-label="Subir camada" disabled={index === activeScene.sources.length - 1} onClick={() => moveLayer(source.id, 1)}>↑</button>
                 <button className="tiny-action layer-action" type="button" title="Descer camada" aria-label="Descer camada" disabled={index === 0} onClick={() => moveLayer(source.id, -1)}>↓</button>
+                <button className={`tiny-action lock-action ${source.locked ? 'locked' : ''}`} type="button" onClick={() => toggleSourceLock(source.id)} title={source.locked ? 'Desbloquear movimento' : 'Bloquear movimento'} aria-label={source.locked ? 'Desbloquear movimento' : 'Bloquear movimento'}>{source.locked ? '■' : '□'}</button>
                 <button className={`tiny-action ${source.visible ? 'visible' : ''}`} type="button" onClick={() => toggleVisibility(source.id)} title={source.visible ? 'Ocultar fonte' : 'Mostrar fonte'} aria-label={source.visible ? 'Ocultar fonte' : 'Mostrar fonte'}>{source.visible ? '◉' : '◌'}</button>
                 <button className="tiny-action remove-action" type="button" onClick={() => deleteSource(source.id)} title="Remover fonte" aria-label={`Remover ${source.name}`}>×</button>
               </div>
             ))}
           </div>
-          <div className="inspector-tip"><span className="note-icon">i</span><p>Selecione uma camada para abrir seus controles. Fundo e resolução estão em painéis separados.</p></div>
+          <div className="inspector-tip"><span className="note-icon">i</span><p>Clique em um item para editar. O fundo e o tamanho da tela ficam em suas próprias abas.</p></div>
         </>}
 
         {inspectorTab === 'element' && <div className="inspector-workspace">
           {!selectedSource && <div className="empty-state"><span>◇</span><strong>Nenhum elemento selecionado</strong><p>Escolha uma camada ou clique em um objeto na prévia.</p><button className="wide-action" type="button" onClick={() => setInspectorTab('layers')}>Ver camadas</button></div>}
           {selectedSource && <>
             <div className="properties-panel context-properties">
-              <div className="properties-heading"><div><p className="eyebrow">EDITANDO ELEMENTO</p><h3>{selectedSource.name}</h3></div><span className="property-type">{sourceLabel(selectedSource.type)}</span></div>
+              <div className="properties-heading"><div><p className="eyebrow">ITEM SELECIONADO</p><h3>{selectedSource.name}</h3></div><span className="property-type">{sourceLabel(selectedSource.type)}</span></div>
               <div className="element-subtabs" role="tablist" aria-label="Opções do elemento">
                 <button type="button" className={elementSection === 'content' ? 'active' : ''} onClick={() => setElementSection('content')}>Conteúdo</button>
-                <button type="button" className={elementSection === 'style' ? 'active' : ''} onClick={() => setElementSection('style')}>Estilo</button>
+                <button type="button" className={elementSection === 'style' ? 'active' : ''} onClick={() => setElementSection('style')}>Aparência</button>
                 <button type="button" className={elementSection === 'transform' ? 'active' : ''} onClick={() => setElementSection('transform')}>Posição</button>
               </div>
 
@@ -2900,27 +3688,72 @@ function Editor() {
                   <p className="field-hint">Inicie a captura no botão da prévia. Mantenha o editor aberto enquanto usar o modo overlay; cada compartilhamento precisa ser iniciado manualmente.</p>
                 </>}
                 {selectedSource.type === 'widget' && <>
-                  <div className="widget-inspector-note"><span className="note-icon">i</span><p>Dados de demonstração. Personalize o conteúdo e o visual nas abas deste elemento.</p></div>
+                  <div className="widget-inspector-note"><span className="note-icon">i</span><p>Este widget usa dados de exemplo. Você pode mudar o texto e a aparência aqui.</p></div>
                   <label className="field-label" htmlFor="widget-kind">Tipo de widget</label>
-                  <select id="widget-kind" className="text-input" value={selectedSource.widgetKind ?? 'goal'} onChange={(event) => updateSelected({ widgetKind: event.target.value as WidgetKind })}>{WIDGET_OPTIONS.map((option) => <option key={option.kind} value={option.kind}>{option.label}</option>)}</select>
+                  <select id="widget-kind" className="text-input" value={selectedSource.widgetKind ?? 'goal'} onChange={(event) => updateSelected({ widgetKind: event.target.value as WidgetKind, widgetVariant: 'default' })}>{WIDGET_OPTIONS.map((option) => <option key={option.kind} value={option.kind}>{option.label}</option>)}</select>
+                  {selectedSource.widgetKind === 'webcam-frame' && <div className="frame-import-panel">
+                    <p className="field-hint">Escolha um modelo abaixo ou use uma moldura PNG/WebP transparente criada por você. A imagem será colocada por cima da câmera.</p>
+                    <label className="field-label" htmlFor="frame-overlay-url">Imagem de moldura por URL</label>
+                    <input id="frame-overlay-url" className="text-input" type="url" value={frameOverlayUrlDraft} onChange={(event) => setFrameOverlayUrlDraft(event.target.value)} placeholder="https://.../moldura.png" />
+                    <button className="wide-action" type="button" onClick={applyFrameOverlayUrl}>Aplicar imagem por URL</button>
+                    <button className="wide-action" type="button" onClick={() => frameOverlayInputRef.current?.click()}>Importar moldura do computador</button>
+                    {selectedSource.frameOverlayImage && <button className="wide-action quiet-action" type="button" onClick={() => { updateSelected({ frameOverlayImage: undefined }); setFrameOverlayUrlDraft('') }}>Remover imagem personalizada</button>}
+                    <p className="field-hint">Também é possível exportar e importar o estilo deste widget para reutilizar suas cores e o modelo visual.</p>
+                  </div>}
                   <label className="field-label" htmlFor="widget-title">Título / rótulo</label>
                   <input id="widget-title" className="text-input" value={selectedSource.widgetTitle ?? ''} maxLength={90} onChange={(event) => updateSelected({ widgetTitle: event.target.value })} placeholder="Título exibido" />
                   {['alert', 'latest', 'countdown', 'music', 'sponsor', 'ticker', 'goal', 'live-badge', 'webcam-frame', 'clock', 'viewer', 'tip-jar', 'stream-boss'].includes(selectedSource.widgetKind ?? 'goal') && <>
                     <label className="field-label" htmlFor="widget-text">Mensagem / descrição</label>
                     <textarea id="widget-text" className="text-input textarea-input" rows={3} maxLength={1000} value={selectedSource.widgetText ?? ''} onChange={(event) => updateSelected({ widgetText: event.target.value })} placeholder="Texto complementar" />
                   </>}
-                  {['chat', 'events', 'socials', 'poll', 'leaderboard'].includes(selectedSource.widgetKind ?? '') && <>
+                  {['chat', 'events', 'poll', 'leaderboard'].includes(selectedSource.widgetKind ?? '') && <>
                     <label className="field-label" htmlFor="widget-items">Itens do widget</label>
                     <textarea id="widget-items" className="text-input textarea-input widget-items-input" rows={6} maxLength={3000} value={selectedSource.widgetItems ?? ''} onChange={(event) => updateSelected({ widgetItems: event.target.value })} placeholder={selectedSource.widgetKind === 'chat' ? 'Nome: mensagem (uma por linha)' : selectedSource.widgetKind === 'poll' ? 'Opção | votos' : selectedSource.widgetKind === 'leaderboard' ? 'Nome | valor (uma linha por apoiador)' : 'Tipo · nome · valor'} />
                     <p className="field-hint">Uma linha para cada item. Os dados serão exibidos como exemplos locais.</p>
                   </>}
+                  {selectedSource.widgetKind === 'socials' && <div className="social-profile-editor">
+                    <p className="field-hint">Adicione ou remova redes, edite o nome e o perfil, e use o logo original por URL ou arquivo de imagem. Para logos oficiais, importe um arquivo que você tenha direito de usar.</p>
+                    {getSocialProfiles(selectedSource).map((profile, index) => <div className="social-profile-card" key={profile.id}>
+                      <div className="social-profile-card-head"><span className="social-profile-preview">{(profile.logoSrc || profile.logoUrl) && isSafeImageSource(profile.logoSrc || profile.logoUrl || '') ? <img src={profile.logoSrc || profile.logoUrl} alt="" /> : socialGlyph(profile.platform)}</span><strong>Rede {index + 1}</strong><button type="button" className="tiny-action layer-action" title="Mover para cima" aria-label="Mover rede para cima" disabled={index === 0} onClick={() => moveSocialProfile(index, -1)}>↑</button><button type="button" className="tiny-action layer-action" title="Mover para baixo" aria-label="Mover rede para baixo" disabled={index === getSocialProfiles(selectedSource).length - 1} onClick={() => moveSocialProfile(index, 1)}>↓</button><button type="button" className="tiny-action remove-action" title="Remover rede" aria-label={`Remover ${profile.platform}`} onClick={() => removeSocialProfile(index)}>×</button></div>
+                      <label className="field-label" htmlFor={`social-platform-${index}`}>Plataforma / nome exibido</label>
+                      <input id={`social-platform-${index}`} className="text-input" value={profile.platform} maxLength={60} onChange={(event) => updateSocialProfile(index, { platform: event.target.value })} placeholder="Ex.: Twitch, Instagram, Kick…" />
+                      <label className="field-label" htmlFor={`social-account-${index}`}>Usuário / endereço</label>
+                      <input id={`social-account-${index}`} className="text-input" value={profile.account} maxLength={100} onChange={(event) => updateSocialProfile(index, { account: event.target.value })} placeholder="@seuperfil" />
+                      <label className="field-label" htmlFor={`social-logo-url-${index}`}>Logo por URL</label>
+                      <input id={`social-logo-url-${index}`} className="text-input" type="url" value={profile.logoUrl ?? ''} onChange={(event) => updateSocialProfile(index, { logoUrl: event.target.value, logoSrc: undefined })} placeholder="https://.../logo.png" />
+                      <div className="social-profile-actions"><button type="button" className="file-button" onClick={() => { const logo = suggestedSocialLogoUrl(profile.platform); if (!logo) { setMessage('Não encontrei um logo padrão para essa plataforma. Importe um arquivo ou informe uma URL de imagem.'); return } updateSocialProfile(index, { logoUrl: logo, logoSrc: undefined }); setMessage(`Ícone de ${profile.platform} definido. Ele é carregado pela internet.`) }}>Usar logo padrão</button><label className="file-button">Importar logo do computador<input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" onChange={async (event) => {
+                        const input = event.currentTarget
+                        const file = input.files?.[0]
+                        input.value = ''
+                        if (!file) return
+                        if (!file.type.startsWith('image/')) { setMessage('Escolha um arquivo de imagem.'); return }
+                        if (file.size > 150_000) { setMessage('Para manter o projeto leve, limite cada logo a 150 KB.'); return }
+                        try {
+                          const src = await parseLocalImageData(file)
+                          const activeProject = projectRef.current
+                          const targetSceneId = activeProject.activeSceneId
+                          const targetSource = activeProject.scenes.find((scene) => scene.id === targetSceneId)?.sources.find((source) => source.id === selectedSourceId)
+                          if (!targetSource || targetSource.widgetKind !== 'socials') return
+                          const nextProfiles = getSocialProfiles(targetSource).map((item, itemIndex) => itemIndex === index ? { ...item, logoSrc: src, logoUrl: '' } : item)
+                          const candidateProject: Project = { ...activeProject, scenes: activeProject.scenes.map((scene) => scene.id !== targetSceneId ? scene : { ...scene, sources: scene.sources.map((source) => source.id === targetSource.id ? { ...source, socialProfiles: nextProfiles, widgetItems: nextProfiles.map((item) => `${item.platform} · ${item.account}`).join('\n') } : source) }) }
+                          if (JSON.stringify(candidateProject).length > MAX_LOCAL_PROJECT_CHARS) { setMessage('Este logo ultrapassaria o limite de armazenamento local. Use uma imagem menor ou remova logos/imagens antigos.'); return }
+                          updateSocialProfile(index, { logoSrc: src, logoUrl: '' })
+                          setMessage(`Logo de ${profile.platform} importado.`)
+                        } catch { setMessage('Não foi possível carregar esse logo.') }
+                      }} /></label><button type="button" className="small-text-button" onClick={() => updateSocialProfile(index, { logoSrc: undefined, logoUrl: '', color: undefined })}>Remover logo</button></div>
+                      <label className="field-label" htmlFor={`social-color-${index}`}>Cor do ícone se não houver logo</label><ColorField id={`social-color-${index}`} value={profile.color ?? selectedSource.widgetAccent ?? '#8d85ff'} onChange={(color) => updateSocialProfile(index, { color })} />
+                    </div>)}
+                    <button className="wide-action" type="button" onClick={addSocialProfile}>＋ Adicionar rede social</button>
+                    <p className="field-hint">Você pode adicionar até 30 redes. Uma imagem enviada fica salva no projeto; uma URL depende de o site continuar acessível.</p>
+                  </div>}
+
                   {['goal', 'viewer', 'alert', 'tip-jar', 'stream-boss'].includes(selectedSource.widgetKind ?? '') && <>
                     <label className="field-label" htmlFor="widget-value">{selectedSource.widgetKind === 'goal' ? 'Valor atual' : selectedSource.widgetKind === 'tip-jar' ? 'Total arrecadado (R$)' : selectedSource.widgetKind === 'stream-boss' ? 'Vida atual do chefe (%)' : selectedSource.widgetKind === 'viewer' ? 'Espectadores (exemplo)' : 'Nome do evento (exemplo)'}</label>
                     <input id="widget-value" className="text-input" value={selectedSource.widgetValue ?? ''} onChange={(event) => updateSelected({ widgetValue: event.target.value })} placeholder={['goal', 'tip-jar', 'stream-boss'].includes(selectedSource.widgetKind ?? '') ? '68' : 'Exemplo'} />
                   </>}
                   {['goal', 'tip-jar', 'stream-boss'].includes(selectedSource.widgetKind ?? '') && <>
                     <label className="field-label" htmlFor="widget-target">{selectedSource.widgetKind === 'stream-boss' ? 'Vida total do chefe' : selectedSource.widgetKind === 'tip-jar' ? 'Meta de apoio (R$)' : 'Valor da meta'}</label>
-                    <input id="widget-target" className="text-input" type="number" min="1" value={selectedSource.widgetTarget ?? '100'} onChange={(event) => updateSelected({ widgetTarget: event.target.value })} />
+                    <input id="widget-target" className="text-input" type="text" inputMode="decimal" value={selectedSource.widgetTarget ?? '100'} onChange={(event) => updateSelected({ widgetTarget: event.target.value })} placeholder="Ex.: R$ 2.000 ou 100" />
                   </>}
                   {selectedSource.widgetKind === 'countdown' && <>
                     <label className="field-label" htmlFor="widget-seconds">Duração inicial (segundos)</label>
@@ -2932,6 +3765,53 @@ function Editor() {
               </div>}
 
               {elementSection === 'style' && <div className="property-fields">
+                {selectedSource.type === 'widget' && <>
+                  <p className="eyebrow section-eyebrow">APARÊNCIA</p>
+                  <label className="field-label" htmlFor="widget-variant">Estilo inicial</label>
+                  <select id="widget-variant" className="text-input" value={selectedSource.widgetVariant ?? 'default'} onChange={(event) => updateSelected({ widgetVariant: event.target.value })}>{WIDGET_VARIANTS[selectedSource.widgetKind ?? 'goal'].map((variant) => <option key={variant.value} value={variant.value}>{variant.label}</option>)}</select>
+                  <p className="field-hint">As opções variam conforme o tipo de widget. Você pode combinar o modelo com cores, fontes, fundo, bordas e animações abaixo.</p>
+                  {selectedSource.widgetKind === 'goal' && <section className="goal-builder-panel">
+                    <div className="field-divider" />
+                    <h4>Montar minha barra de meta</h4>
+                    <p className="field-hint">Selecione uma parte na lista abaixo para editar suas propriedades. Na prévia, arraste o widget inteiro para mover a barra; use o canto inferior para redimensioná-la.</p>
+                    <label className="lock-toggle"><input type="checkbox" checked={Boolean(selectedSource.goalFreeLayout)} onChange={(event) => {
+                      const enabled = event.target.checked
+                      updateSelected({ goalFreeLayout: enabled, goalPartEditMode: enabled, goalParts: enabled ? (Array.isArray(selectedSource.goalParts) ? selectedSource.goalParts : createDefaultGoalParts()) : selectedSource.goalParts, ...(enabled ? { widgetFillColor: selectedSource.widgetFillColor ?? '#ed386f', widgetTrackColor: selectedSource.widgetTrackColor ?? '#161616' } : {}) })
+                      setSelectedGoalPartId(null)
+                    }} /><span>Usar composição livre</span></label>
+                    {selectedSource.goalFreeLayout && <>
+                      <label className="lock-toggle"><input type="checkbox" checked={Boolean(selectedSource.goalPartEditMode)} onChange={(event) => updateSelected({ goalPartEditMode: event.target.checked })} /><span>Destacar a parte selecionada na prévia</span></label>
+                      <div className="goal-part-quicklist"><p className="field-label">Partes da barra</p>
+                        {(Array.isArray(selectedSource.goalParts) ? selectedSource.goalParts : createDefaultGoalParts()).map((part) => <button type="button" key={part.id} className={`goal-part-chip ${selectedGoalPartId === part.id ? 'active' : ''}`} onClick={() => { setSelectedGoalPartId(part.id); setInspectorTab('element') }}><span>{part.label || ({title:'Título',subtitle:'Descrição',current:'Valor atual',separator:'Separador',target:'Meta',percent:'Percentual',bar:'Progresso',footer:'Texto auxiliar','custom-text':'Texto livre',icon:'Ícone',shape:'Forma',image:'Imagem'} as Record<GoalPartKind,string>)[part.type]}</span><small>{part.visible ? 'Visível' : 'Oculta'}</small></button>)}
+                      </div>
+                      <div className="goal-part-add-row"><button type="button" className="small-add-button" onClick={() => addGoalPart('custom-text')}>＋ Texto</button><button type="button" className="small-add-button" onClick={() => addGoalPart('icon')}>＋ Ícone</button><button type="button" className="small-add-button" onClick={() => addGoalPart('separator')}>＋ Separador</button><button type="button" className="small-add-button" onClick={() => addGoalPart('shape')}>＋ Forma</button><button type="button" className="small-add-button" onClick={() => addGoalPart('image')}>＋ Imagem</button><button type="button" className="small-add-button" onClick={() => addGoalPart('bar')}>＋ Barra</button></div><details className="goal-more-part-options"><summary>Adicionar outros campos</summary><div className="goal-part-add-row"><button type="button" className="small-add-button" onClick={() => addGoalPart('title')}>＋ Título</button><button type="button" className="small-add-button" onClick={() => addGoalPart('subtitle')}>＋ Descrição</button><button type="button" className="small-add-button" onClick={() => addGoalPart('current')}>＋ Valor atual</button><button type="button" className="small-add-button" onClick={() => addGoalPart('target')}>＋ Meta</button><button type="button" className="small-add-button" onClick={() => addGoalPart('percent')}>＋ Percentual</button><button type="button" className="small-add-button" onClick={() => addGoalPart('footer')}>＋ Texto auxiliar</button></div></details>
+                      {(() => {
+                        const parts = Array.isArray(selectedSource.goalParts) ? selectedSource.goalParts : createDefaultGoalParts()
+                        const part = parts.find((candidate) => candidate.id === selectedGoalPartId) ?? parts[0]
+                        if (!part) return <p className="field-hint">Adicione uma parte para começar.</p>
+                        const updatePart = (changes: Partial<GoalPart>) => updateGoalPart(part.id, changes)
+                        return <div className="goal-part-properties">
+                          <div className="field-divider" /><p className="field-label">Editar parte selecionada</p>
+                          {(part.type === 'custom-text' || part.type === 'icon' || part.type === 'separator' || part.type === 'footer' || part.type === 'image') && <><label className="field-label" htmlFor="goal-part-label">{part.type === 'image' ? 'Descrição da imagem' : 'Texto da parte'}</label><input id="goal-part-label" className="text-input" value={part.label ?? ''} onChange={(event) => updatePart({ label: event.target.value })} maxLength={120} placeholder="Texto livre" /></>}
+                          <label className="lock-toggle"><input type="checkbox" checked={part.visible !== false} onChange={(event) => updatePart({ visible: event.target.checked })} /><span>Mostrar esta parte</span></label>
+                          <div className="two-field-grid"><div><label className="field-label" htmlFor="goal-part-x">Horizontal (%)</label><input id="goal-part-x" className="text-input" type="number" min="0" max="100" step="0.5" value={Math.round(part.x * 10) / 10} onChange={(event) => updatePart({ x: clamp(Number(event.target.value) || 0, 0, 100 - part.w) })} /></div><div><label className="field-label" htmlFor="goal-part-y">Vertical (%)</label><input id="goal-part-y" className="text-input" type="number" min="0" max="100" step="0.5" value={Math.round(part.y * 10) / 10} onChange={(event) => updatePart({ y: clamp(Number(event.target.value) || 0, 0, 100 - part.h) })} /></div></div>
+                          <div className="two-field-grid"><div><label className="field-label" htmlFor="goal-part-w">Largura (%)</label><input id="goal-part-w" className="text-input" type="number" min="1" max="100" step="0.5" value={Math.round(part.w * 10) / 10} onChange={(event) => updatePart({ w: clamp(Number(event.target.value) || 1, 1, 100 - part.x) })} /></div><div><label className="field-label" htmlFor="goal-part-h">Altura (%)</label><input id="goal-part-h" className="text-input" type="number" min="1" max="100" step="0.5" value={Math.round(part.h * 10) / 10} onChange={(event) => updatePart({ h: clamp(Number(event.target.value) || 1, 1, 100 - part.y) })} /></div></div>
+                          <div className="goal-part-layer-actions"><button type="button" className="small-text-button" onClick={() => duplicateGoalPart(part.id)}>Duplicar parte</button><button type="button" className="small-text-button" onClick={() => moveGoalPart(part.id, 1)}>Trazer para frente</button><button type="button" className="small-text-button" onClick={() => moveGoalPart(part.id, -1)}>Enviar para trás</button></div>
+                          {part.type === 'image' && <div className="goal-part-properties"><p className="field-hint">Imagens permitem criar logos, ornamentos e preenchimentos próprios dentro da barra.</p><button type="button" className="wide-action" onClick={() => { setPendingGoalPartImageId(part.id); goalPartImageInputRef.current?.click() }}>{part.src ? 'Trocar imagem' : 'Importar imagem'}</button>{part.src && <button type="button" className="wide-action quiet-action" onClick={() => updatePart({ src: undefined })}>Remover imagem</button>}<label className="field-label" htmlFor="goal-part-fit">Ajuste da imagem</label><select id="goal-part-fit" className="text-input" value={part.objectFit ?? 'contain'} onChange={(event) => updatePart({ objectFit: event.target.value as GoalPart['objectFit'] })}><option value="contain">Mostrar inteira</option><option value="cover">Preencher, cortando bordas</option><option value="fill">Esticar</option></select></div>}
+                          {part.type === 'shape' && <><label className="field-label" htmlFor="goal-part-shape-kind">Formato</label><select id="goal-part-shape-kind" className="text-input" value={part.shapeKind ?? 'rectangle'} onChange={(event) => updatePart({ shapeKind: event.target.value as GoalPart['shapeKind'] })}><option value="rectangle">Retângulo</option><option value="circle">Círculo</option><option value="pill">Pílula</option></select><label className="field-label" htmlFor="goal-part-shape-color">Cor da forma</label><ColorField id="goal-part-shape-color" value={part.color ?? '#7776ff'} onChange={(color) => updatePart({ color })} /><label className="lock-toggle"><input type="checkbox" checked={Boolean(part.gradientEnabled)} onChange={(event) => updatePart({ gradientEnabled: event.target.checked })} /><span>Usar gradiente</span></label>{part.gradientEnabled && <><label className="field-label" htmlFor="goal-part-gradient-color">Segunda cor</label><ColorField id="goal-part-gradient-color" value={part.gradientColor ?? '#ffffff'} onChange={(gradientColor) => updatePart({ gradientColor })} /><label className="field-label" htmlFor="goal-part-gradient-angle">Direção do gradiente</label><div className="range-row"><input id="goal-part-gradient-angle" type="range" min="0" max="360" value={part.gradientAngle ?? 135} onChange={(event) => updatePart({ gradientAngle: Number(event.target.value) })} /><span>{part.gradientAngle ?? 135}°</span></div></>}<div className="two-field-grid"><div><label className="field-label" htmlFor="goal-part-shape-border">Espessura da borda</label><input id="goal-part-shape-border" className="text-input" type="number" min="0" max="12" value={part.borderWidth ?? 0} onChange={(event) => updatePart({ borderWidth: clamp(Number(event.target.value) || 0, 0, 12) })} /></div><div><label className="field-label" htmlFor="goal-part-shape-radius">Arredondamento</label><input id="goal-part-shape-radius" className="text-input" type="number" min="0" max="50" value={part.radius ?? 0} onChange={(event) => updatePart({ radius: clamp(Number(event.target.value) || 0, 0, 50) })} /></div></div><label className="field-label" htmlFor="goal-part-shape-border-color">Cor da borda</label><ColorField id="goal-part-shape-border-color" value={part.borderColor ?? '#ffffff'} onChange={(borderColor) => updatePart({ borderColor })} /></>}
+                          {part.type !== 'bar' && part.type !== 'shape' && part.type !== 'image' && <><div className="two-field-grid"><div><label className="field-label" htmlFor="goal-part-font-size">Tamanho do texto</label><input id="goal-part-font-size" className="text-input" type="number" min="6" max="80" value={part.fontSize ?? 13} onChange={(event) => updatePart({ fontSize: clamp(Number(event.target.value) || 13, 6, 80) })} /></div><div><label className="field-label" htmlFor="goal-part-weight">Peso</label><select id="goal-part-weight" className="text-input" value={part.fontWeight ?? 700} onChange={(event) => updatePart({ fontWeight: Number(event.target.value) })}><option value="400">Normal</option><option value="500">Médio</option><option value="600">Seminegrito</option><option value="700">Negrito</option><option value="800">Extra negrito</option><option value="900">Preto</option></select></div></div><label className="field-label" htmlFor="goal-part-color">Cor do texto</label><ColorField id="goal-part-color" value={part.color ?? '#ffffff'} onChange={(color) => updatePart({ color })} /><label className="field-label" htmlFor="goal-part-align">Alinhamento horizontal</label><select id="goal-part-align" className="text-input" value={part.align ?? 'left'} onChange={(event) => updatePart({ align: event.target.value as GoalPart['align'] })}><option value="left">Esquerda</option><option value="center">Centro</option><option value="right">Direita</option></select><details className="settings-accordion goal-advanced-part"><summary>Mais opções de texto</summary><div className="settings-accordion-content"><label className="field-label" htmlFor="goal-part-valign">Alinhamento vertical</label><select id="goal-part-valign" className="text-input" value={part.verticalAlign ?? 'center'} onChange={(event) => updatePart({ verticalAlign: event.target.value as GoalPart['verticalAlign'] })}><option value="top">Em cima</option><option value="center">No meio</option><option value="bottom">Embaixo</option></select><label className="field-label" htmlFor="goal-part-letter-spacing">Espaçamento entre letras</label><div className="range-row"><input id="goal-part-letter-spacing" type="range" min="-5" max="30" step="0.25" value={part.letterSpacing ?? 0} onChange={(event) => updatePart({ letterSpacing: Number(event.target.value) })} /><span>{part.letterSpacing ?? 0}px</span></div><label className="lock-toggle"><input type="checkbox" checked={Boolean(part.italic)} onChange={(event) => updatePart({ italic: event.target.checked })} /><span>Itálico</span></label><label className="field-label" htmlFor="goal-part-transform">Transformação do texto</label><select id="goal-part-transform" className="text-input" value={part.textTransform ?? 'none'} onChange={(event) => updatePart({ textTransform: event.target.value as GoalPart['textTransform'] })}><option value="none">Como digitado</option><option value="uppercase">MAIÚSCULAS</option><option value="lowercase">minúsculas</option><option value="capitalize">Iniciais maiúsculas</option></select><label className="lock-toggle"><input type="checkbox" checked={Boolean(part.shadowEnabled)} onChange={(event) => updatePart({ shadowEnabled: event.target.checked })} /><span>Sombra no texto/elemento</span></label>{part.shadowEnabled && <><label className="field-label" htmlFor="goal-part-shadow-color">Cor da sombra</label><ColorField id="goal-part-shadow-color" value={part.shadowColor ?? '#000000'} onChange={(shadowColor) => updatePart({ shadowColor })} /></>}</div></details></>}
+                          {part.type === 'bar' && <><label className="field-label" htmlFor="goal-part-fill">Cor do preenchimento</label><ColorField id="goal-part-fill" value={selectedSource.widgetFillColor ?? selectedSource.widgetAccent ?? '#8d85ff'} onChange={(widgetFillColor) => updateSelected({ widgetFillColor })} /><label className="field-label" htmlFor="goal-part-track">Cor do fundo da barra</label><ColorField id="goal-part-track" value={selectedSource.widgetTrackColor ?? '#292b35'} onChange={(widgetTrackColor) => updateSelected({ widgetTrackColor })} /><label className="field-label" htmlFor="goal-part-radius">Arredondamento da barra</label><input id="goal-part-radius" className="text-input" type="number" min="0" max="50" value={part.radius ?? 4} onChange={(event) => updatePart({ radius: clamp(Number(event.target.value) || 0, 0, 50) })} /></>}
+                          {part.type !== 'shape' && part.type !== 'image' && <><label className="field-label" htmlFor="goal-part-bg">Fundo da parte</label><div className="two-field-grid"><label className="lock-toggle"><input type="checkbox" checked={Boolean(part.backgroundColor)} onChange={(event) => updatePart({ backgroundColor: event.target.checked ? '#222222' : undefined })} /><span>Usar fundo próprio</span></label>{part.backgroundColor && <ColorField id="goal-part-bg" value={part.backgroundColor} onChange={(backgroundColor) => updatePart({ backgroundColor })} />}</div></>}
+                          <div className="two-field-grid"><div><label className="field-label" htmlFor="goal-part-opacity">Opacidade (%)</label><input id="goal-part-opacity" className="text-input" type="number" min="0" max="100" value={Math.round((part.opacity ?? 1) * 100)} onChange={(event) => updatePart({ opacity: clamp(Number(event.target.value) / 100 || 0, 0, 1) })} /></div><div><label className="field-label" htmlFor="goal-part-rotation">Rotação (°)</label><input id="goal-part-rotation" className="text-input" type="number" min="-180" max="180" value={part.rotation ?? 0} onChange={(event) => updatePart({ rotation: clamp(Number(event.target.value) || 0, -180, 180) })} /></div></div>
+                          {part.type !== 'bar' && part.type !== 'shape' && part.type !== 'image' && <><label className="field-label" htmlFor="goal-part-font-family">Fonte desta parte</label><input id="goal-part-font-family" className="text-input" value={part.fontFamily ?? ''} onChange={(event) => updatePart({ fontFamily: event.target.value.slice(0, 120) })} placeholder="Herdar a fonte da barra" /></>}
+                          {(part.type === 'custom-text' || part.type === 'icon' || part.type === 'separator' || part.type === 'footer' || part.type === 'shape' || part.type === 'image') && <button type="button" className="wide-action danger-action" onClick={() => removeGoalPart(part.id)}>Remover esta parte</button>}
+                          <button type="button" className="wide-action" onClick={() => updatePart({ x: part.type === 'title' || part.type === 'current' ? 0 : 65, y: part.type === 'bar' ? 58 : part.type === 'footer' ? 82 : 8 })}>Restaurar posição sugerida</button>
+                        </div>
+                      })()}
+                      <p className="field-hint">As posições são relativas à barra de meta. Para selecionar uma parte, clique no nome dela nesta lista. Para mover ou redimensionar a barra inteira, use a prévia central. Os demais widgets continuam no mesmo fluxo simples: Conteúdo, Aparência e Posição.</p>
+                    </>}
+                  </section>}
+                </>}
                 {selectedSource.type === 'text' && <>
                   <p className="eyebrow section-eyebrow">TIPOGRAFIA</p>
                   <label className="field-label" htmlFor="source-font-size">Tamanho do texto</label>
@@ -2949,6 +3829,7 @@ function Editor() {
                   <select id="source-font-weight" className="text-input" value={selectedSource.fontWeight ?? 750} onChange={(event) => updateSelected({ fontWeight: Number(event.target.value) })}><option value="300">Leve</option><option value="400">Normal</option><option value="500">Médio</option><option value="600">Seminegrito</option><option value="700">Negrito</option><option value="750">Seminegrito alto</option><option value="800">Extra negrito</option><option value="900">Preto</option></select>
                   <label className="field-label" htmlFor="source-align">Alinhamento do texto</label>
                   <select id="source-align" className="text-input" value={selectedSource.textAlign ?? 'left'} onChange={(event) => updateSelected({ textAlign: event.target.value as 'left' | 'center' | 'right' })}><option value="left">Esquerda</option><option value="center">Centro</option><option value="right">Direita</option></select>
+                  <details className="settings-accordion"><summary>Mais opções de texto</summary><div className="settings-accordion-content">
                   <label className="field-label" htmlFor="source-line-height">Altura de linha</label>
                   <div className="range-row"><input id="source-line-height" type="range" min="0.8" max="2" step="0.05" value={selectedSource.lineHeight ?? 1.12} onChange={(event) => updateSelected({ lineHeight: Number(event.target.value) })} /><span>{(selectedSource.lineHeight ?? 1.12).toFixed(2)}</span></div>
                   <label className="field-label" htmlFor="source-spacing">Espaçamento entre letras</label>
@@ -2959,6 +3840,7 @@ function Editor() {
                   <label className="lock-toggle"><input type="checkbox" checked={selectedSource.textShadowEnabled !== false} onChange={(event) => updateSelected({ textShadowEnabled: event.target.checked })} /><span>Sombra nas letras</span></label>
                   <label className="lock-toggle"><input type="checkbox" checked={Boolean(selectedSource.textBackground)} onChange={(event) => updateSelected({ textBackground: event.target.checked })} /><span>Fundo atrás do texto</span></label>
                   {selectedSource.textBackground && <><label className="field-label" htmlFor="text-background-color">Cor do fundo do texto</label><ColorField id="text-background-color" value={selectedSource.textBackgroundColor ?? '#11121b'} onChange={(color) => updateSelected({ textBackgroundColor: color })} /></>}
+                  </div></details>
                 </>}
                 {selectedSource.type === 'shape' && <>
                   <p className="eyebrow section-eyebrow">FORMA</p>
@@ -2966,9 +3848,11 @@ function Editor() {
                   <label className="field-label" htmlFor="shape-radius">Arredondamento</label><div className="range-row"><input id="shape-radius" type="range" min="0" max="100" value={selectedSource.radius ?? 4} onChange={(event) => updateSelected({ radius: Number(event.target.value) })} /><span>{selectedSource.radius ?? 4}px</span></div>
                 </>}
                 {selectedSource.type === 'image' && <><p className="field-hint">Controle o corte, posição interna, borda e transparência desta imagem.</p><label className="field-label" htmlFor="image-fit-style">Ajuste</label><select id="image-fit-style" className="text-input" value={selectedSource.objectFit ?? 'contain'} onChange={(event) => updateSelected({ objectFit: event.target.value as 'contain' | 'cover' })}><option value="contain">Conter</option><option value="cover">Cobrir</option></select><label className="field-label" htmlFor="image-position-style">Posição dentro da moldura</label><select id="image-position-style" className="text-input" value={selectedSource.objectPosition ?? 'center center'} onChange={(event) => updateSelected({ objectPosition: event.target.value })}><option value="center center">Centro</option><option value="top center">Topo</option><option value="bottom center">Base</option><option value="left center">Esquerda</option><option value="right center">Direita</option><option value="top left">Superior esquerda</option><option value="top right">Superior direita</option><option value="bottom left">Inferior esquerda</option><option value="bottom right">Inferior direita</option></select></>}
-                {selectedSource.type === 'video' && <><p className="eyebrow section-eyebrow">APARÊNCIA DO VÍDEO</p><label className="field-label" htmlFor="video-fit-style">Enquadramento</label><select id="video-fit-style" className="text-input" value={selectedSource.objectFit ?? 'cover'} onChange={(event) => updateSelected({ objectFit: event.target.value as 'contain' | 'cover' })}><option value="cover">Preencher / cortar bordas</option><option value="contain">Mostrar vídeo inteiro</option></select><label className="field-label" htmlFor="video-position-style">Posição do vídeo no quadro</label><select id="video-position-style" className="text-input" value={selectedSource.objectPosition ?? 'center center'} onChange={(event) => updateSelected({ objectPosition: event.target.value })}><option value="center center">Centro</option><option value="top center">Topo</option><option value="bottom center">Base</option><option value="left center">Esquerda</option><option value="right center">Direita</option><option value="top left">Superior esquerda</option><option value="top right">Superior direita</option><option value="bottom left">Inferior esquerda</option><option value="bottom right">Inferior direita</option></select></>}
-                {selectedSource.type === 'widget' && <>
-                  <p className="eyebrow section-eyebrow">APARÊNCIA DO CONTÊINER</p>
+                {selectedSource.type === 'video' && <><p className="eyebrow section-eyebrow">VÍDEO</p><label className="field-label" htmlFor="video-fit-style">Enquadramento</label><select id="video-fit-style" className="text-input" value={selectedSource.objectFit ?? 'cover'} onChange={(event) => updateSelected({ objectFit: event.target.value as 'contain' | 'cover' })}><option value="cover">Preencher / cortar bordas</option><option value="contain">Mostrar vídeo inteiro</option></select><label className="field-label" htmlFor="video-position-style">Posição do vídeo no quadro</label><select id="video-position-style" className="text-input" value={selectedSource.objectPosition ?? 'center center'} onChange={(event) => updateSelected({ objectPosition: event.target.value })}><option value="center center">Centro</option><option value="top center">Topo</option><option value="bottom center">Base</option><option value="left center">Esquerda</option><option value="right center">Direita</option><option value="top left">Superior esquerda</option><option value="top right">Superior direita</option><option value="bottom left">Inferior esquerda</option><option value="bottom right">Inferior direita</option></select></>}
+                {selectedSource.type === 'widget' && <details className="settings-accordion">
+                  <summary>Mais opções do widget</summary>
+                  <div className="settings-accordion-content">
+                  <p className="eyebrow section-eyebrow">FUNDO E CONTORNO</p>
                   <label className="lock-toggle"><input type="checkbox" checked={selectedSource.widgetShowBackground !== false} onChange={(event) => updateSelected({ widgetShowBackground: event.target.checked, widgetBackdropBlur: event.target.checked ? (selectedSource.widgetBackdropBlur ?? 8) : 0 })} /><span>Mostrar fundo do widget</span></label>
                   <label className="lock-toggle"><input type="checkbox" checked={selectedSource.widgetShowBorder !== false} onChange={(event) => updateSelected({ widgetShowBorder: event.target.checked })} /><span>Mostrar borda do contêiner</span></label>
                   <label className="lock-toggle"><input type="checkbox" checked={selectedSource.widgetShowShadow !== false} onChange={(event) => updateSelected({ widgetShowShadow: event.target.checked })} /><span>Mostrar sombra do contêiner</span></label>
@@ -3007,6 +3891,7 @@ function Editor() {
                     <button className="wide-action" type="button" onClick={applyWidgetFontUrl}>Carregar fonte base do chat</button>
                     <p className="field-hint">A fonte base é usada para nome e mensagem quando você não escolhe uma família específica abaixo.</p>
                     <label className="field-label" htmlFor="chat-layout">Organização das mensagens</label><select id="chat-layout" className="text-input" value={selectedSource.chatLayout ?? 'stacked'} onChange={(event) => updateSelected({ chatLayout: event.target.value as SceneSource['chatLayout'] })}><option value="stacked">Nome acima da mensagem (estilo live)</option><option value="inline">Nome e mensagem na mesma linha</option></select>
+                    <label className="field-label" htmlFor="chat-username-placement">Onde mostrar o nome?</label><select id="chat-username-placement" className="text-input" value={selectedSource.chatUsernamePlacement ?? 'separate'} onChange={(event) => updateSelected({ chatUsernamePlacement: event.target.value as SceneSource['chatUsernamePlacement'] })}><option value="separate">Em uma etiqueta / balão separado</option><option value="same-bubble">Dentro do mesmo balão da mensagem</option></select>
                     <label className="lock-toggle"><input type="checkbox" checked={selectedSource.chatUsernamePill !== false} onChange={(event) => updateSelected({ chatUsernamePill: event.target.checked })} /><span>Mostrar etiqueta separada para o nome</span></label>
                     <div className="two-field-grid"><div><label className="field-label" htmlFor="chat-name-pill-color">Cor da etiqueta do nome</label><ColorField id="chat-name-pill-color" value={selectedSource.chatUsernamePillColor ?? '#b94780'} onChange={(chatUsernamePillColor) => updateSelected({ chatUsernamePillColor })} /></div><div><label className="field-label" htmlFor="chat-name-pill-opacity">Opacidade do nome (%)</label><input id="chat-name-pill-opacity" className="text-input" type="number" min="0" max="100" value={Math.round((selectedSource.chatUsernamePillOpacity ?? 0.95) * 100)} disabled={selectedSource.chatUsernamePill === false} onChange={(event) => updateSelected({ chatUsernamePillOpacity: clamp(Number(event.target.value) / 100 || 0, 0, 1) })} /></div></div>
                     <div className="two-field-grid"><div><label className="field-label" htmlFor="chat-name-pill-radius">Arredondamento do nome</label><input id="chat-name-pill-radius" className="text-input" type="number" min="0" max="100" value={selectedSource.chatUsernamePillRadius ?? 999} disabled={selectedSource.chatUsernamePill === false} onChange={(event) => updateSelected({ chatUsernamePillRadius: clamp(Number(event.target.value) || 0, 0, 100) })} /></div><div><label className="field-label" htmlFor="chat-name-weight">Peso do nome</label><select id="chat-name-weight" className="text-input" value={selectedSource.chatUsernameFontWeight ?? 800} onChange={(event) => updateSelected({ chatUsernameFontWeight: Number(event.target.value) })}><option value="400">Normal</option><option value="500">Médio</option><option value="600">Seminegrito</option><option value="700">Negrito</option><option value="800">Extra negrito</option><option value="900">Preto</option></select></div></div>
@@ -3025,8 +3910,20 @@ function Editor() {
                     <label className="field-label" htmlFor="chat-message-line-height">Altura de linha da mensagem</label><div className="range-row"><input id="chat-message-line-height" type="range" min="0.8" max="3" step="0.05" value={selectedSource.chatMessageLineHeight ?? 1.35} onChange={(event) => updateSelected({ chatMessageLineHeight: Number(event.target.value) })} /><span>{(selectedSource.chatMessageLineHeight ?? 1.35).toFixed(2)}</span></div>
                     <label className="field-label" htmlFor="chat-name-mode">Cores dos nomes</label><select id="chat-name-mode" className="text-input" value={selectedSource.chatUsernameColorMode ?? 'palette'} onChange={(event) => updateSelected({ chatUsernameColorMode: event.target.value as SceneSource['chatUsernameColorMode'] })}><option value="palette">Paleta colorida (por participante)</option><option value="uniform">Uma cor para todos os nomes</option></select>
                     {selectedSource.chatUsernameColorMode === 'uniform' && <><label className="field-label" htmlFor="chat-name-color">Cor dos nomes</label><ColorField id="chat-name-color" value={selectedSource.chatUsernameColor ?? '#ffffff'} onChange={(chatUsernameColor) => updateSelected({ chatUsernameColor })} /></>}
-                    <label className="field-label" htmlFor="chat-name-colors">Sobrescrever cor de nomes específicos</label><textarea id="chat-name-colors" className="text-input textarea-input" rows={3} value={selectedSource.chatNameColors ?? ''} onChange={(event) => updateSelected({ chatNameColors: event.target.value })} placeholder={"Sophia=#ff82c5\nModerador=#78c8ff"} /><p className="field-hint">Uma entrada por linha no formato nome=#HEX. Tem prioridade sobre a paleta padrão.</p>
-                    <label className="field-label" htmlFor="chat-bubble-colors">Balões com cores por pessoa</label><textarea id="chat-bubble-colors" className="text-input textarea-input" rows={3} value={selectedSource.chatBubbleColors ?? ''} onChange={(event) => updateSelected({ chatBubbleColors: event.target.value })} placeholder={"Sophia=#b84f89\nModerador=#375c85"} disabled={selectedSource.chatBubbleEnabled === false} /><p className="field-hint">Opcional: uma entrada por linha no formato nome=#HEX. Substitui a cor global apenas para os nomes listados.</p>
+                    <div className="chat-user-colors">
+                      <p className="field-label">Cores por participante</p>
+                      <p className="field-hint">Escolha diretamente as cores dos nomes e dos balões dos participantes que aparecem nos exemplos. Quando o chat real for conectado, esta configuração poderá ser aplicada aos nomes recebidos.</p>
+                      {getChatUserNames(selectedSource.widgetItems).map((username, index) => {
+                        const nameColors = parseNamedColors(selectedSource.chatNameColors)
+                        const bubbleColors = parseNamedColors(selectedSource.chatBubbleColors)
+                        const palette = ['#b8a8ff', '#74dfc5', '#ffbd83', '#85c8ff', '#f68dc2', '#a8db77']
+                        return <div className="chat-user-color-row" key={username}>
+                          <span className="chat-user-color-name">{username}</span>
+                          <div><small>Nome</small><ColorField id={`chat-user-name-color-${index}`} value={nameColors[username.toLowerCase()] ?? palette[index % palette.length]} onChange={(color) => updateChatNamedColor('name', username, color)} /></div>
+                          <div><small>Balão</small><ColorField id={`chat-user-bubble-color-${index}`} value={bubbleColors[username.toLowerCase()] ?? selectedSource.chatBubbleColor ?? '#d85f9b'} disabled={selectedSource.chatBubbleEnabled === false} onChange={(color) => updateChatNamedColor('bubble', username, color)} /></div>
+                        </div>
+                      })}
+                    </div>
                     <div className="two-field-grid"><div><label className="field-label" htmlFor="chat-max-items">Mensagens visíveis</label><input id="chat-max-items" className="text-input" type="number" min="1" max="30" value={selectedSource.widgetMaxItems ?? 8} onChange={(event) => updateSelected({ widgetMaxItems: clamp(Math.round(Number(event.target.value) || 1), 1, 30) })} /></div><div><label className="field-label" htmlFor="chat-gap">Distância entre mensagens</label><input id="chat-gap" className="text-input" type="number" min="0" max="40" value={selectedSource.chatLineGap ?? 8} onChange={(event) => updateSelected({ chatLineGap: clamp(Number(event.target.value) || 0, 0, 40) })} /></div></div>
                     <label className="field-label" htmlFor="chat-timestamp-color">Cor do horário</label><ColorField id="chat-timestamp-color" value={selectedSource.chatTimestampColor ?? '#f7d6e7'} onChange={(chatTimestampColor) => updateSelected({ chatTimestampColor })} />
                     <label className="lock-toggle"><input type="checkbox" checked={Boolean(selectedSource.chatShowBadges)} onChange={(event) => updateSelected({ chatShowBadges: event.target.checked })} /><span>Mostrar emblema decorativo</span></label>
@@ -3052,21 +3949,19 @@ function Editor() {
                     <label className="field-label" htmlFor="clock-date-format">Formato da data</label><select id="clock-date-format" className="text-input" value={selectedSource.clockDateFormat ?? 'short'} onChange={(event) => updateSelected({ clockDateFormat: event.target.value as SceneSource['clockDateFormat'] })}><option value="short">DD/MM/AAAA</option><option value="long">Data por extenso</option><option value="time">Dia e mês abreviados</option></select>
                   </>}
                   <div className="field-divider" />
-                  <p className="eyebrow section-eyebrow">ESTILO REUTILIZÁVEL</p>
+                  <p className="eyebrow section-eyebrow">SALVAR E REUTILIZAR</p>
                   <button className="wide-action" type="button" onClick={() => downloadWidgetStyle(selectedSource)}>Exportar estilo deste widget (JSON)</button>
                   <button className="wide-action" type="button" onClick={() => widgetStyleInputRef.current?.click()}>Importar estilo para este widget (JSON)</button>
                   <p className="field-hint">O arquivo de estilo reutiliza a aparência e o conteúdo sem substituir a posição, o tamanho ou o nome da camada.</p>
+                  <label className="field-label" htmlFor="widget-theme">Acabamento do widget</label><select id="widget-theme" className="text-input" value={selectedSource.widgetTheme ?? 'glass'} onChange={(event) => updateSelected({ widgetTheme: event.target.value as WidgetTheme })}><option value="glass">Vidro translúcido</option><option value="neon">Neon</option><option value="minimal">Minimalista</option><option value="solid">Sólido</option></select>
                   <label className="field-label" htmlFor="widget-motion">Animação</label><select id="widget-motion" className="text-input" value={selectedSource.widgetAnimation ?? 'subtle'} onChange={(event) => updateSelected({ widgetAnimation: event.target.value as SceneSource['widgetAnimation'] })}><option value="none">Sem animações</option><option value="subtle">Suave</option><option value="energetic">Mais chamativa</option></select>
                   <label className="lock-toggle"><input type="checkbox" checked={selectedSource.widgetShowHeader !== false} onChange={(event) => updateSelected({ widgetShowHeader: event.target.checked })} /><span>Mostrar cabeçalho (quando suportado)</span></label>
                   <label className="lock-toggle"><input type="checkbox" checked={Boolean(selectedSource.widgetCompact)} onChange={(event) => updateSelected({ widgetCompact: event.target.checked })} /><span>Modo compacto</span></label>
-                  <label className="lock-toggle"><input type="checkbox" checked={selectedSource.widgetShowIcon !== false} onChange={(event) => updateSelected({ widgetShowIcon: event.target.checked })} /><span>Mostrar ícones decorativos</span></label>
-                  <div className="field-divider" />
-                  <p className="eyebrow section-eyebrow">CSS PERSONALIZADO · AVANÇADO</p>
-                  <label className="field-label" htmlFor="widget-custom-css">Declarações CSS</label><textarea id="widget-custom-css" className="text-input textarea-input" rows={4} maxLength={1200} value={selectedSource.widgetCustomCss ?? ''} onChange={(event) => updateSelected({ widgetCustomCss: event.target.value })} placeholder={'ex.: text-transform: uppercase;\nborder-style: dashed;\nletter-spacing: 0.05em;'} />
-                  <p className="field-hint">Use declarações separadas por ponto e vírgula. Por segurança, seletores, scripts e regras globais não são aceitos.</p>
-                </>}
+                  <label className="lock-toggle"><input type="checkbox" checked={selectedSource.widgetShowIcon !== false} onChange={(event) => updateSelected({ widgetShowIcon: event.target.checked })} /><span>Mostrar ícones</span></label>
+                  </div>
+                </details>}
                 <div className="field-divider" />
-                <p className="eyebrow section-eyebrow">ACABAMENTO DO ELEMENTO</p>
+                <p className="eyebrow section-eyebrow">APARÊNCIA GERAL</p>
                 <label className="field-label" htmlFor="source-opacity">Opacidade geral</label><div className="range-row"><input id="source-opacity" type="range" min="0" max="1" step="0.05" value={selectedSource.opacity ?? 1} onChange={(event) => updateSelected({ opacity: Number(event.target.value) })} /><span>{Math.round((selectedSource.opacity ?? 1) * 100)}%</span></div>
                 <label className="field-label" htmlFor="source-border-width">Espessura da borda externa</label><div className="range-row"><input id="source-border-width" type="range" min="0" max="20" step="1" value={selectedSource.borderWidth ?? 0} onChange={(event) => updateSelected({ borderWidth: Number(event.target.value) })} /><span>{selectedSource.borderWidth ?? 0}px</span></div>
                 <label className="field-label" htmlFor="source-border-color">Cor da borda externa</label><ColorField id="source-border-color" value={selectedSource.borderColor ?? '#ffffff'} onChange={(borderColor) => updateSelected({ borderColor })} />
@@ -3076,7 +3971,9 @@ function Editor() {
               </div>}
 
               {elementSection === 'transform' && <div className="property-fields">
-                <p className="eyebrow section-eyebrow">POSIÇÃO E TAMANHO · % DA TELA</p>
+                <p className="eyebrow section-eyebrow">POSIÇÃO E TAMANHO</p>
+                <p className="field-hint">O jeito mais fácil é arrastar o item na prévia e puxar os cantos para redimensionar. Use os ajustes manuais apenas quando precisar de precisão.</p>
+                <details className="settings-accordion"><summary>Ajustar tamanho manualmente</summary><div className="settings-accordion-content">
                 <div className="geometry-grid">
                   <NumberField label="X" value={selectedSource.x} onChange={(x) => updateSelected({ x: clamp(x, 0, 100 - selectedSource.w) })} />
                   <NumberField label="Y" value={selectedSource.y} onChange={(y) => updateSelected({ y: clamp(y, 0, 100 - selectedSource.h) })} />
@@ -3084,7 +3981,8 @@ function Editor() {
                   <NumberField label="Altura" value={selectedSource.h} onChange={(h) => updateSelected({ h: clamp(h, 4, 100 - selectedSource.y) })} />
                 </div>
                 <label className="field-label" htmlFor="source-rotation">Rotação</label><div className="range-row"><input id="source-rotation" type="range" min="-180" max="180" step="1" value={selectedSource.rotation ?? 0} onChange={(event) => updateSelected({ rotation: Number(event.target.value) })} /><span>{selectedSource.rotation ?? 0}°</span></div>
-                <label className="field-label">Alinhamento rápido</label>
+                </div></details>
+                <label className="field-label">Alinhar na tela</label>
                 <div className="align-grid">
                   <button type="button" disabled={Boolean(selectedSource.locked)} onClick={() => alignSelected('left')}>◧ Esquerda</button><button type="button" disabled={Boolean(selectedSource.locked)} onClick={() => alignSelected('center-x')}>↔ Centro</button><button type="button" disabled={Boolean(selectedSource.locked)} onClick={() => alignSelected('right')}>Direita ◨</button><button type="button" disabled={Boolean(selectedSource.locked)} onClick={() => alignSelected('top')}>↑ Topo</button><button type="button" disabled={Boolean(selectedSource.locked)} onClick={() => alignSelected('center-y')}>↕ Meio</button><button type="button" disabled={Boolean(selectedSource.locked)} onClick={() => alignSelected('bottom')}>Base ↓</button>
                 </div>
@@ -3098,19 +3996,77 @@ function Editor() {
         {inspectorTab === 'background' && <div className="scene-settings-panel background-settings-panel">
           <div className="properties-heading"><div><p className="eyebrow">CENA ATUAL</p><h3>Plano de fundo</h3></div><span className="property-type">{activeScene.name}</span></div>
           <label className="field-label" htmlFor="scene-background-mode">Tipo de fundo</label>
-          <select id="scene-background-mode" className="text-input" value={activeScene.background?.mode ?? 'transparent'} onChange={(event) => updateScene({ background: { ...(activeScene.background ?? { color: '#25233a', color2: '#10121a', angle: 135 }), mode: event.target.value as BackgroundConfig['mode'] } })}><option value="transparent">Transparente (overlay)</option><option value="solid">Cor sólida</option><option value="gradient">Gradiente</option><option value="image">Imagem de fundo</option><option value="video">Vídeo de fundo</option><option value="screen">Captura de tela/janela</option><option value="animated">Tema animado</option></select>
+          <select id="scene-background-mode" className="text-input" value={activeScene.background?.mode ?? 'transparent'} onChange={(event) => updateScene({ background: { ...(activeScene.background ?? { color: '#25233a', color2: '#10121a', angle: 135 }), mode: event.target.value as BackgroundConfig['mode'] } })}><option value="transparent">Transparente (overlay)</option><option value="solid">Cor sólida</option><option value="gradient">Gradiente</option><option value="image">Imagem de fundo</option><option value="video">Vídeo de fundo</option><option value="screen">Captura de tela/janela</option><option value="animated">Tema animado</option><option value="slideshow">Carrossel de imagens</option></select>
           {(activeScene.background?.mode === 'solid' || activeScene.background?.mode === 'gradient' || activeScene.background?.mode === 'image' || activeScene.background?.mode === 'video' || activeScene.background?.mode === 'screen') && <><label className="field-label" htmlFor="scene-bg-color">Cor base</label><ColorField id="scene-bg-color" value={activeScene.background?.color ?? '#171923'} onChange={(color) => updateScene({ background: { ...(activeScene.background ?? { mode: 'solid', color2: '#10121a', angle: 135 }), color } })} /></>}
           {activeScene.background?.mode === 'gradient' && <><label className="field-label" htmlFor="scene-bg-color2">Segunda cor</label><ColorField id="scene-bg-color2" value={activeScene.background.color2 ?? '#10121a'} onChange={(color2) => updateScene({ background: { ...activeScene.background!, color2 } })} /><label className="field-label" htmlFor="scene-bg-angle">Ângulo do gradiente</label><div className="range-row"><input id="scene-bg-angle" type="range" min="0" max="360" value={activeScene.background.angle ?? 135} onChange={(event) => updateScene({ background: { ...activeScene.background!, angle: Number(event.target.value) } })} /><span>{activeScene.background.angle ?? 135}°</span></div></>}
           {activeScene.background?.mode === 'animated' && <>
             <label className="field-label" htmlFor="animated-theme">Tema animado</label>
             <select id="animated-theme" className="text-input" value={activeScene.background.animatedTheme ?? 'aurora'} onChange={(event) => updateScene({ background: { ...activeScene.background!, animatedTheme: event.target.value as NonNullable<BackgroundConfig['animatedTheme']> } })}>
-              <option value="aurora">Aurora fluida</option><option value="stars">Espaço estrelado</option><option value="cyber-grid">Grade cyberpunk</option><option value="waves">Ondas luminosas</option><option value="gradient-flow">Gradiente em movimento</option>
+              <option value="custom">Tema livre · composição personalizada</option><option value="aurora">Aurora fluida</option><option value="stars">Espaço estrelado</option><option value="cyber-grid">Grade cyberpunk</option><option value="waves">Ondas luminosas</option><option value="gradient-flow">Gradiente líquido</option><option value="matrix-rain">Chuva Matrix</option><option value="liquid-lava">Lava líquida</option><option value="bokeh">Bokeh cinematográfico</option><option value="sunset-clouds">Nuvens de pôr do sol</option><option value="electric-pulse">Pulso elétrico</option><option value="particles">Partículas flutuantes</option><option value="laser-grid">Grade laser</option><option value="deep-ocean">Oceano profundo</option><option value="prism">Prisma iridescente</option>
             </select>
+            <div className="animated-theme-actions">
+              <button className="wide-action" type="button" onClick={() => animatedThemeInputRef.current?.click()}>Importar tema animado (.json)</button>
+              <button className="wide-action secondary-action" type="button" onClick={exportAnimatedTheme}>Exportar tema atual</button>
+            </div>
+            <div className="background-import-card animated-media-import-card">
+              <strong>Usar uma animação como fundo</strong>
+              <small>Também é possível importar um GIF/WebP animado ou um vídeo MP4/WebM para usar como plano de fundo.</small>
+              <button className="wide-action" type="button" onClick={() => backgroundDesignInputRef.current?.click()}>Importar GIF / WebP animado</button>
+              <button className="wide-action secondary-action" type="button" onClick={() => { backgroundPlaylistAppendTargetRef.current = null; backgroundVideoInputRef.current?.click() }}>Importar vídeo MP4 / WebM…</button>
+            </div>
+            <p className="field-hint">Os arquivos JSON de tema guardam o preset, as cores, a velocidade e a intensidade. GIFs e vídeos são importados como mídia de fundo editável.</p>
             <div className="two-field-grid"><div><label className="field-label" htmlFor="animated-color-a">Cor principal</label><ColorField id="animated-color-a" value={activeScene.background.color ?? '#17142b'} onChange={(color) => updateScene({ background: { ...activeScene.background!, color } })} /></div><div><label className="field-label" htmlFor="animated-color-b">Cor secundária</label><ColorField id="animated-color-b" value={activeScene.background.color2 ?? '#0b111d'} onChange={(color2) => updateScene({ background: { ...activeScene.background!, color2 } })} /></div></div>
             <label className="field-label" htmlFor="animated-accent">Cor de destaque</label><ColorField id="animated-accent" value={activeScene.background.animatedAccent ?? '#8d85ff'} onChange={(animatedAccent) => updateScene({ background: { ...activeScene.background!, animatedAccent } })} />
             <label className="field-label" htmlFor="animated-speed">Velocidade · {Number(activeScene.background.animatedSpeed ?? 1).toFixed(2)}×</label><div className="range-row"><input id="animated-speed" type="range" min="0.25" max="3" step="0.25" value={activeScene.background.animatedSpeed ?? 1} onChange={(event) => updateScene({ background: { ...activeScene.background!, animatedSpeed: Number(event.target.value) } })} /><span>{Number(activeScene.background.animatedSpeed ?? 1).toFixed(2)}×</span></div>
             <label className="field-label" htmlFor="animated-intensity">Intensidade · {Math.round((activeScene.background.animatedIntensity ?? 0.75) * 100)}%</label><div className="range-row"><input id="animated-intensity" type="range" min="0" max="1" step="0.05" value={activeScene.background.animatedIntensity ?? 0.75} onChange={(event) => updateScene({ background: { ...activeScene.background!, animatedIntensity: Number(event.target.value) } })} /><span>{Math.round((activeScene.background.animatedIntensity ?? 0.75) * 100)}%</span></div>
-            <p className="field-hint">Animações em CSS, sem vídeo de fundo. Isso mantém o tema leve e independente por cena.</p>
+            <div className="field-divider" /><p className="eyebrow section-eyebrow">MOVIMENTO E ACABAMENTO</p>
+            <label className="field-label" htmlFor="animated-blur">Desfoque das camadas · {Math.round(activeScene.background.animatedBlur ?? 26)} px</label><div className="range-row"><input id="animated-blur" type="range" min="0" max="80" step="2" value={activeScene.background.animatedBlur ?? 26} onChange={(event) => updateScene({ background: { ...activeScene.background!, animatedBlur: Number(event.target.value) } })} /><span>{Math.round(activeScene.background.animatedBlur ?? 26)} px</span></div>
+            <label className="field-label" htmlFor="animated-glow">Brilho / glow · {Math.round((activeScene.background.animatedGlow ?? 0.7) * 100)}%</label><div className="range-row"><input id="animated-glow" type="range" min="0" max="1" step="0.05" value={activeScene.background.animatedGlow ?? 0.7} onChange={(event) => updateScene({ background: { ...activeScene.background!, animatedGlow: Number(event.target.value) } })} /><span>{Math.round((activeScene.background.animatedGlow ?? 0.7) * 100)}%</span></div>
+            <label className="field-label" htmlFor="animated-grain">Textura / grão · {Math.round((activeScene.background.animatedGrain ?? 0.08) * 100)}%</label><div className="range-row"><input id="animated-grain" type="range" min="0" max="0.3" step="0.01" value={activeScene.background.animatedGrain ?? 0.08} onChange={(event) => updateScene({ background: { ...activeScene.background!, animatedGrain: Number(event.target.value) } })} /><span>{Math.round((activeScene.background.animatedGrain ?? 0.08) * 100)}%</span></div>
+            <label className="field-label" htmlFor="animated-vignette">Vinheta nas bordas · {Math.round((activeScene.background.animatedVignette ?? 0.25) * 100)}%</label><div className="range-row"><input id="animated-vignette" type="range" min="0" max="1" step="0.05" value={activeScene.background.animatedVignette ?? 0.25} onChange={(event) => updateScene({ background: { ...activeScene.background!, animatedVignette: Number(event.target.value) } })} /><span>{Math.round((activeScene.background.animatedVignette ?? 0.25) * 100)}%</span></div>
+            <label className="field-label" htmlFor="animated-density">Densidade dos efeitos · {Number(activeScene.background.animatedDensity ?? 1).toFixed(2)}×</label><div className="range-row"><input id="animated-density" type="range" min="0.25" max="3" step="0.25" value={activeScene.background.animatedDensity ?? 1} onChange={(event) => updateScene({ background: { ...activeScene.background!, animatedDensity: Number(event.target.value) } })} /><span>{Number(activeScene.background.animatedDensity ?? 1).toFixed(2)}×</span></div>
+            <label className="field-label" htmlFor="animated-scale">Escala dos efeitos · {Number(activeScene.background.animatedScale ?? 1).toFixed(2)}×</label><div className="range-row"><input id="animated-scale" type="range" min="0.5" max="2" step="0.1" value={activeScene.background.animatedScale ?? 1} onChange={(event) => updateScene({ background: { ...activeScene.background!, animatedScale: Number(event.target.value) } })} /><span>{Number(activeScene.background.animatedScale ?? 1).toFixed(2)}×</span></div>
+            <label className="field-label" htmlFor="animated-direction">Direção do movimento</label><select id="animated-direction" className="text-input" value={activeScene.background.animatedDirection ?? 'alternate'} onChange={(event) => updateScene({ background: { ...activeScene.background!, animatedDirection: event.target.value as NonNullable<BackgroundConfig['animatedDirection']> } })}><option value="normal">Normal</option><option value="reverse">Reversa</option><option value="alternate">Alternada</option></select>
+            <label className="field-label" htmlFor="animated-layers">Complexidade visual</label><select id="animated-layers" className="text-input" value={activeScene.background.animatedLayers ?? 'balanced'} onChange={(event) => updateScene({ background: { ...activeScene.background!, animatedLayers: event.target.value as NonNullable<BackgroundConfig['animatedLayers']> } })}><option value="soft">Suave — menos camadas</option><option value="balanced">Equilibrada</option><option value="rich">Rica — camadas extras</option></select>
+            <label className="field-label" htmlFor="animated-angle">Ângulo do tema · {activeScene.background.angle ?? 135}°</label><div className="range-row"><input id="animated-angle" type="range" min="0" max="360" step="5" value={activeScene.background.angle ?? 135} onChange={(event) => updateScene({ background: { ...activeScene.background!, angle: Number(event.target.value) } })} /><span>{activeScene.background.angle ?? 135}°</span></div>
+            <div className="field-divider" /><p className="eyebrow section-eyebrow">AJUSTE DE COR GLOBAL</p>
+            <label className="field-label" htmlFor="animated-brightness">Brilho global · {Math.round((activeScene.background.animatedBrightness ?? 1) * 100)}%</label><div className="range-row"><input id="animated-brightness" type="range" min="0" max="2" step="0.05" value={activeScene.background.animatedBrightness ?? 1} onChange={(event) => updateScene({ background: { ...activeScene.background!, animatedBrightness: Number(event.target.value) } })} /><span>{Math.round((activeScene.background.animatedBrightness ?? 1) * 100)}%</span></div>
+            <label className="field-label" htmlFor="animated-contrast">Contraste global · {Math.round((activeScene.background.animatedContrast ?? 1) * 100)}%</label><div className="range-row"><input id="animated-contrast" type="range" min="0" max="2" step="0.05" value={activeScene.background.animatedContrast ?? 1} onChange={(event) => updateScene({ background: { ...activeScene.background!, animatedContrast: Number(event.target.value) } })} /><span>{Math.round((activeScene.background.animatedContrast ?? 1) * 100)}%</span></div>
+            <label className="field-label" htmlFor="animated-saturation">Saturação global · {Math.round((activeScene.background.animatedSaturation ?? 1) * 100)}%</label><div className="range-row"><input id="animated-saturation" type="range" min="0" max="3" step="0.05" value={activeScene.background.animatedSaturation ?? 1} onChange={(event) => updateScene({ background: { ...activeScene.background!, animatedSaturation: Number(event.target.value) } })} /><span>{Math.round((activeScene.background.animatedSaturation ?? 1) * 100)}%</span></div>
+            <label className="field-label" htmlFor="animated-hue">Matiz global · {Math.round(activeScene.background.animatedHueRotate ?? 0)}°</label><div className="range-row"><input id="animated-hue" type="range" min="0" max="360" step="5" value={activeScene.background.animatedHueRotate ?? 0} onChange={(event) => updateScene({ background: { ...activeScene.background!, animatedHueRotate: Number(event.target.value) } })} /><span>{Math.round(activeScene.background.animatedHueRotate ?? 0)}°</span></div>
+            <label className="field-label" htmlFor="animated-blend">Modo de mistura</label><select id="animated-blend" className="text-input" value={activeScene.background.animatedBlendMode ?? 'normal'} onChange={(event) => updateScene({ background: { ...activeScene.background!, animatedBlendMode: event.target.value as NonNullable<BackgroundConfig['animatedBlendMode']> } })}><option value="normal">Normal</option><option value="screen">Clarear (screen)</option><option value="lighten">Mais claro</option><option value="overlay">Sobrepor</option><option value="multiply">Multiplicar</option></select>
+            <p className="field-hint">Temas em CSS, sem precisar renderizar um vídeo. Reduzir brilho, glow, textura e densidade ajuda a manter o uso de recursos moderado.</p>
+          </>}
+          {activeScene.background?.mode === 'slideshow' && <>
+            <div className="background-import-card"><strong>Carrossel de imagens · {activeScene.background.slideshowImages?.length ?? 0} arquivo(s)</strong><small>Escolha várias fotos de uma vez. Não há um número fixo de fotos no editor; a quantidade prática depende do espaço disponível no navegador. Cada arquivo deve ter até 1,5 MB.</small>
+              <button className="wide-action" type="button" onClick={() => { slideshowImportModeRef.current = 'append'; slideshowTargetSceneRef.current = activeScene.id; slideshowInputRef.current?.click() }}>＋ Adicionar fotos</button>
+              <button className="wide-action secondary-action" type="button" onClick={() => { slideshowImportModeRef.current = 'replace'; slideshowTargetSceneRef.current = activeScene.id; slideshowInputRef.current?.click() }}>Substituir lista de fotos</button>
+            </div>
+            <div className="slideshow-image-list"><p className="eyebrow">ORDEM DAS FOTOS</p>
+              {(activeScene.background.slideshowImages ?? []).map((image, index, images) => <div className="slideshow-image-row" key={image.id}><span className="slideshow-order">{index + 1}</span><span className="slideshow-image-name" title={image.name}>{image.name}</span><div className="slideshow-image-actions"><button type="button" disabled={index === 0} aria-label="Mover foto para cima" onClick={() => { const next = [...images]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; updateScene({ background: { ...activeScene.background!, slideshowImages: next } }) }}>↑</button><button type="button" disabled={index === images.length - 1} aria-label="Mover foto para baixo" onClick={() => { const next = [...images]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; updateScene({ background: { ...activeScene.background!, slideshowImages: next } }) }}>↓</button><button type="button" aria-label={`Remover ${image.name}`} onClick={() => updateScene({ background: { ...activeScene.background!, slideshowImages: images.filter((item) => item.id !== image.id) } })}>×</button></div></div>)}
+              {(activeScene.background.slideshowImages?.length ?? 0) === 0 && <p className="field-hint">Ainda não há fotos. Adicione uma seleção de imagens para começar.</p>}
+              {(activeScene.background.slideshowImages?.length ?? 0) > 0 && <button type="button" className="wide-action danger-action" onClick={() => { if (window.confirm('Remover todas as fotos da lista do carrossel?')) updateScene({ background: { ...activeScene.background!, slideshowImages: [] } }) }}>Limpar lista de fotos</button>}
+            </div>
+            <div className="field-divider" /><p className="eyebrow section-eyebrow">TEMPO E TRANSIÇÃO</p>
+            <label className="field-label" htmlFor="slideshow-interval">Tempo por foto · {activeScene.background.slideshowIntervalSeconds ?? 10} s</label><div className="range-row"><input id="slideshow-interval" type="range" min="1" max="600" step="1" value={activeScene.background.slideshowIntervalSeconds ?? 10} onChange={(event) => updateScene({ background: { ...activeScene.background!, slideshowIntervalSeconds: Number(event.target.value) } })} /><span>{activeScene.background.slideshowIntervalSeconds ?? 10} s</span></div>
+            <label className="field-label" htmlFor="slideshow-transition">Transição</label><select id="slideshow-transition" className="text-input" value={activeScene.background.slideshowTransition ?? 'fade'} onChange={(event) => updateScene({ background: { ...activeScene.background!, slideshowTransition: event.target.value as NonNullable<BackgroundConfig['slideshowTransition']> } })}><option value="fade">Dissolver / fade</option><option value="slide">Deslizar</option><option value="zoom">Zoom</option><option value="blur">Desfoque</option><option value="none">Corte direto</option></select>
+            <label className="field-label" htmlFor="slideshow-transition-time">Duração da transição · {Number(activeScene.background.slideshowTransitionDuration ?? 1.2).toFixed(1)} s</label><div className="range-row"><input id="slideshow-transition-time" type="range" min="0" max="5" step="0.1" value={activeScene.background.slideshowTransitionDuration ?? 1.2} onChange={(event) => updateScene({ background: { ...activeScene.background!, slideshowTransitionDuration: Number(event.target.value) } })} /><span>{Number(activeScene.background.slideshowTransitionDuration ?? 1.2).toFixed(1)} s</span></div>
+            <div className="two-field-grid"><label className="checkbox-row"><input type="checkbox" checked={activeScene.background.slideshowLoop !== false} onChange={(event) => updateScene({ background: { ...activeScene.background!, slideshowLoop: event.target.checked } })} /><span>Repetir em loop</span></label><label className="checkbox-row"><input type="checkbox" checked={activeScene.background.slideshowShuffle === true} onChange={(event) => updateScene({ background: { ...activeScene.background!, slideshowShuffle: event.target.checked } })} /><span>Ordem aleatória</span></label></div>
+            <div className="field-divider" /><p className="eyebrow section-eyebrow">ENQUADRAMENTO E MOVIMENTO</p>
+            <label className="field-label" htmlFor="slideshow-fit">Enquadramento</label><select id="slideshow-fit" className="text-input" value={activeScene.background.slideshowFit ?? 'cover'} onChange={(event) => updateScene({ background: { ...activeScene.background!, slideshowFit: event.target.value as NonNullable<BackgroundConfig['slideshowFit']> } })}><option value="cover">Cobrir a tela (corta bordas)</option><option value="contain">Mostrar imagem inteira</option><option value="stretch">Esticar para preencher</option></select>
+            <label className="field-label" htmlFor="slideshow-position">Ponto focal</label><select id="slideshow-position" className="text-input" value={activeScene.background.slideshowPosition ?? 'center center'} onChange={(event) => updateScene({ background: { ...activeScene.background!, slideshowPosition: event.target.value } })}><option value="center center">Centro</option><option value="top center">Topo</option><option value="bottom center">Base</option><option value="left center">Esquerda</option><option value="right center">Direita</option><option value="top left">Superior esquerda</option><option value="top right">Superior direita</option><option value="bottom left">Inferior esquerda</option><option value="bottom right">Inferior direita</option></select>
+            <label className="field-label" htmlFor="slideshow-zoom">Zoom base · {Number(activeScene.background.slideshowZoom ?? 1).toFixed(2)}×</label><div className="range-row"><input id="slideshow-zoom" type="range" min="0.8" max="1.5" step="0.05" value={activeScene.background.slideshowZoom ?? 1} onChange={(event) => updateScene({ background: { ...activeScene.background!, slideshowZoom: Number(event.target.value) } })} /><span>{Number(activeScene.background.slideshowZoom ?? 1).toFixed(2)}×</span></div>
+            <label className="checkbox-row"><input type="checkbox" checked={activeScene.background.slideshowKenBurns === true} onChange={(event) => updateScene({ background: { ...activeScene.background!, slideshowKenBurns: event.target.checked } })} /><span>Efeito Ken Burns (zoom e deslocamento suaves)</span></label>
+            <div className="field-divider" /><p className="eyebrow section-eyebrow">COR E ACABAMENTO</p>
+            <label className="field-label" htmlFor="slideshow-opacity">Opacidade · {Math.round((activeScene.background.slideshowOpacity ?? 1) * 100)}%</label><div className="range-row"><input id="slideshow-opacity" type="range" min="0" max="1" step="0.05" value={activeScene.background.slideshowOpacity ?? 1} onChange={(event) => updateScene({ background: { ...activeScene.background!, slideshowOpacity: Number(event.target.value) } })} /><span>{Math.round((activeScene.background.slideshowOpacity ?? 1) * 100)}%</span></div>
+            <label className="field-label" htmlFor="slideshow-brightness">Brilho · {Math.round((activeScene.background.slideshowBrightness ?? 1) * 100)}%</label><div className="range-row"><input id="slideshow-brightness" type="range" min="0" max="2" step="0.05" value={activeScene.background.slideshowBrightness ?? 1} onChange={(event) => updateScene({ background: { ...activeScene.background!, slideshowBrightness: Number(event.target.value) } })} /><span>{Math.round((activeScene.background.slideshowBrightness ?? 1) * 100)}%</span></div>
+            <label className="field-label" htmlFor="slideshow-contrast">Contraste · {Math.round((activeScene.background.slideshowContrast ?? 1) * 100)}%</label><div className="range-row"><input id="slideshow-contrast" type="range" min="0" max="2" step="0.05" value={activeScene.background.slideshowContrast ?? 1} onChange={(event) => updateScene({ background: { ...activeScene.background!, slideshowContrast: Number(event.target.value) } })} /><span>{Math.round((activeScene.background.slideshowContrast ?? 1) * 100)}%</span></div>
+            <label className="field-label" htmlFor="slideshow-saturation">Saturação · {Math.round((activeScene.background.slideshowSaturation ?? 1) * 100)}%</label><div className="range-row"><input id="slideshow-saturation" type="range" min="0" max="2" step="0.05" value={activeScene.background.slideshowSaturation ?? 1} onChange={(event) => updateScene({ background: { ...activeScene.background!, slideshowSaturation: Number(event.target.value) } })} /><span>{Math.round((activeScene.background.slideshowSaturation ?? 1) * 100)}%</span></div>
+            <label className="field-label" htmlFor="slideshow-hue">Matiz · {Math.round(activeScene.background.slideshowHueRotate ?? 0)}°</label><div className="range-row"><input id="slideshow-hue" type="range" min="0" max="360" step="5" value={activeScene.background.slideshowHueRotate ?? 0} onChange={(event) => updateScene({ background: { ...activeScene.background!, slideshowHueRotate: Number(event.target.value) } })} /><span>{Math.round(activeScene.background.slideshowHueRotate ?? 0)}°</span></div>
+            <label className="field-label" htmlFor="slideshow-blur">Desfoque · {Math.round(activeScene.background.slideshowBlur ?? 0)} px</label><div className="range-row"><input id="slideshow-blur" type="range" min="0" max="20" step="1" value={activeScene.background.slideshowBlur ?? 0} onChange={(event) => updateScene({ background: { ...activeScene.background!, slideshowBlur: Number(event.target.value) } })} /><span>{Math.round(activeScene.background.slideshowBlur ?? 0)} px</span></div>
+            <label className="field-label" htmlFor="slideshow-overlay-color">Sobreposição de cor</label><ColorField id="slideshow-overlay-color" value={activeScene.background.slideshowOverlayColor ?? '#000000'} onChange={(slideshowOverlayColor) => updateScene({ background: { ...activeScene.background!, slideshowOverlayColor } })} />
+            <label className="field-label" htmlFor="slideshow-overlay-opacity">Intensidade da sobreposição · {Math.round((activeScene.background.slideshowOverlayOpacity ?? 0) * 100)}%</label><div className="range-row"><input id="slideshow-overlay-opacity" type="range" min="0" max="1" step="0.05" value={activeScene.background.slideshowOverlayOpacity ?? 0} onChange={(event) => updateScene({ background: { ...activeScene.background!, slideshowOverlayOpacity: Number(event.target.value) } })} /><span>{Math.round((activeScene.background.slideshowOverlayOpacity ?? 0) * 100)}%</span></div>
+            <button className="wide-action danger-action" type="button" onClick={() => updateScene({ background: { ...activeScene.background!, mode: 'transparent', slideshowImages: [] } })}>Remover carrossel do fundo</button>
           </>}
           {activeScene.background?.mode === 'image' && <>
             <div className="background-import-card"><strong>{activeScene.background.imageSrc ? 'Imagem definida' : 'Nenhuma imagem selecionada'}</strong><small>Use arquivo local ou URL pública de imagem.</small><button className="wide-action" type="button" onClick={() => backgroundDesignInputRef.current?.click()}>Escolher imagem do computador</button></div>
@@ -3179,19 +4135,24 @@ function Editor() {
       </aside>
 
       <input ref={imageInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" multiple onChange={onImageSelected} />
-      <input ref={videoInputRef} className="hidden-input" type="file" accept="video/*,.mp4,.m4v,.webm,.ogv,.ogg,.mov,.3gp,.mkv,.avi,.wmv,.mpeg,.mpg,.ts,.m2ts" multiple onChange={onVideoSelected} onCancel={() => { videoPlaylistTargetRef.current = null }} />
+      <input ref={videoInputRef} className="hidden-input" type="file" accept="video/*,.mp4,.m4v,.webm,.ogv,.ogg,.mov,.3gp,.mkv,.avi,.wmv,.mpeg,.mpg,.ts,.m2ts" multiple onChange={onVideoSelected} />
       <input ref={backgroundDesignInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" onChange={onBackgroundDesignSelected} />
-      <input ref={backgroundVideoInputRef} className="hidden-input" type="file" accept="video/*,.mp4,.m4v,.webm,.ogv,.ogg,.mov,.3gp,.mkv,.avi,.wmv,.mpeg,.mpg,.ts,.m2ts" multiple onChange={onBackgroundVideoSelected} onCancel={() => { backgroundPlaylistAppendTargetRef.current = null }} />
+      <input ref={slideshowInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,image/avif,.svg,.avif" multiple onChange={onSlideshowImagesSelected} />
+      <input ref={backgroundVideoInputRef} className="hidden-input" type="file" accept="video/*,.mp4,.m4v,.webm,.ogv,.ogg,.mov,.3gp,.mkv,.avi,.wmv,.mpeg,.mpg,.ts,.m2ts" multiple onChange={onBackgroundVideoSelected} />
       <input ref={widgetBackgroundInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" onChange={onWidgetBackgroundSelected} />
+      <input ref={frameOverlayInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" onChange={onFrameOverlaySelected} />
+      <input ref={goalPartImageInputRef} className="hidden-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml,.svg" onChange={onGoalPartImageSelected} />
       <input ref={widgetStyleInputRef} className="hidden-input" type="file" accept="application/json,.json" onChange={importWidgetStyle} />
+      <input ref={animatedThemeInputRef} className="hidden-input" type="file" accept="application/json,.json" onChange={importAnimatedTheme} />
       <input ref={importInputRef} className="hidden-input" type="file" accept="application/json,.json" onChange={importProject} />
       {message && <div className="save-toast" role="status"><span>✓</span>{message}<button type="button" onClick={() => setMessage('')} aria-label="Fechar aviso">×</button></div>}
     </div>
   )
 }
 
-function ColorField({ id, value, onChange }: { id: string; value: string; onChange: (value: string) => void }) {
-  return <div className="color-field"><input id={id} type="color" value={value} onChange={(event) => onChange(event.target.value)} /><span>{value.toUpperCase()}</span></div>
+function ColorField({ id, value, onChange, disabled = false }: { id: string; value: string; onChange: (value: string) => void; disabled?: boolean }) {
+  const safeValue = /^#[0-9a-fA-F]{6}$/.test(value) ? value : /^#[0-9a-fA-F]{3}$/.test(value) ? `#${value[1]}${value[1]}${value[2]}${value[2]}${value[3]}${value[3]}` : '#000000'
+  return <div className={`color-field ${disabled ? 'is-disabled' : ''}`}><input id={id} type="color" value={safeValue} disabled={disabled} onChange={(event) => onChange(event.target.value)} /><span>{value.toUpperCase()}</span></div>
 }
 
 function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
@@ -3204,17 +4165,87 @@ function AnimatedBackgroundLayer({ background }: { background: BackgroundConfig 
   const intensity = clamp(Number.isFinite(background.animatedIntensity) ? Number(background.animatedIntensity) : 0.75, 0, 1)
   const style = {
     backgroundColor: background.color ?? '#17142b',
-    '--animated-color-a': background.color ?? '#17142b',
-    '--animated-color-b': background.color2 ?? '#0b111d',
-    '--animated-accent': background.animatedAccent ?? '#8d85ff',
-    '--animated-intensity': intensity,
-    '--animated-duration': `${14 / speed}s`,
-    '--animated-duration-slow': `${24 / speed}s`,
+    '--animated-color-a': background.color ?? '#17142b', '--animated-color-b': background.color2 ?? '#0b111d',
+    '--animated-accent': background.animatedAccent ?? '#8d85ff', '--animated-intensity': intensity,
+    '--animated-duration': `${14 / speed}s`, '--animated-duration-slow': `${24 / speed}s`,
+    '--animated-blur': `${background.animatedBlur ?? 26}px`, '--animated-glow': background.animatedGlow ?? 0.7,
+    '--animated-grain': background.animatedGrain ?? 0.08, '--animated-vignette': background.animatedVignette ?? 0.25,
+    '--animated-density': background.animatedDensity ?? 1, '--animated-scale': background.animatedScale ?? 1,
+    '--animated-direction': background.animatedDirection ?? 'alternate', '--animated-angle': `${background.angle ?? 135}deg`,
+    filter: `brightness(${background.animatedBrightness ?? 1}) contrast(${background.animatedContrast ?? 1}) saturate(${background.animatedSaturation ?? 1}) hue-rotate(${background.animatedHueRotate ?? 0}deg)`,
+    mixBlendMode: background.animatedBlendMode ?? 'normal',
   } as CSSProperties
-  return <div className={`animated-background-layer animated-theme-${theme}`} style={style} aria-hidden="true">
+  return <div className={`animated-background-layer animated-theme-${theme} animated-layers-${background.animatedLayers ?? 'balanced'}`} style={style} aria-hidden="true">
     <span className="animated-layer-orb animated-layer-orb-one" />
     <span className="animated-layer-orb animated-layer-orb-two" />
     <span className="animated-layer-grain" />
+    <span className="animated-layer-particles" />
+    <span className="animated-layer-vignette" />
+  </div>
+}
+
+function BackgroundSlideshowLayer({ background }: { background: BackgroundConfig }) {
+  const images = (background.slideshowImages ?? []).filter((item) => item && isSafeImageSource(item.src))
+  const imageKey = images.map((item) => item.id).join('|')
+  const shuffle = background.slideshowShuffle === true
+  const order = useMemo(() => {
+    const next = [...images]
+    if (shuffle) {
+      for (let i = next.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[next[i], next[j]] = [next[j], next[i]]
+      }
+    }
+    return next
+  // The image ID signature identifies the list; URLs can be large data strings or IDB references.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imageKey, shuffle])
+  const [slideIndex, setSlideIndex] = useState(0)
+  const [resolvedSources, setResolvedSources] = useState<Record<string, string>>({})
+  useEffect(() => {
+    setSlideIndex(0)
+    let cancelled = false
+    const objectUrls: string[] = []
+    Promise.all(order.map(async (image) => {
+      if (!image.src.startsWith('idb-video://')) return [image.id, image.src] as const
+      const blob = await getVideoBlob(image.src)
+      if (!blob) return [image.id, ''] as const
+      const objectUrl = URL.createObjectURL(blob)
+      objectUrls.push(objectUrl)
+      return [image.id, objectUrl] as const
+    })).then((pairs) => {
+      if (!cancelled) setResolvedSources(Object.fromEntries(pairs))
+    }).catch(() => { if (!cancelled) setResolvedSources({}) })
+    return () => { cancelled = true; objectUrls.forEach((url) => URL.revokeObjectURL(url)) }
+  }, [imageKey, order])
+  useEffect(() => {
+    if (order.length < 2 || (background.slideshowLoop === false && slideIndex >= order.length - 1)) return
+    const duration = clamp(Number(background.slideshowIntervalSeconds ?? 10), 1, 3600) * 1000
+    const timer = window.setTimeout(() => setSlideIndex((current) => {
+      if (current >= order.length - 1) return background.slideshowLoop === false ? current : 0
+      return current + 1
+    }), duration)
+    return () => window.clearTimeout(timer)
+  }, [order.length, slideIndex, background.slideshowIntervalSeconds, background.slideshowLoop])
+  useEffect(() => { if (slideIndex >= order.length) setSlideIndex(0) }, [slideIndex, order.length])
+  const activeImage = order[slideIndex]
+  if (!activeImage) return <div className="background-slideshow-layer slideshow-empty" aria-hidden="true" />
+  const transition = background.slideshowTransition ?? 'fade'
+  const duration = clamp(Number(background.slideshowTransitionDuration ?? 1.2), 0, 10)
+  const fit = background.slideshowFit === 'contain' ? 'contain' : background.slideshowFit === 'stretch' ? 'fill' : 'cover'
+  const imageStyle = {
+    objectFit: fit, objectPosition: background.slideshowPosition ?? 'center center',
+    opacity: background.slideshowOpacity ?? 1,
+    '--slideshow-final-opacity': background.slideshowOpacity ?? 1,
+    '--slideshow-zoom': background.slideshowZoom ?? 1,
+    filter: `brightness(${background.slideshowBrightness ?? 1}) contrast(${background.slideshowContrast ?? 1}) saturate(${background.slideshowSaturation ?? 1}) hue-rotate(${background.slideshowHueRotate ?? 0}deg) blur(${background.slideshowBlur ?? 0}px)`,
+    transform: `scale(${(background.slideshowZoom ?? 1) * (background.slideshowKenBurns ? 1.06 : 1)})`,
+    animationDuration: `${Math.max(0.01, duration)}s`,
+  } as CSSProperties
+  return <div className="background-slideshow-layer" aria-hidden="true">
+    {resolvedSources[activeImage.id] ? <img key={`${activeImage.id}-${slideIndex}`} src={resolvedSources[activeImage.id]} className={`slideshow-photo slideshow-transition-${transition} ${background.slideshowKenBurns ? 'slideshow-ken-burns' : ''}`} style={imageStyle} alt="" draggable={false} /> : <div className="slideshow-missing">Imagem não disponível neste navegador</div>}
+    <div className="slideshow-color-overlay" style={{ backgroundColor: background.slideshowOverlayColor ?? '#000000', opacity: background.slideshowOverlayOpacity ?? 0 }} />
+    {background.slideshowLoop === false && slideIndex === order.length - 1 && <span className="slideshow-complete-marker" />}
   </div>
 }
 
@@ -3759,6 +4790,7 @@ function OverlayView() {
   return <div className="overlay-output" aria-label={`Overlay: ${activeScene.name}`} style={sceneBackgroundStyle(activeScene)}>
     <ExternalFontLoader project={project} />
     {activeScene.background?.mode === 'animated' && <AnimatedBackgroundLayer background={activeScene.background} />}
+    {activeScene.background?.mode === 'slideshow' && <BackgroundSlideshowLayer background={activeScene.background} />}
     {activeScene.background?.mode === 'video' && <BackgroundVideoLayer background={activeScene.background} />}
     {activeScene.background?.mode === 'screen' && <ScreenCaptureView variant="background" captureKey={`background:${activeScene.id}`} />}
     {activeScene.sources.filter((source) => source.visible).map((source, index) => <div key={source.id} className={`overlay-object overlay-${source.type} ${source.type === 'shape' ? `shape-${source.shapeKind ?? 'rectangle'}` : ''}`} style={sourceStyle(source, index)}>

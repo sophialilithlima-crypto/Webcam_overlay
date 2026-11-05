@@ -1,0 +1,27 @@
+{
+  "format": "webcam-overlay-animated-theme",
+  "version": 1,
+  "name": "Tema Livre",
+  "settings": {
+    "animatedTheme": "custom",
+    "color": "#111827",
+    "color2": "#24143f",
+    "angle": 135,
+    "animatedAccent": "#a78bfa",
+    "animatedSpeed": 1.0,
+    "animatedIntensity": 0.75,
+    "animatedBlur": 24,
+    "animatedGlow": 0.7,
+    "animatedGrain": 0.08,
+    "animatedVignette": 0.2,
+    "animatedDensity": 1.2,
+    "animatedScale": 1.0,
+    "animatedDirection": "alternate",
+    "animatedLayers": "rich",
+    "animatedBrightness": 1.0,
+    "animatedContrast": 1.05,
+    "animatedSaturation": 1.1,
+    "animatedHueRotate": 0,
+    "animatedBlendMode": "screen"
+  }
+}

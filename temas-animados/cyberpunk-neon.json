@@ -1,0 +1,27 @@
+{
+  "format": "webcam-overlay-animated-theme",
+  "version": 1,
+  "name": "Cyberpunk Neon",
+  "settings": {
+    "animatedTheme": "cyber-grid",
+    "color": "#061226",
+    "color2": "#101027",
+    "angle": 135,
+    "animatedAccent": "#00F5D4",
+    "animatedSpeed": 1.25,
+    "animatedIntensity": 0.82,
+    "animatedBlur": 18,
+    "animatedGlow": 0.75,
+    "animatedGrain": 0.04,
+    "animatedVignette": 0.3,
+    "animatedDensity": 1.2,
+    "animatedScale": 1.0,
+    "animatedDirection": "normal",
+    "animatedLayers": "rich",
+    "animatedBrightness": 1.0,
+    "animatedContrast": 1.05,
+    "animatedSaturation": 1.1,
+    "animatedHueRotate": 0,
+    "animatedBlendMode": "screen"
+  }
+}
