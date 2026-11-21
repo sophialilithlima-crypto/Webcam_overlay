@@ -6,9 +6,9 @@ O Webcam_overlay é um projeto em desenvolvimento que busca tornar a criação d
 
 O projeto funciona como um complemento ao OBS Studio: ele cria a composição visual e disponibiliza uma página de overlay que pode ser exibida pelo recurso **Browser Source (Fonte de navegador)** do OBS. Ele não substitui o OBS e não realiza a transmissão de áudio ou vídeo por conta própria.
 
-> **Status:** protótipo funcional para edição local — versão 3.3.0. Algumas informações exibidas pelos widgets são demonstrativas e as funções que dependem do relay precisam ser executadas localmente.
+> **Status:** protótipo funcional para edição local — Algumas informações exibidas pelos widgets são demonstrativas e as funções que dependem do relay precisam ser executadas localmente.
 
-**[Repositório no GitHub](https://github.com/sophialilithlima-crypto/Webcam_overlay)** · **[Demonstração da interface no GitHub Pages](https://sophialilithlima-crypto.github.io/Webcam_overlay/)**
+ **[Demonstração da interface no GitHub Pages](https://sophialilithlima-crypto.github.io/Webcam_overlay/)**
 
 > A demonstração do GitHub Pages é uma versão estática da interface. Para usar a integração local com o OBS, captura de mídia e sincronização entre editor e Browser Source, siga as instruções de execução local deste README.
 
