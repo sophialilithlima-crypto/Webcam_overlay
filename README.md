@@ -1,167 +1,217 @@
-# Webcam_overlay Studio 3.3.0
+# Webcam_overlay Studio
 
-**Editor visual de overlays e widgets para usar com o OBS Studio.**
+**Editor visual de cenas, overlays e widgets personalizáveis para OBS Studio.**
 
-O Webcam_overlay foi pensado para ficar entre dois extremos: oferecer mais liberdade de personalização do que uma fonte de texto/imagem configurada manualmente no OBS, sem exigir a estrutura pesada de um estúdio de produção completo. A montagem é visual; os controles avançados aparecem somente quando o elemento selecionado precisa deles.
+O Webcam_overlay é um projeto em desenvolvimento que busca tornar a criação de overlays de transmissão mais simples e flexível. A proposta é oferecer uma experiência visual de edição, com liberdade para organizar e personalizar elementos, sem transformar a configuração em um processo complexo.
 
-> **Estado atual:** protótipo funcional de edição local. A saída é uma página que pode ser carregada pela Browser Source do OBS; o aplicativo ainda não codifica nem envia uma transmissão para Twitch, YouTube ou outras plataformas. Chat, alertas, metas e métricas usam dados demonstrativos quando não há uma integração real conectada.
+O projeto funciona como um complemento ao OBS Studio: ele cria a composição visual e disponibiliza uma página de overlay que pode ser exibida pelo recurso **Browser Source (Fonte de navegador)** do OBS. Ele não substitui o OBS e não realiza a transmissão de áudio ou vídeo por conta própria.
 
-### Melhorias da versão 3.3.0
+> **Status:** protótipo funcional para edição local — versão 3.3.0. Algumas informações exibidas pelos widgets são demonstrativas e as funções que dependem do relay precisam ser executadas localmente.
 
-- Indicador de salvamento local com estado visível durante a edição e horário do último salvamento confirmado.
-- Indicador separado do relay local: informa se o serviço de sincronização está conectado, reconectando ou indisponível. Ele não afirma que o OBS está transmitindo; apenas mostra o estado da conexão local do editor.
-- Guias de composição com linhas de terços e centro, além de margens de área segura de 5%/10%, sem aparecerem na saída final do overlay.
-- Bloqueio e desbloqueio de movimento diretamente na lista de camadas, sem precisar abrir as propriedades do elemento.
-- Correção de três declarações TypeScript não utilizadas que impediam a compilação estrita.
+**[Repositório no GitHub](https://github.com/sophialilithlima-crypto/Webcam_overlay)** · **[Demonstração da interface no GitHub Pages](https://sophialilithlima-crypto.github.io/Webcam_overlay/)**
 
-## O que você pode criar
+> A demonstração do GitHub Pages é uma versão estática da interface. Para usar a integração local com o OBS, captura de mídia e sincronização entre editor e Browser Source, siga as instruções de execução local deste README.
 
-### Cenas e camadas
+---
+
+## Objetivo do projeto
+
+O Webcam_overlay foi pensado para ocupar um meio-termo entre a configuração manual de fontes no OBS e plataformas de produção mais completas. A ideia é permitir que streamers criem composições próprias usando controles visuais, elementos reutilizáveis e modelos que funcionam como ponto de partida — não como limites de personalização.
+
+As prioridades do projeto são:
+
+- **Personalização:** ajustar aparência, posição e comportamento dos elementos sem editar CSS manualmente.
+- **Praticidade:** reunir cenas, camadas, widgets e mídias em um único editor.
+- **Leveza:** manter o foco na criação de overlays, sem tentar substituir as ferramentas de transmissão.
+- **Integração com OBS:** exibir a composição por meio de uma Browser Source.
+
+## Recursos
+
+### Editor de cenas e camadas
 
 - Criar, renomear, duplicar e remover cenas.
 - Adicionar texto, formas, imagens, GIFs, vídeos, webcam, captura de tela/janela, páginas incorporadas e widgets.
-- Arrastar e redimensionar fontes na prévia.
-- Ocultar, bloquear, duplicar, remover e ordenar camadas.
+- Mover e redimensionar elementos diretamente na prévia.
 - Ajustar posição, dimensões, rotação, opacidade, alinhamento, bordas e sombras.
-- Desfazer/refazer, salvar localmente e importar/exportar projetos JSON.
+- Ocultar, bloquear, duplicar, remover e reorganizar camadas.
+- Desfazer/refazer alterações e salvar projetos no armazenamento do navegador.
+- Importar e exportar projetos em JSON.
 
-### Barra de metas com composição livre
+### Widgets personalizáveis
 
-A barra de metas não fica presa aos modelos visuais. Ative **Montar minha barra de meta** em **Elemento → Aparência** para editar as partes de modo independente:
+O editor inclui elementos para compor uma transmissão, como:
 
-- título, descrição, valor atual, separador, meta, percentual e texto auxiliar;
-- barra de progresso, formas, ícones e imagens importadas;
-- selecionar cada parte pela lista de composição e editar suas propriedades; a prévia permite mover e redimensionar a barra inteira sem interferir nos textos e valores;
-- ajustar X/Y, largura/altura, ordem, visibilidade e duplicação;
-- configurar fontes, tamanho, peso, itálico, alinhamentos horizontal/vertical, espaçamento, transformação, cor, transparência, sombra, fundo, borda, raio, rotação e gradientes para formas.
-
-É possível deixar o valor atual e a meta separados, colocar qualquer parte nos cantos, sobrepor o texto ao preenchimento e colocar um logo ou ornamento importado dentro da composição. Há um limite de segurança de 100 partes por barra para evitar que um projeto enorme deixe a interface lenta.
-
-### Chat personalizável
-
-- Mostrar o nome de usuário dentro do mesmo balão da mensagem ou em uma etiqueta separada.
-- Alterar cores de nomes e balões individualmente para os participantes de demonstração.
-- Ajustar transparência do fundo geral, cor/opacidade dos balões, arredondamento, borda, preenchimento, sombra, fonte, tamanho, peso, altura de linha, espaçamento e alinhamento.
-- Escolher o número de mensagens visíveis e mostrar/ocultar horários e emblemas.
-
-As cores individuais são associadas aos nomes configurados no widget. Quando o chat real for integrado, essa mesma configuração poderá ser aplicada aos nomes recebidos; por enquanto, as mensagens exibidas são locais demonstrativas.
-
-### Redes sociais editáveis
-
-- Adicionar, remover, reordenar e renomear plataformas.
-- Editar o nome do perfil ou identificador.
-- Usar um ícone padrão sugerido para plataformas comuns, informar a URL de um logo ou importar uma imagem local.
-- Ajustar a cor de reserva do ícone e o estilo geral do widget.
-
-Os ícones sugeridos são carregados por URL externa e precisam de conexão com a internet. Para usar um logo próprio/offline, importe o arquivo. Respeite os direitos de uso e as regras de marca de cada plataforma.
-
-### Molduras de webcam
-
-Escolha um estilo predefinido ou importe uma moldura própria, preferencialmente em PNG/WebP com transparência. A imagem pode ser aplicada por arquivo ou URL e fica sobreposta à fonte de webcam. O widget tem controles visuais de bordas, cantos, rótulo e cores.
-
-### Widgets incluídos
-
-- Alertas de evento.
-- Caixa de chat e atividade recente.
+- Chat e atividade recente.
+- Alertas de eventos.
 - Barra de metas e último apoiador.
-- Redes sociais.
+- Redes sociais e faixa de avisos.
 - Relógio e contagem regressiva.
 - Status ao vivo e contador demonstrativo de espectadores.
-- Faixa de avisos e widget de música.
-- Enquete e ranking de apoiadores.
-- Patrocinador/marca.
-- Moldura de webcam.
-- Jarra de apoio e chefe da transmissão.
+- Música, enquete e ranking de apoiadores.
+- Patrocinador/marca, moldura de webcam, jarra de apoio e chefe da transmissão.
 
-Cada widget tem um conjunto de controles adequado à sua função, além das opções visuais compartilhadas: modelo visual inicial, cor de destaque, cores, fundo/transparência, tipografia, borda, raio, espaçamento, ícones, sombras, animação e modo compacto.
+Cada widget disponibiliza controles visuais adequados à sua função. As opções gerais podem incluir cores, fundo e transparência, tipografia, bordas, espaçamento, ícones, sombras, animações e modo compacto.
 
-### Fundos e mídia
+### Composição livre da barra de metas
 
-O fundo de uma cena pode ser transparente, cor sólida, gradiente, imagem, vídeo, captura de tela/janela, carrossel de imagens ou tema animado.
+A barra de metas pode ser montada com partes independentes, em vez de ficar limitada a modelos predefinidos. É possível organizar título, descrição, valor atual, meta, percentual, barra de progresso, formas, ícones e imagens. Cada parte pode ter posição, tamanho, ordem, visibilidade e estilo próprios.
 
-**Carrossel:** importe várias imagens, reordene, acrescente/substitua fotos, escolha intervalo de exibição, loop, ordem aleatória, transição e duração, encaixe, ponto focal, zoom, efeito Ken Burns, opacidade, brilho, contraste, saturação, matiz, desfoque e sobreposição.
+### Chat e redes sociais
 
-**Vídeos e banners animados:** é possível importar sequências de clipes como uma única fonte. Os controles disponíveis incluem corte inicial/final, ordem dos clipes, loop, silêncio, volume, velocidade, enquadramento, posição, brilho, contraste, saturação e matiz. Vídeos locais são guardados no IndexedDB e podem ser incluídos em um projeto JSON exportado, dentro dos limites de tamanho.
+- No chat, o nome pode aparecer no mesmo balão da mensagem ou em uma etiqueta separada.
+- É possível configurar cores dos nomes e balões, transparência, bordas, preenchimento, sombras, fontes, espaçamento e quantidade de mensagens visíveis.
+- Nas redes sociais, é possível adicionar, remover, reordenar e renomear plataformas, editar identificadores e usar ícones sugeridos ou logos próprios.
 
-**Temas animados:** há estilos como aurora, espaço estrelado, cyberpunk, ondas, gradiente líquido, chuva Matrix, lava, bokeh, nuvens, pulso elétrico, partículas, laser, oceano e prisma. Os temas compartilham controles de cores, velocidade, intensidade, desfoque, glow, textura, vinheta, densidade, escala, direção, camadas, brilho, contraste, saturação, matiz e modo de mistura. Os temas podem ser importados/exportados em JSON sem executar código arbitrário.
+### Webcam, fundos e mídia
 
-### Captura de tela e webcam
+- Molduras de webcam predefinidas ou importadas.
+- Fundos transparentes, sólidos, em gradiente, imagens e vídeos.
+- Carrossel de imagens com opções de intervalo, ordem, loop, transição e enquadramento.
+- Sequências de vídeos em uma única fonte, com controles de corte, ordem, loop, volume, velocidade e enquadramento.
+- Temas animados importáveis/exportáveis em JSON, com estilos como aurora, espaço, cyberpunk, ondas, partículas e outros.
 
-Uma fonte de captura permite escolher uma tela/monitor, janela ou aba por meio do seletor nativo do navegador. É preciso clicar para iniciar e autorizar o compartilhamento; o navegador não permite captura silenciosa. A captura é temporária e não é salva no projeto JSON.
+### Captura e sincronização
 
-A webcam também exige autorização explícita. A versão atual captura a imagem, mas não integra áudio da webcam.
+O editor pode solicitar acesso à webcam e à captura de tela, janela ou aba por meio das permissões do navegador. A seleção e autorização são feitas pelo usuário; o navegador não permite captura silenciosa.
 
-## Instalação e execução local
+Na execução local, um relay conecta o editor à Browser Source e auxilia na sincronização do projeto e na comunicação de captura entre contextos do navegador.
 
-### Requisitos
+### Melhorias da versão 3.3.0
 
-- Node.js compatível com Vite 8 (Node.js 22.12+ ou versão 24 é recomendado).
+- Indicador de salvamento local e horário do último salvamento confirmado.
+- Indicador próprio para o estado do relay local, separado do estado de transmissão do OBS.
+- Guias opcionais de centro, terços e margens de área segura de 5% e 10% na prévia do editor.
+- Bloqueio e desbloqueio de movimento diretamente na lista de camadas.
+- Correções para permitir a compilação TypeScript em modo estrito.
+
+Consulte o [CHANGELOG](CHANGELOG.md) para ver o histórico de versões.
+
+---
+
+## Tecnologias
+
+- [React 19](https://react.dev/)
+- [TypeScript](https://www.typescriptlang.org/)
+- [Vite 8](https://vite.dev/)
+- [WebSocket (`ws`)](https://github.com/websockets/ws) para o relay local
+
+## Requisitos
+
+- Node.js 22.12 ou superior (Node.js 24 é recomendado).
 - npm.
-- Chrome, Edge ou outro navegador recente.
+- Navegador atualizado, como Chrome ou Edge.
+- OBS Studio para exibir a composição durante uma transmissão.
 
-### Instalar e iniciar
+## Como executar localmente
 
-Abra a pasta do projeto no VS Code e execute:
+Clone o repositório e entre na pasta do projeto:
 
-```powershell
+```bash
+git clone https://github.com/sophialilithlima-crypto/Webcam_overlay.git
+cd Webcam_overlay
+```
+
+Instale as dependências e inicie o editor:
+
+```bash
 npm install
 npm run dev
 ```
 
-O script `npm run dev` inicia o servidor de desenvolvimento Vite e o relay local de mídia/sinalização. A página do editor costuma estar em `http://127.0.0.1:5173/`; o relay WebSocket usa `127.0.0.1:4174`.
+O comando `npm run dev` inicia o servidor Vite e o relay local. Acesse o editor em:
 
-### Usar com o OBS
+```text
+http://127.0.0.1:5173/
+```
 
-1. Deixe `npm run dev` em execução.
-2. No OBS, adicione uma fonte **Navegador (Browser Source)**.
-3. Use esta URL:
+Mantenha o terminal aberto enquanto estiver usando o editor e a Browser Source. Por padrão, o editor usa a porta `5173` e o relay WebSocket local usa a porta `4174`.
+
+### Atalho no Windows
+
+Também é possível iniciar o projeto pelo arquivo `INICIAR-WINDOWS.bat`, localizado na raiz do repositório. Ele verifica/instala as dependências e executa o servidor local.
+
+## Como usar no OBS Studio
+
+1. Inicie o projeto com `npm run dev` e mantenha o terminal aberto.
+2. No OBS Studio, adicione uma fonte **Navegador (Browser Source / Fonte de navegador)**.
+3. Informe a URL abaixo:
 
    ```text
    http://127.0.0.1:5173/?mode=overlay
    ```
 
-4. Configure a resolução conforme sua cena, por exemplo, 1920 × 1080.
-5. Edite cenas no editor mantendo o servidor ativo.
+4. Configure a largura e a altura de acordo com a sua cena. Por exemplo, `1920 × 1080`.
+5. Edite as cenas no Webcam_overlay. A Browser Source usa a composição sincronizada pelo relay local.
 
-O compartilhamento entre o editor e a Browser Source utiliza o relay local; essa arquitetura é um protótipo de desenvolvimento, não um serviço público hospedado. A tela/janela ainda precisa ser selecionada manualmente no editor. Para usar a saída em outra máquina ou em um site estático, será necessário projetar e proteger um relay remoto.
+A integração descrita aqui é feita por uma página de navegador e um serviço local; o Webcam_overlay ainda não é um plugin nativo instalado dentro do OBS.
 
-### Testar a compilação
+## Compilação e pré-visualização
 
-```powershell
+Para verificar os tipos e gerar a versão de produção:
+
+```bash
 npm run build
 ```
 
-Para ver a saída local de produção:
+Para abrir uma prévia local dos arquivos compilados:
 
-```powershell
+```bash
 npm run preview
 ```
 
-Atenção: o `preview` isolado não inicia o relay. Para o teste atual com captura/mídias sincronizadas no OBS, use `npm run dev`.
+**Observação:** `npm run preview` serve os arquivos compilados, mas não inicia o relay local. Para testar a integração completa com a Browser Source, use `npm run dev`.
 
-## Projetos, importação e backups
+## Publicação no GitHub Pages
 
-- O projeto é salvo no armazenamento do navegador.
-- Exporte o projeto como JSON antes de limpar os dados do navegador ou redefinir o projeto.
-- Importar uma imagem achatada (PNG/JPG com todos os elementos unidos) continua sendo uma única camada; para editar partes individuais, importe os assets separadamente ou use a barra de metas em composição livre.
-- Os estilos de widgets e os temas animados podem ser exportados/importados em JSON.
-- Imagens locais são limitadas para evitar ultrapassar o armazenamento do navegador; vídeos usam IndexedDB. Um JSON exportado com muitos arquivos pode ficar grande.
+O repositório inclui um workflow em `.github/workflows/deploy.yml`. Quando há um push para a branch `main`, o GitHub Actions instala as dependências, executa `npm run build` e publica a pasta `dist` no GitHub Pages. O workflow também pode ser iniciado manualmente pela aba **Actions**.
 
-## Limitações atuais
+Para habilitar a publicação:
 
-- O projeto ainda não codifica nem transmite áudio/vídeo diretamente para serviços de streaming.
-- Chat, alertas, novos seguidores, espectadores, eventos, metas, votações e rankings são demonstrativos enquanto as integrações oficiais não forem implementadas.
-- A compatibilidade de vídeo depende do navegador e do codec; MP4/H.264 e WebM/VP8/VP9 são escolhas comuns.
-- URLs externas podem falhar por CORS, autenticação, bloqueio de incorporação ou indisponibilidade do site.
-- A captura de tela exige `localhost`/HTTPS e permissão do usuário.
-- A conexão do overlay ao OBS depende do relay local e precisa ser testada no ambiente real; ainda não é um plugin nativo instalado dentro do OBS.
+1. Abra o repositório no GitHub.
+2. Acesse **Settings → Pages**.
+3. Em **Build and deployment**, selecione **GitHub Actions** como origem da publicação.
+4. Envie as alterações para a branch `main` ou execute manualmente o workflow pela aba **Actions**.
+5. Aguarde o workflow terminar sem erros. O endereço do Pages aparecerá em **Settings → Pages**.
 
-## Direção do projeto
+O endereço esperado para este repositório é:
 
-A meta é oferecer um editor de overlays flexível, visual e leve: modelos prontos servem apenas como ponto de partida; o usuário pode reorganizar e estilizar componentes, importar assets próprios e exportar composições reutilizáveis. A prioridade do desenvolvimento é estabilizar o fluxo de edição e integração com o OBS antes de adicionar sistemas pesados ou integrações de plataforma.
+```text
+https://sophialilithlima-crypto.github.io/Webcam_overlay/
+```
 
-## Seleção no editor
+**Importante:** GitHub Pages hospeda arquivos estáticos; ele não executa o servidor Node.js nem o relay local do projeto. Portanto, o link público serve para apresentar a interface, mas não disponibiliza por si só a sincronização local com o OBS, captura de tela ou outros recursos que dependem do relay. Para esses recursos, execute o projeto no próprio computador seguindo as instruções acima.
 
-O editor começa sem elementos selecionados. A seleção é exclusiva: ao clicar em outra camada, a seleção anterior é removida; ao clicar numa área vazia da prévia ou mudar para as abas Camadas, Fundo ou Tela, a seleção é limpa. As partes da barra de metas só ficam realçadas dentro do widget atualmente selecionado.
+---
 
-A seleção é exclusiva: clicar em outra fonte substitui a seleção anterior. As guias da prévia são auxiliares de edição e não são enviadas para a Browser Source.
+## Dados, armazenamento e arquivos
+
+- As configurações e os projetos são mantidos no armazenamento do navegador utilizado.
+- Exporte um backup JSON antes de limpar os dados do navegador ou trocar de dispositivo.
+- Vídeos locais são mantidos no IndexedDB e podem aumentar o tamanho do projeto exportado.
+- A captura de tela/janela é temporária e exige autorização do usuário; ela não é incluída no projeto JSON.
+- URLs externas podem depender de conexão com a internet e podem falhar por CORS, autenticação, bloqueio de incorporação ou indisponibilidade do serviço.
+- O relay local mantém mídias em memória durante a execução e tem limites de tamanho; ele não é um armazenamento remoto permanente.
+
+## Limitações conhecidas
+
+O Webcam_overlay ainda está em desenvolvimento. Nesta versão:
+
+- O projeto não codifica nem transmite áudio/vídeo para Twitch, YouTube ou outros serviços.
+- Chat, alertas, novos seguidores, espectadores, eventos, metas, enquetes e rankings são demonstrativos enquanto integrações reais não forem implementadas.
+- A conexão com a Browser Source depende do relay local em execução.
+- O suporte a vídeo depende do navegador e dos codecs disponíveis.
+- A captura de tela requer `localhost` ou HTTPS e permissão explícita do usuário.
+- A captura de webcam disponibiliza imagem, mas ainda não integra o áudio da webcam.
+- O projeto não é um plugin nativo do OBS.
+
+## Contribuições e sugestões
+
+Sugestões, relatos de bugs e propostas de melhoria são bem-vindos. Ao abrir uma issue, descreva o comportamento esperado, o que aconteceu e, quando possível, inclua os passos para reproduzir o problema e mensagens relevantes do console.
+
+## Licença
+
+Este repositório ainda não contém um arquivo `LICENSE`. A publicação do código no GitHub não significa, por si só, que ele pode ser reutilizado, redistribuído ou modificado por terceiros. Uma licença deverá ser adicionada quando os termos de uso e distribuição forem definidos.
+
+---
+
+**Webcam_overlay Studio 3.3.0** · Projeto em desenvolvimento
